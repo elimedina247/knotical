@@ -9,8 +9,9 @@ namespace Knotical.Ocean;
 /// vertices sliding through the wave field as you sail — without it the whole surface
 /// crawls. Levels overlap rather than tiling edge-to-edge: because displacement is a
 /// pure function of world XZ, two grids agree wherever they overlap, so there are no
-/// seams to stitch. Each successive level sits a few centimetres lower purely to stop
-/// z-fighting in the overlap.
+/// seams to stitch. Each outer level discards fragments over the region its finer
+/// neighbour covers, so a coarse grid is simply never drawn where a fine one exists;
+/// the small vertical stagger only prevents z-fighting in the thin hand-over ring.
 /// </summary>
 [GlobalClass]
 public partial class OceanSurface : Node3D
@@ -24,7 +25,7 @@ public partial class OceanSurface : Node3D
     /// 2 * extent / CellsPerLevel — so 256 m over 256 cells gives 2 m cells.
     /// </summary>
     [Export]
-    public float[] LevelExtents { get; set; } = { 256f, 1024f, 4096f };
+    public float[] LevelExtents { get; set; } = { 256f, 1024f, 4096f, 8192f };
 
     [Export] public Shader OceanShader { get; set; }
 
@@ -37,7 +38,13 @@ public partial class OceanSurface : Node3D
     private readonly System.Collections.Generic.List<MeshInstance3D> _levels = new();
     private ShaderMaterial _material;
     private Camera3D _camera;
-    private bool _uniformsPushed;
+    private bool _skeletonPushed;
+
+    // Reused every frame. Godot maps untyped arrays onto fixed-size shader array uniforms
+    // the same way a GDScript array literal does, and rebuilding them each frame would
+    // allocate 48 boxed values per frame for nothing.
+    private readonly Godot.Collections.Array _packedWaves = new();
+    private readonly Godot.Collections.Array _packedPhases = new();
 
     public override void _Ready()
     {
@@ -48,6 +55,11 @@ public partial class OceanSurface : Node3D
             Shader = OceanShader ?? GD.Load<Shader>("res://shaders/ocean.gdshader")
         };
 
+        // The shader declares fixed-size arrays, so always send a full set with the
+        // unused tail zeroed rather than a short array.
+        _packedWaves.Resize(OceanSettings.MaxWaves);
+        _packedPhases.Resize(OceanSettings.MaxWaves);
+
         for (int i = 0; i < LevelExtents.Length; i++)
         {
             var instance = new MeshInstance3D
@@ -55,11 +67,11 @@ public partial class OceanSurface : Node3D
                 Name = $"OceanLevel{i}",
                 Mesh = BuildGrid(LevelExtents[i], CellsPerLevel),
                 MaterialOverride = _material,
-                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
-                Position = new Vector3(0f, -0.05f * i, 0f)
+                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off
             };
 
             AddChild(instance);
+            instance.SetInstanceShaderParameter("inner_extent", i == 0 ? 0f : LevelExtents[i - 1] * 0.95f);
             _levels.Add(instance);
         }
 
@@ -68,9 +80,11 @@ public partial class OceanSurface : Node3D
 
     public override void _Process(double delta)
     {
-        // Ocean is an autoload so it is normally ready first, but retry rather than
-        // silently rendering a flat plane if scene order ever changes.
-        if (!_uniformsPushed) PushWaveUniforms();
+        // Amplitudes are re-solved from the wind every frame, so this is no longer a
+        // one-shot. Ocean is an autoload and so normally ready first, but PushWaveUniforms
+        // retries the skeleton rather than silently rendering a flat plane if scene order
+        // ever changes.
+        PushWaveUniforms();
 
         _camera ??= GetViewport().GetCamera3D();
         if (_camera == null) return;
@@ -88,32 +102,55 @@ public partial class OceanSurface : Node3D
         }
 
         _material.SetShaderParameter("wave_time", (float)(Ocean.Instance?.Time ?? 0.0));
+
+        float submerged = 0f;
+        if (Ocean.Instance != null && eye.Y < Ocean.Instance.GetHeight(new Vector2(eye.X, eye.Z)))
+        {
+            submerged = 1f;
+        }
+
+        _material.SetShaderParameter("camera_submerged", submerged);
     }
 
-    /// <summary>Call after editing OceanSettings so the shader picks up the new spectrum.</summary>
+    /// <summary>
+    /// Ships the live spectrum to the shader. Safe to call every frame — the unchanging
+    /// half (phases, count) is only pushed once, and the rest is 24 vectors.
+    /// </summary>
     public void PushWaveUniforms()
     {
         Ocean ocean = Ocean.Instance;
         if (ocean == null || _material == null) return;
 
-        // The shader declares fixed-size arrays, so always send a full set with the
-        // unused tail zeroed rather than a short array.
-        // Untyped arrays: Godot maps these onto fixed-size shader array uniforms the
-        // same way a GDScript array literal does.
-        var packed = new Godot.Collections.Array();
-        var phases = new Godot.Collections.Array();
-        for (int i = 0; i < OceanSettings.MaxWaves; i++)
+        if (!_skeletonPushed)
         {
-            packed.Add(i < ocean.Waves.Length ? ocean.Waves[i] : Vector4.Zero);
-            phases.Add(i < ocean.Phases.Length ? ocean.Phases[i] : 0f);
+            for (int i = 0; i < OceanSettings.MaxWaves; i++)
+            {
+                _packedPhases[i] = i < ocean.Phases.Length ? ocean.Phases[i] : 0f;
+            }
+
+            _material.SetShaderParameter("wave_phase", _packedPhases);
+            _material.SetShaderParameter("wave_count", ocean.Waves.Length);
+            _skeletonPushed = true;
         }
 
-        _material.SetShaderParameter("waves", packed);
-        _material.SetShaderParameter("wave_phase", phases);
-        _material.SetShaderParameter("wave_count", ocean.Waves.Length);
+        for (int i = 0; i < OceanSettings.MaxWaves; i++)
+        {
+            _packedWaves[i] = i < ocean.Waves.Length ? ocean.Waves[i] : Vector4.Zero;
+        }
+
+        _material.SetShaderParameter("waves", _packedWaves);
+        _material.SetShaderParameter("ka_sum", ocean.SteepnessNormaliser);
         _material.SetShaderParameter("steepness", ocean.Settings.Steepness);
-        _uniformsPushed = true;
+        _material.SetShaderParameter("significant_height", ocean.SignificantHeight);
+
+        if (Knotical.Sky.DayCycle.Instance != null)
+        {
+            _material.SetShaderParameter("sky_color", Knotical.Sky.DayCycle.Instance.WaterHorizonColor);
+        }
     }
+
+    /// <summary>Call after rebuilding the skeleton so phases and count are re-sent.</summary>
+    public void InvalidateSkeleton() => _skeletonPushed = false;
 
     /// <summary>
     /// Flat grid centred on the origin. The vertex shader supplies all displacement,

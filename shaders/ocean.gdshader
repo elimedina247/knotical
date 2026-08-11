@@ -18,26 +18,42 @@ uniform int wave_count = 16;
 uniform float wave_time = 0.0;
 uniform float steepness : hint_range(0.0, 1.0) = 0.55;
 
+// Sum of k*amplitude over the live spectrum, supplied by Ocean.cs. Normalising the
+// Gerstner pinch by this — rather than by each wave's own amplitude — is what lets a
+// component's horizontal displacement vanish as the wind takes its height away.
+uniform float ka_sum = 1.0;
+
+instance uniform float inner_extent = 0.0;
+
+uniform float camera_submerged = 0.0;
+
+uniform float significant_height = 2.0;
+
 uniform vec3 deep_color : source_color = vec3(0.055, 0.235, 0.400);
 uniform vec3 shallow_color : source_color = vec3(0.145, 0.545, 0.706);
-uniform vec3 crest_color : source_color = vec3(0.325, 0.729, 0.847);
 uniform vec3 sky_color : source_color = vec3(0.651, 0.855, 0.933);
 uniform vec3 foam_color : source_color = vec3(1.0, 1.0, 1.0);
 
+uniform float depth_contrast : hint_range(0.0, 1.0) = 0.55;
+
 // Foam appears where the surface folds, not where it is tall. Raise to make
 // whitecaps rarer; the useful range is narrow because folding is rare by nature.
-uniform float foam_threshold : hint_range(0.0, 0.6, 0.005) = 0.26;
-uniform float foam_softness : hint_range(0.0, 0.4, 0.005) = 0.06;
-uniform float foam_noise_scale : hint_range(0.01, 1.0) = 0.14;
+uniform float foam_threshold : hint_range(0.0, 0.6, 0.005) = 0.24;
+uniform float foam_softness : hint_range(0.0, 0.4, 0.005) = 0.04;
+uniform float foam_noise_scale : hint_range(0.01, 1.0) = 0.10;
 
 uniform float fresnel_power : hint_range(0.5, 8.0) = 4.0;
 uniform float fresnel_max : hint_range(0.0, 1.0) = 0.82;
+
+uniform float detail_scale : hint_range(0.05, 2.0) = 0.35;
+uniform float detail_strength : hint_range(0.0, 1.0) = 0.35;
+uniform float detail_far : hint_range(50.0, 2000.0) = 600.0;
 
 const float GRAVITY = 9.81;
 
 varying vec3 v_world_pos;
 varying vec3 v_world_normal;
-varying float v_crest;   // 0 at trough, 1 at peak
+varying float v_height;
 varying float v_fold;    // Gerstner compression; high where the surface pinches
 
 // --- cheap value noise, used only for breaking up shading edges ------------
@@ -76,13 +92,17 @@ void vertex() {
     float height = 0.0;
     vec2 pinch = vec2(0.0);
     vec2 slope = vec2(0.0);
-    float amplitude_total = 0.0;
 
     // Jacobian of the horizontal displacement. Where this collapses toward zero the
     // surface is folding over itself, which is physically where whitecaps form.
     float jxx = 0.0;
     float jxz = 0.0;
     float jzz = 0.0;
+
+    // Loop-invariant: every component shares one steepness budget, divided between them
+    // in proportion to k*amp. The total sum of k*a*q then lands exactly on `steepness`,
+    // and steepness < 1 is the condition for the surface never looping through itself.
+    float q = steepness / max(ka_sum, 0.0001);
 
     for (int i = 0; i < wave_count; i++) {
         vec2 dir = waves[i].xy;
@@ -104,8 +124,6 @@ void vertex() {
 
         height += amp * s;
 
-        // Normalised so crests sharpen without the surface looping through itself
-        float q = steepness / (k * max(amp, 0.0001) * float(wave_count));
         pinch += q * amp * dir * c;
 
         float qak = q * amp * k;
@@ -114,32 +132,49 @@ void vertex() {
         jzz += qak * dir.y * dir.y * s;
 
         slope += dir * (amp * k * c);
-        amplitude_total += amp;
     }
 
     pos.y += height;
     pos.xz += pinch;
     VERTEX = pos;
 
+    vec3 tangent_x = vec3(1.0 - jxx, slope.x, -jxz);
+    vec3 tangent_z = vec3(-jxz, slope.y, 1.0 - jzz);
+
     v_world_pos = pos;
-    v_world_normal = normalize(vec3(-slope.x, 1.0, -slope.y));
-    v_crest = amplitude_total > 0.0001
-        ? clamp(height / amplitude_total * 0.5 + 0.5, 0.0, 1.0)
-        : 0.5;
+    v_world_normal = normalize(cross(tangent_z, tangent_x));
+    v_height = height / max(significant_height, 0.01);
 
     float jacobian = (1.0 - jxx) * (1.0 - jzz) - jxz * jxz;
     v_fold = clamp(1.0 - jacobian, 0.0, 1.0);
 }
 
 void fragment() {
-    vec3 n = normalize(v_world_normal);
-    vec3 n_view = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
+    if (inner_extent > 0.0) {
+        if (camera_submerged > 0.5 && !FRONT_FACING) {
+            discard;
+        }
+        vec2 rel = v_world_pos.xz - CAMERA_POSITION_WORLD.xz;
+        if (max(abs(rel.x), abs(rel.y)) < inner_extent) {
+            discard;
+        }
+    }
 
-    // Body colour: smooth, no floor(). Banding by wave height draws topographic
-    // contours along every crest. The stepped bands we actually want are keyed to
-    // water depth over the seabed, so they arrive with the seabed.
-    vec3 body = mix(deep_color, shallow_color, smoothstep(0.30, 0.86, v_crest));
-    body = mix(body, crest_color, smoothstep(0.74, 1.0, v_crest));
+    vec3 n = normalize(v_world_normal);
+
+    float detail_fade = 1.0 - smoothstep(detail_far * 0.25, detail_far, length(v_world_pos - CAMERA_POSITION_WORLD));
+    vec2 duv = v_world_pos.xz * detail_scale;
+    vec2 flow = vec2(wave_time * 0.55, wave_time * 0.23);
+    float eps = 0.6;
+    float d0 = fbm(duv + flow);
+    float dgx = fbm(duv + flow + vec2(eps, 0.0));
+    float dgz = fbm(duv + flow + vec2(0.0, eps));
+    vec3 n_detail = normalize(n + vec3(d0 - dgx, 0.0, d0 - dgz) * (detail_strength * detail_fade / eps));
+
+    vec3 n_view = normalize((VIEW_MATRIX * vec4(n_detail, 0.0)).xyz);
+
+    float h = v_height / (1.0 + abs(v_height));
+    vec3 body = mix(deep_color, shallow_color, 0.5 + 0.5 * h * depth_contrast);
 
     // Very low frequency tint so open water is not a single flat colour
     float tint = fbm(v_world_pos.xz * 0.0035);
@@ -152,15 +187,15 @@ void fragment() {
     // Foam: folding, modulated by drifting noise so the edge is torn rather than
     // a clean contour. Threshold stays hard — the decided edge is the art direction.
     vec2 foam_uv = v_world_pos.xz * foam_noise_scale;
-    float n1 = fbm(foam_uv + vec2(wave_time * 0.06, wave_time * -0.03));
-    float n2 = fbm(foam_uv * 2.7 - vec2(wave_time * 0.04, 0.0));
-    float foam_mask = v_fold * (0.45 + 1.25 * n1 * n2 * 2.0);
+    float patch = fbm(foam_uv + vec2(wave_time * 0.05, wave_time * -0.02));
+    float foam_mask = v_fold * v_fold * (0.9 + 0.5 * patch);
 
     float foam = smoothstep(foam_threshold, foam_threshold + foam_softness, foam_mask);
+    foam *= step(0.30, value_noise(foam_uv * 5.0 + vec2(wave_time * 0.07, 0.0)));
     col = mix(col, foam_color, foam);
 
     ALBEDO = col;
-    ROUGHNESS = mix(0.10, 0.88, foam);
+    ROUGHNESS = mix(0.14, 0.88, foam);
     METALLIC = 0.0;
     SPECULAR = mix(0.65, 0.10, foam);
     NORMAL = n_view;

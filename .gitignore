@@ -21,3 +21,6 @@ mono_crash.*.json
 
 # macOS
 .DS_Store
+
+# Visual Studio
+.vs/

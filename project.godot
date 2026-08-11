@@ -17,7 +17,9 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+Wind="*res://scripts/wind/Wind.cs"
 Ocean="*uid://whnfp2ymaikr"
+DayCycle="*res://scripts/sky/DayCycle.cs"
 
 [display]
 

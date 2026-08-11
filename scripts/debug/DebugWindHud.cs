@@ -1,0 +1,123 @@
+using Godot;
+using Knotical.Sky;
+using Knotical.Weather;
+using OceanSystem = Knotical.Ocean.Ocean;
+
+namespace Knotical.Debug;
+
+/// <summary>
+/// Throwaway readout for driving the weather by hand.
+///
+/// Exists to make the wind-to-water chain visible: change the wind, watch how long the sea
+/// takes to answer, and watch which way the crests swing. The lag between the two numbers
+/// is the interesting part — if wave height tracks wind speed instantly, the development
+/// lag is broken.
+///
+/// Arrow keys steer, T fast-forwards the weather, 0 hands control back.
+/// </summary>
+[GlobalClass]
+public partial class DebugWindHud : CanvasLayer
+{
+    /// <summary>Metres per second added or removed per second of held key.</summary>
+    [Export] public float SpeedStepPerSecond { get; set; } = 6f;
+
+    /// <summary>Degrees of heading bias applied per second of held key.</summary>
+    [Export] public float VeerStepPerSecond { get; set; } = 45f;
+
+    /// <summary>Weather time multiplier while T is held.</summary>
+    [Export] public float FastForwardScale { get; set; } = 25f;
+
+    /// <summary>Day-cycle time multiplier while Y is held.</summary>
+    [Export] public float DayFastForwardScale { get; set; } = 60f;
+
+    private static readonly string[] CompassPoints =
+    {
+        "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW",
+        "W", "WNW", "NW", "NNW", "N", "NNE", "NE", "ENE"
+    };
+
+    private Label _label;
+
+    public override void _Ready()
+    {
+        _label = new Label
+        {
+            Position = new Vector2(16f, 12f),
+            Modulate = new Color(1f, 1f, 1f, 0.92f)
+        };
+
+        _label.AddThemeFontSizeOverride("font_size", 15);
+        _label.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.8f));
+        _label.AddThemeConstantOverride("outline_size", 4);
+
+        AddChild(_label);
+    }
+
+    public override void _Process(double delta)
+    {
+        Wind wind = Wind.Instance;
+        OceanSystem ocean = OceanSystem.Instance;
+
+        if (wind == null || ocean == null)
+        {
+            _label.Text = "Wind / Ocean autoload missing";
+            return;
+        }
+
+        ReadInput(wind, (float)delta);
+
+        float headingDeg = Mathf.PosMod(Mathf.RadToDeg(wind.DirectionRad), 360f);
+        float developed = ocean.Settings.DevelopedHeight(wind.Speed);
+
+        string clock = "";
+        DayCycle cycle = DayCycle.Instance;
+        if (cycle != null)
+        {
+            float hours = Mathf.PosMod(6f + cycle.Phase * 24f, 24f);
+            int hh = (int)hours;
+            int mm = (int)((hours - hh) * 60f);
+            clock = $"TIME   {hh:00}:{mm:00}  ({(cycle.IsDay ? "day" : "night")})\n\n";
+        }
+
+        _label.Text =
+            $"WIND   {wind.Speed,5:0.0} m/s  ({wind.Speed * 1.944f,4:0.0} kn)   " +
+            $"Force {wind.BeaufortForce} — {wind.BeaufortName}\n" +
+            $"       {headingDeg,5:0}°  {Compass(headingDeg)}\n" +
+            $"\n" +
+            $"SEA    H  {ocean.SignificantHeight,5:0.00} m   (developing toward {developed,5:0.00} m)\n" +
+            $"       peak {ocean.PeakWavelength,5:0} m   steepness sum {ocean.SteepnessNormaliser,5:0.00}\n" +
+            $"\n" +
+            clock +
+            $"[Up/Down] speed   [Left/Right] veer   [T] wind ff   [Y] day ff   [0] reset";
+    }
+
+    private void ReadInput(Wind wind, float delta)
+    {
+        DayCycle cycle = DayCycle.Instance;
+        if (cycle != null)
+        {
+            cycle.DebugTimeScale = Input.IsPhysicalKeyPressed(Key.Y) ? DayFastForwardScale : 1f;
+            if (Input.IsPhysicalKeyPressed(Key.Key0)) cycle.DebugTimeScale = 1f;
+        }
+
+        if (Input.IsPhysicalKeyPressed(Key.Up)) wind.SpeedBias += SpeedStepPerSecond * delta;
+        if (Input.IsPhysicalKeyPressed(Key.Down)) wind.SpeedBias -= SpeedStepPerSecond * delta;
+        if (Input.IsPhysicalKeyPressed(Key.Left)) wind.HeadingBiasDeg -= VeerStepPerSecond * delta;
+        if (Input.IsPhysicalKeyPressed(Key.Right)) wind.HeadingBiasDeg += VeerStepPerSecond * delta;
+
+        wind.DebugTimeScale = Input.IsPhysicalKeyPressed(Key.T) ? FastForwardScale : 1f;
+
+        if (Input.IsPhysicalKeyPressed(Key.Key0)) wind.ResetOverrides();
+
+        // Speed is clamped at zero on read, so let the bias go no further negative than it
+        // needs to — otherwise winding it down parks it a long way below zero and the key
+        // appears dead on the way back up.
+        wind.SpeedBias = Mathf.Max(wind.SpeedBias, -wind.Settings.BaseSpeed * 2f);
+    }
+
+    private static string Compass(float headingDeg)
+    {
+        int index = Mathf.RoundToInt(headingDeg / 22.5f) % CompassPoints.Length;
+        return CompassPoints[index];
+    }
+}
