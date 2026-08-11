@@ -1,0 +1,173 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <title>Knotical — crow's nest POV, storm (horizon deliberately preserved)</title>
+
+  <!-- ============ SKY ============ -->
+  <rect x="0" y="0" width="1280" height="212" fill="#22314A"/>
+  <!-- heavy cloud slabs -->
+  <path d="M-20 -10 h620 v70 h-120 v34 h-500 z" fill="#151F30"/>
+  <path d="M560 -10 h740 v52 h-180 v40 h-560 z" fill="#182338"/>
+  <path d="M120 92 h420 v42 h-120 v22 h-300 z" fill="#1B2740"/>
+  <path d="M700 84 h520 v46 h-160 v24 h-360 z" fill="#1B2740"/>
+
+  <!-- lightning -->
+  <path d="M336 96 l26 -6 l-14 34 l24 -4 l-52 74 l14 -48 l-22 4 z" fill="#DCEAF5" opacity="0.9"/>
+
+  <!-- THE HORIZON IS KEPT READABLE — pale band under the cloud deck -->
+  <rect x="0" y="160" width="1280" height="30" fill="#4A6480"/>
+  <rect x="0" y="178" width="1280" height="22" fill="#7FA3BC"/>
+  <rect x="0" y="196" width="1280" height="14" fill="#A9C6D8"/>
+
+  <!-- distant landmark, barely holding on -->
+  <path d="M980 208 l22 -46 l16 18 l14 -30 l30 58 z" fill="#25384E" opacity="0.85"/>
+
+  <!-- ============ WATER ============ -->
+  <rect x="0" y="208" width="1280" height="512" fill="#132539"/>
+  <rect x="0" y="208" width="1280" height="22" fill="#3A5C7C"/>
+  <rect x="0" y="226" width="1280" height="20" fill="#27435F"/>
+
+  <!-- ============ STORM SWELL : steep, chaotic ============ -->
+  <path d="M-20 262 L110 244 L250 268 L400 242 L540 272 L700 244 L850 268 L1000 242 L1150 270 L1300 246 L1300 288 L-20 288 Z" fill="#2C5178"/>
+  <path d="M-20 282 L110 264 L250 288 L400 262 L540 292 L700 264 L850 288 L1000 262 L1150 290 L1300 266 L1300 316 L-20 316 Z" fill="#15304B"/>
+
+  <path d="M-20 330 L120 296 L280 340 L440 292 L600 346 L770 294 L930 340 L1090 296 L1300 342 L1300 372 L-20 372 Z" fill="#33608A"/>
+  <path d="M-20 356 L120 322 L280 366 L440 318 L600 372 L770 320 L930 366 L1090 322 L1300 368 L1300 412 L-20 412 Z" fill="#122C46"/>
+
+  <path d="M-20 424 L140 366 L320 440 L500 358 L680 448 L860 364 L1040 440 L1220 366 L1300 396 L1300 470 L-20 470 Z" fill="#3A6C97"/>
+  <path d="M-20 460 L140 402 L320 476 L500 394 L680 484 L860 400 L1040 476 L1220 402 L1300 432 L1300 540 L-20 540 Z" fill="#102842"/>
+
+  <path d="M-20 596 L170 476 L390 616 L610 462 L830 622 L1050 474 L1300 604 L1300 660 L-20 700 Z" fill="#42799F"/>
+  <path d="M-20 650 L170 534 L390 672 L610 520 L830 678 L1050 532 L1300 660 L1300 720 L-20 720 Z" fill="#0E2338"/>
+
+  <!-- ============ HEAVY FOAM ============ -->
+  <g fill="#FFFFFF">
+    <path d="M92 272 l64 -8 l34 10 l-58 8 z" opacity="0.8"/>
+    <path d="M386 268 l66 -8 l30 10 l-58 8 z" opacity="0.8"/>
+    <path d="M986 268 l68 -8 l32 10 l-60 8 z" opacity="0.8"/>
+    <path d="M100 306 l100 -12 l50 16 l-88 12 z" opacity="0.9"/>
+    <path d="M750 306 l104 -12 l48 16 l-90 12 z" opacity="0.9"/>
+    <path d="M1074 308 l100 -12 l50 16 l-88 12 z" opacity="0.9"/>
+    <path d="M110 378 l150 -20 l70 26 l-132 20 z"/>
+    <path d="M760 380 l152 -20 l68 26 l-134 20 z"/>
+    <path d="M126 484 l190 -28 l92 38 l-170 28 z"/>
+    <path d="M866 486 l194 -30 l88 38 l-172 30 z"/>
+    <path d="M488 476 l180 -26 l86 36 l-164 26 z"/>
+    <path d="M150 596 l240 -34 l120 52 l-216 36 z"/>
+    <path d="M1020 600 l246 -36 l114 52 l-222 38 z"/>
+    <path d="M560 588 l220 -32 l108 48 l-200 34 z"/>
+  </g>
+  <g fill="#B6D6E8">
+    <path d="M150 620 l240 -30 l90 44 l-224 32 z"/>
+    <path d="M560 612 l220 -28 l82 40 l-206 30 z"/>
+    <path d="M1020 624 l246 -32 l86 44 l-230 34 z"/>
+  </g>
+
+  <!-- spume torn off the crests -->
+  <g fill="#FFFFFF" opacity="0.45">
+    <path d="M300 556 l46 -12 l24 22 l-46 12 z"/>
+    <path d="M700 546 l44 -12 l22 22 l-44 12 z"/>
+    <path d="M1150 560 l46 -12 l24 22 l-46 12 z"/>
+    <path d="M420 452 l32 -8 l18 16 l-32 8 z"/>
+    <path d="M940 456 l32 -8 l18 16 l-32 8 z"/>
+  </g>
+
+  <!-- ============ BOAT — heeled hard, losing the cargo ============ -->
+  <g transform="translate(600 420) rotate(-25)">
+    <path d="M-98 28 L-4 -212 L100 28 L42 158 L-42 158 Z" fill="#FFFFFF" opacity="0.7"/>
+    <path d="M-90 24 L-4 -200 L92 24 L38 148 L-38 148 Z" fill="#9FC6DC" opacity="0.75"/>
+
+    <path d="M-78 22 L-4 -194 L82 22 L32 142 L-32 142 Z" fill="#5C3E26"/>
+    <path d="M-62 24 L-4 -172 L66 24 L26 126 L-26 126 Z" fill="#9E7950"/>
+    <g stroke="#84603B" stroke-width="3" opacity="0.75">
+      <path d="M-42 26 L-4 -160"/><path d="M-16 28 L0 -162"/>
+      <path d="M12 28 L8 -162"/><path d="M34 26 L16 -160"/>
+    </g>
+    <path d="M-26 126 L26 126 L18 144 L-20 144 Z" fill="#7E5E3A"/>
+
+    <!-- water sluicing across the deck -->
+    <path d="M-58 60 L40 44 L52 74 L-48 92 Z" fill="#BFE0F0" opacity="0.55"/>
+
+    <!-- snapped lashing -->
+    <g stroke="#E6D2A8" stroke-width="4" fill="none" stroke-linecap="round">
+      <path d="M-58 -30 L-6 -36"/>
+      <path d="M14 -40 L54 -46"/>
+      <path d="M-54 30 C -10 46, 40 40, 78 26"/>
+    </g>
+
+    <!-- CARGO : the piano, going over the rail -->
+    <g transform="translate(96 -34) rotate(38)">
+      <path d="M-46 -32 L26 -42 C 58 -38, 66 -6, 50 20 C 34 46, -12 52, -42 38 Z" fill="#2B2B30"/>
+      <path d="M-46 -32 L26 -42 C 52 -38, 60 -14, 48 4 L-42 16 Z" fill="#3A3A42"/>
+      <path d="M-44 -18 L18 -26 L20 -16 L-42 -8 Z" fill="#EFEAE0"/>
+      <g fill="#1B1B1F">
+        <path d="M-36 -20 l5 -1 l1 7 l-5 1 z"/><path d="M-24 -22 l5 -1 l1 7 l-5 1 z"/>
+        <path d="M-12 -23 l5 -1 l1 7 l-5 1 z"/><path d="M2 -25 l5 -1 l1 7 l-5 1 z"/>
+      </g>
+      <path d="M-38 38 l10 -2 l4 16 l-10 2 z" fill="#1B1B1F"/>
+    </g>
+    <!-- splash where it's about to land -->
+    <path d="M132 22 l40 -16 l30 24 l-38 20 z" fill="#FFFFFF" opacity="0.8"/>
+
+    <!-- torn sail -->
+    <path d="M2 -64 L-112 -128 L-138 -20 L-26 20 Z" fill="#E4DCC6"/>
+    <path d="M2 -64 L-112 -128 L-122 -76 L-12 -32 Z" fill="#F4EDD8"/>
+    <path d="M-92 -30 l30 -16 l14 30 l-30 14 z" fill="#132539"/>
+    <path d="M-4 -172 L66 -100 L0 -80 Z" fill="#E4DCC6"/>
+
+    <circle cx="0" cy="-62" r="11" fill="#4E3520"/>
+    <circle cx="0" cy="-62" r="6" fill="#6B4726"/>
+
+    <!-- crew : one reaching for the piano, one clinging, one down -->
+    <g>
+      <circle cx="58" cy="-6" r="8" fill="#E0574B"/>
+      <path d="M50 2 h16 v22 h-16 z" fill="#3E5C86"/>
+      <path d="M64 -12 l24 -14 l6 10 l-24 14 z" fill="#E0574B"/>
+      <circle cx="-48" cy="-84" r="8" fill="#4FA36B"/>
+      <path d="M-56 -76 h16 v20 h-16 z" fill="#E2C77E"/>
+      <circle cx="-30" cy="92" r="8" fill="#E8B44A"/>
+      <path d="M-44 98 h26 v14 h-26 z" fill="#5B4C7A"/>
+    </g>
+
+    <path d="M-18 -212 l44 -26 l34 18 l-38 30 z" fill="#FFFFFF" opacity="0.9"/>
+    <path d="M-44 -190 l-44 -24 l-16 30 l46 18 z" fill="#FFFFFF" opacity="0.75"/>
+  </g>
+
+  <!-- ============ RAIN ============ -->
+  <g stroke="#CFE3F0" stroke-width="2" opacity="0.35">
+    <path d="M60 120 l-24 90"/><path d="M180 60 l-24 120"/><path d="M300 200 l-24 100"/>
+    <path d="M420 90 l-24 130"/><path d="M540 260 l-24 110"/><path d="M660 140 l-24 120"/>
+    <path d="M780 40 l-24 140"/><path d="M900 220 l-24 120"/><path d="M1020 110 l-24 130"/>
+    <path d="M1140 300 l-24 110"/><path d="M1240 60 l-24 130"/><path d="M120 340 l-24 100"/>
+    <path d="M760 380 l-24 100"/><path d="M1180 420 l-24 90"/><path d="M380 420 l-24 90"/>
+  </g>
+  <g stroke="#E8F2F8" stroke-width="3" opacity="0.3">
+    <path d="M240 480 l-30 120"/><path d="M620 500 l-30 120"/><path d="M1000 460 l-30 130"/>
+    <path d="M100 520 l-30 110"/><path d="M860 540 l-30 110"/>
+  </g>
+
+  <!-- ============ FOREGROUND : crow's nest + rigging ============ -->
+  <g stroke="#CBB68E" stroke-width="7" fill="none" stroke-linecap="round">
+    <path d="M280 720 C 366 560, 464 480, 540 428"/>
+    <path d="M1000 720 C 926 560, 820 476, 742 424"/>
+  </g>
+  <g stroke="#A8946E" stroke-width="4" fill="none">
+    <path d="M320 720 C 394 574, 484 500, 556 446"/>
+    <path d="M960 720 C 900 574, 806 494, 734 442"/>
+  </g>
+  <!-- a rope whipping loose -->
+  <path d="M900 720 C 840 600, 900 540, 1010 500 C 1080 476, 1120 500, 1150 468"
+        stroke="#E6D2A8" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.9"/>
+
+  <path d="M-20 720 C 160 622, 420 580, 640 580 C 860 580, 1120 622, 1300 720 Z" fill="#4E3520"/>
+  <path d="M-20 720 C 170 640, 424 600, 640 600 C 856 600, 1110 640, 1300 720 Z" fill="#6E4E2E"/>
+  <path d="M-20 720 C 180 666, 430 630, 640 630 C 850 630, 1100 666, 1300 720 Z" fill="#402A17"/>
+  <g fill="#2E1D0F" opacity="0.6">
+    <path d="M180 662 l16 -6 l22 62 l-18 0 z"/>
+    <path d="M400 624 l16 -4 l14 62 l-18 0 z"/>
+    <path d="M640 612 l16 0 l4 62 l-18 0 z"/>
+    <path d="M880 624 l16 4 l-8 62 l-18 0 z"/>
+    <path d="M1090 658 l16 8 l-20 58 l-18 0 z"/>
+  </g>
+  <!-- wet sheen on the rim -->
+  <path d="M-20 720 C 180 666, 430 630, 640 630 C 850 630, 1100 666, 1300 720"
+        stroke="#8FB4CC" stroke-width="4" fill="none" opacity="0.5"/>
+</svg>
