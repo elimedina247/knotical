@@ -43,7 +43,8 @@ uniform float seabed_height = -10.0;
 uniform float depth_fade : hint_range(0.5, 120.0) = 22.0;
 uniform vec3 sand_color : source_color = vec3(0.886, 0.816, 0.635);
 uniform vec3 seabed_dark_color : source_color = vec3(0.431, 0.478, 0.314);
-uniform float sand_visibility : hint_range(0.1, 80.0) = 20.0;
+uniform float sand_visibility : hint_range(0.1, 120.0) = 30.0;
+uniform float view_angle_influence : hint_range(0.0, 1.0) = 0.45;
 uniform float sand_opacity : hint_range(0.0, 1.0) = 0.95;
 uniform float seabed_patch_scale = 0.022;
 uniform float seabed_contrast : hint_range(0.0, 0.4) = 0.10;
@@ -259,8 +260,9 @@ void fragment() {
 
     vec3 to_eye = normalize(CAMERA_POSITION_WORLD - v_world_pos);
     float cos_view = max(to_eye.y, 0.1);
-    float view_path = water_depth / cos_view;
-    vec2 floor_xz = v_world_pos.xz - to_eye.xz * view_path + n_detail.xz * water_depth * 0.35;
+    float slant = water_depth / cos_view;
+    float view_path = mix(water_depth, slant, view_angle_influence);
+    vec2 floor_xz = v_world_pos.xz - to_eye.xz * slant + n_detail.xz * water_depth * 0.35;
 
     vec3 floor_col = seabed_albedo(floor_xz);
     float web = calm_cell_border(floor_xz * ring_scale, wave_time * 0.4);

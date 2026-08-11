@@ -6,14 +6,15 @@
 [ext_resource type="Script" uid="uid://cyemm0pt8ya88" path="res://scripts/debug/DebugWindHud.cs" id="4_windhud"]
 [ext_resource type="Script" uid="uid://lkd4cyvlw54e" path="res://scripts/sky/SkyController.cs" id="5_skyctl"]
 [ext_resource type="Shader" uid="uid://cwls1kmf1fiyw" path="res://shaders/sky.gdshader" id="6_skyshader"]
-[ext_resource type="Shader" path="res://shaders/seabed.gdshader" id="7_seabedshader"]
-[ext_resource type="Script" path="res://scripts/ocean/SeabedSurface.cs" id="8_seabed"]
+[ext_resource type="Script" uid="uid://u1udc6i0etiu" path="res://scripts/ocean/SeabedSurface.cs" id="8_seabed"]
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_seabed"]
 size = Vector2(20000, 20000)
 
-[sub_resource type="ShaderMaterial" id="StandardMaterial3D_seabed"]
-shader = ExtResource("7_seabedshader")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_seabed"]
+specular_mode = 2
+albedo_color = Color(0.886, 0.816, 0.635, 1)
+roughness = 0.95
 
 [sub_resource type="ShaderMaterial" id="SkyShaderMaterial_1"]
 shader = ExtResource("6_skyshader")
@@ -60,7 +61,7 @@ albedo_color = Color(0.95, 0.25, 0.2, 1)
 script = ExtResource("1_surface")
 
 [node name="Seabed" type="MeshInstance3D" parent="." unique_id=100000017]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.095825195, -10, 2.0722046)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.096, -30, 2.072)
 cast_shadow = 0
 mesh = SubResource("PlaneMesh_seabed")
 surface_material_override/0 = SubResource("StandardMaterial3D_seabed")

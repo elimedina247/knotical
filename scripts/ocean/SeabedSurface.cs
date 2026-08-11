@@ -13,13 +13,20 @@ public partial class SeabedSurface : MeshInstance3D
 {
     [Export] public GamePalette Palette { get; set; }
 
+    [Export] public Shader SeabedShader { get; set; }
+
     private ShaderMaterial _material;
 
     public override void _Ready()
     {
         Palette ??= new GamePalette();
-        _material = MaterialOverride as ShaderMaterial ?? GetSurfaceOverrideMaterial(0) as ShaderMaterial;
-        if (_material == null) return;
+
+        _material = new ShaderMaterial
+        {
+            Shader = SeabedShader ?? GD.Load<Shader>("res://shaders/seabed.gdshader")
+        };
+
+        MaterialOverride = _material;
 
         Color[] ramp = Palette.WaterRamp;
         _material.SetShaderParameter("sand_color", Palette.Sand);
