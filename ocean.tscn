@@ -3,12 +3,35 @@
 [ext_resource type="Script" uid="uid://dvl3k7wgixvcx" path="res://scripts/ocean/OceanSurface.cs" id="1_surface"]
 [ext_resource type="Script" uid="uid://dg1wd1u3l3lhm" path="res://scripts/ocean/WaveProbe.cs" id="2_probe"]
 [ext_resource type="Script" uid="uid://bjt58bdo85vby" path="res://scripts/debug/DebugFlyCamera.cs" id="3_flycam"]
-[ext_resource type="Script" path="res://scripts/debug/DebugWindHud.cs" id="4_windhud"]
-[ext_resource type="Script" path="res://scripts/sky/SkyController.cs" id="5_skyctl"]
-[ext_resource type="Shader" path="res://shaders/sky.gdshader" id="6_skyshader"]
+[ext_resource type="Script" uid="uid://cyemm0pt8ya88" path="res://scripts/debug/DebugWindHud.cs" id="4_windhud"]
+[ext_resource type="Script" uid="uid://lkd4cyvlw54e" path="res://scripts/sky/SkyController.cs" id="5_skyctl"]
+[ext_resource type="Shader" uid="uid://cwls1kmf1fiyw" path="res://shaders/sky.gdshader" id="6_skyshader"]
+[ext_resource type="Shader" path="res://shaders/seabed.gdshader" id="7_seabedshader"]
+[ext_resource type="Script" path="res://scripts/ocean/SeabedSurface.cs" id="8_seabed"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_seabed"]
+size = Vector2(20000, 20000)
+
+[sub_resource type="ShaderMaterial" id="StandardMaterial3D_seabed"]
+shader = ExtResource("7_seabedshader")
 
 [sub_resource type="ShaderMaterial" id="SkyShaderMaterial_1"]
 shader = ExtResource("6_skyshader")
+shader_parameter/sun_direction = Vector3(1, 0, 0)
+shader_parameter/moon_direction = Vector3(-1, 0, 0)
+shader_parameter/cloud_offset = Vector2(0, 0)
+shader_parameter/day_zenith = Color(0.25, 0.52, 0.82, 1)
+shader_parameter/day_horizon = Color(0.74, 0.89, 0.95, 1)
+shader_parameter/dusk_zenith = Color(0.23, 0.18, 0.42, 1)
+shader_parameter/dusk_horizon = Color(0.98, 0.55, 0.28, 1)
+shader_parameter/night_zenith = Color(0.004, 0.007, 0.018, 1)
+shader_parameter/night_horizon = Color(0.012, 0.02, 0.04, 1)
+shader_parameter/sun_disc_color = Color(1, 0.93, 0.72, 1)
+shader_parameter/moon_disc_color = Color(0.82, 0.87, 0.95, 1)
+shader_parameter/sun_size = 0.045
+shader_parameter/moon_size = 0.035
+shader_parameter/cloud_coverage = 0.42
+shader_parameter/cloud_scale = 1.4
 
 [sub_resource type="Sky" id="Sky_1"]
 sky_material = SubResource("SkyShaderMaterial_1")
@@ -36,6 +59,13 @@ albedo_color = Color(0.95, 0.25, 0.2, 1)
 [node name="OceanSurface" type="Node3D" parent="." unique_id=100000002]
 script = ExtResource("1_surface")
 
+[node name="Seabed" type="MeshInstance3D" parent="." unique_id=100000017]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.095825195, -10, 2.0722046)
+cast_shadow = 0
+mesh = SubResource("PlaneMesh_seabed")
+surface_material_override/0 = SubResource("StandardMaterial3D_seabed")
+script = ExtResource("8_seabed")
+
 [node name="Sun" type="DirectionalLight3D" parent="." unique_id=100000003]
 transform = Transform3D(1, 0, 0, 0, 0.642788, -0.766044, 0, 0.766044, 0.642788, 0, 60, 0)
 light_energy = 1.2
@@ -55,8 +85,6 @@ script = ExtResource("4_windhud")
 
 [node name="SkyController" type="Node" parent="." unique_id=100000016]
 script = ExtResource("5_skyctl")
-Light = NodePath("../Sun")
-EnvironmentNode = NodePath("../WorldEnvironment")
 
 [node name="Probes" type="Node3D" parent="." unique_id=100000006]
 

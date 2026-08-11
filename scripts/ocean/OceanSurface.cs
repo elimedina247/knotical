@@ -35,6 +35,10 @@ public partial class OceanSurface : Node3D
     /// </summary>
     [Export] public OceanSettings Settings { get; set; }
 
+    [Export] public Knotical.Style.GamePalette Palette { get; set; }
+
+    [Export] public Node3D Seabed { get; set; }
+
     private readonly System.Collections.Generic.List<MeshInstance3D> _levels = new();
     private ShaderMaterial _material;
     private Camera3D _camera;
@@ -49,6 +53,7 @@ public partial class OceanSurface : Node3D
     public override void _Ready()
     {
         Ocean.Instance?.SetSettings(Settings);
+        Palette ??= new Knotical.Style.GamePalette();
 
         _material = new ShaderMaterial
         {
@@ -142,11 +147,40 @@ public partial class OceanSurface : Node3D
         _material.SetShaderParameter("ka_sum", ocean.SteepnessNormaliser);
         _material.SetShaderParameter("steepness", ocean.Settings.Steepness);
         _material.SetShaderParameter("significant_height", ocean.SignificantHeight);
+        PushPalette();
+
+        Seabed ??= GetTree().CurrentScene?.FindChild("Seabed", true, false) as Node3D;
+        if (Seabed != null)
+        {
+            _material.SetShaderParameter("seabed_height", Seabed.GlobalPosition.Y);
+        }
 
         if (Knotical.Sky.DayCycle.Instance != null)
         {
             _material.SetShaderParameter("sky_color", Knotical.Sky.DayCycle.Instance.WaterHorizonColor);
         }
+    }
+
+    private void PushPalette()
+    {
+        Color[] ramp = Palette.WaterRamp;
+        if (ramp == null || ramp.Length == 0) return;
+
+        int count = Mathf.Min(ramp.Length, 8);
+        var packed = new Godot.Collections.Array();
+        for (int i = 0; i < 8; i++)
+        {
+            Color c = ramp[Mathf.Min(i, count - 1)].SrgbToLinear();
+            packed.Add(new Vector3(c.R, c.G, c.B));
+        }
+
+        Color ring = Palette.CalmRing.SrgbToLinear();
+
+        _material.SetShaderParameter("water_ramp", packed);
+        _material.SetShaderParameter("water_ramp_size", count);
+        _material.SetShaderParameter("foam_color", Palette.Foam);
+        _material.SetShaderParameter("sand_color", Palette.Sand);
+        _material.SetShaderParameter("ring_color", new Vector3(ring.R, ring.G, ring.B));
     }
 
     /// <summary>Call after rebuilding the skeleton so phases and count are re-sent.</summary>

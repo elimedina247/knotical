@@ -29,12 +29,32 @@ uniform float camera_submerged = 0.0;
 
 uniform float significant_height = 2.0;
 
-uniform vec3 deep_color : source_color = vec3(0.055, 0.235, 0.400);
-uniform vec3 shallow_color : source_color = vec3(0.145, 0.545, 0.706);
+uniform vec3 water_ramp[8];
+uniform int water_ramp_size = 6;
 uniform vec3 sky_color : source_color = vec3(0.651, 0.855, 0.933);
 uniform vec3 foam_color : source_color = vec3(1.0, 1.0, 1.0);
 
 uniform float depth_contrast : hint_range(0.0, 1.0) = 0.55;
+uniform float band_softness : hint_range(0.0, 1.0) = 0.25;
+uniform float slope_range : hint_range(0.05, 0.6) = 0.22;
+uniform float band_slope_weight : hint_range(0.0, 1.0) = 0.65;
+
+uniform float seabed_height = -10.0;
+uniform float depth_fade : hint_range(0.5, 120.0) = 22.0;
+uniform vec3 sand_color : source_color = vec3(0.886, 0.816, 0.635);
+uniform vec3 seabed_dark_color : source_color = vec3(0.431, 0.478, 0.314);
+uniform float sand_visibility : hint_range(0.1, 80.0) = 20.0;
+uniform float sand_opacity : hint_range(0.0, 1.0) = 0.95;
+uniform float seabed_patch_scale = 0.022;
+uniform float seabed_contrast : hint_range(0.0, 0.4) = 0.10;
+uniform float water_filter : hint_range(0.0, 1.0) = 0.55;
+uniform float caustic_strength : hint_range(0.0, 1.5) = 0.45;
+
+uniform vec3 ring_color = vec3(0.42, 0.78, 0.72);
+uniform float ring_scale = 0.35;
+uniform float ring_width : hint_range(0.01, 0.3) = 0.07;
+uniform float ring_strength : hint_range(0.0, 1.0) = 0.55;
+uniform float calm_height : hint_range(0.05, 3.0) = 0.8;
 
 // Foam appears where the surface folds, not where it is tall. Raise to make
 // whitecaps rarer; the useful range is narrow because folding is rare by nature.
@@ -43,7 +63,7 @@ uniform float foam_softness : hint_range(0.0, 0.4, 0.005) = 0.04;
 uniform float foam_noise_scale : hint_range(0.01, 1.0) = 0.10;
 
 uniform float fresnel_power : hint_range(0.5, 8.0) = 4.0;
-uniform float fresnel_max : hint_range(0.0, 1.0) = 0.82;
+uniform float fresnel_max : hint_range(0.0, 1.0) = 0.38;
 
 uniform float detail_scale : hint_range(0.05, 2.0) = 0.35;
 uniform float detail_strength : hint_range(0.0, 1.0) = 0.35;
@@ -81,6 +101,44 @@ float fbm(vec2 p) {
         a *= 0.5;
     }
     return v;
+}
+
+vec2 hash22(vec2 p) {
+    float n = hash21(p);
+    return vec2(n, hash21(p + n + 17.17));
+}
+
+vec3 seabed_albedo(vec2 p) {
+    float patch = fbm(p * seabed_patch_scale);
+    float reef = fbm(p * seabed_patch_scale * 3.1 + 31.7);
+    float grain = fbm(p * seabed_patch_scale * 11.0);
+
+    vec3 c = mix(sand_color, seabed_dark_color, smoothstep(0.44, 0.44 + seabed_contrast, patch));
+    c = mix(c, seabed_dark_color * 0.8, smoothstep(0.58, 0.58 + seabed_contrast, reef) * 0.7);
+    return c * mix(0.88, 1.12, grain);
+}
+
+float calm_cell_border(vec2 p, float t) {
+    vec2 cell = floor(p);
+    vec2 f = fract(p);
+    float f1 = 8.0;
+    float f2 = 8.0;
+    for (int y = -1; y <= 1; y++) {
+        for (int x = -1; x <= 1; x++) {
+            vec2 g = vec2(float(x), float(y));
+            vec2 o = hash22(cell + g);
+            o = 0.5 + 0.35 * sin(t + TAU * o);
+            vec2 r = g + o - f;
+            float d = dot(r, r);
+            if (d < f1) {
+                f2 = f1;
+                f1 = d;
+            } else if (d < f2) {
+                f2 = d;
+            }
+        }
+    }
+    return sqrt(f2) - sqrt(f1);
 }
 
 void vertex() {
@@ -169,12 +227,47 @@ void fragment() {
     float d0 = fbm(duv + flow);
     float dgx = fbm(duv + flow + vec2(eps, 0.0));
     float dgz = fbm(duv + flow + vec2(0.0, eps));
-    vec3 n_detail = normalize(n + vec3(d0 - dgx, 0.0, d0 - dgz) * (detail_strength * detail_fade / eps));
+    vec3 grad = vec3(d0 - dgx, 0.0, d0 - dgz);
+
+    vec2 duv2 = v_world_pos.xz * detail_scale * 2.7;
+    vec2 flow2 = vec2(wave_time * -0.31, wave_time * 0.47);
+    float e0 = fbm(duv2 + flow2);
+    float egx = fbm(duv2 + flow2 + vec2(eps, 0.0));
+    float egz = fbm(duv2 + flow2 + vec2(0.0, eps));
+    grad += vec3(e0 - egx, 0.0, e0 - egz) * 0.55;
+
+    vec3 n_detail = normalize(n + grad * (detail_strength * detail_fade / eps));
 
     vec3 n_view = normalize((VIEW_MATRIX * vec4(n_detail, 0.0)).xyz);
 
     float h = v_height / (1.0 + abs(v_height));
-    vec3 body = mix(deep_color, shallow_color, 0.5 + 0.5 * h * depth_contrast);
+    float height_t = 0.5 + 0.5 * h * depth_contrast;
+    float slope_t = clamp((1.0 - n_detail.y) / slope_range, 0.0, 1.0);
+    float wave_t = mix(height_t, slope_t, band_slope_weight);
+
+    float water_depth = max(v_world_pos.y - seabed_height, 0.0);
+    float shallowness = exp(-water_depth / depth_fade);
+
+    float lo = mix(0.0, 0.42, shallowness);
+    float hi = mix(0.58, 1.0, shallowness);
+    float raw = min(mix(lo, hi, wave_t), 0.999);
+
+    float q = raw * float(water_ramp_size);
+    int band = int(q);
+    float edge = smoothstep(0.5 - band_softness * 0.5, 0.5 + band_softness * 0.5, fract(q));
+    vec3 body = mix(water_ramp[band], water_ramp[min(band + 1, water_ramp_size - 1)], edge);
+
+    vec3 to_eye = normalize(CAMERA_POSITION_WORLD - v_world_pos);
+    float cos_view = max(to_eye.y, 0.1);
+    float view_path = water_depth / cos_view;
+    vec2 floor_xz = v_world_pos.xz - to_eye.xz * view_path + n_detail.xz * water_depth * 0.35;
+
+    vec3 floor_col = seabed_albedo(floor_xz);
+    float web = calm_cell_border(floor_xz * ring_scale, wave_time * 0.4);
+    floor_col *= 1.0 + caustic_strength * (1.0 - smoothstep(0.0, 0.22, web));
+
+    vec3 filter_tint = mix(vec3(1.0), water_ramp[water_ramp_size - 1], water_filter);
+    body = mix(body, floor_col * filter_tint, exp(-view_path / sand_visibility) * sand_opacity);
 
     // Very low frequency tint so open water is not a single flat colour
     float tint = fbm(v_world_pos.xz * 0.0035);
@@ -183,6 +276,14 @@ void fragment() {
     // VIEW is view-space, so the normal has to be converted before they meet.
     float fres = pow(1.0 - clamp(dot(n_view, VIEW), 0.0, 1.0), fresnel_power);
     vec3 col = mix(body, sky_color, clamp(fres, 0.0, fresnel_max));
+
+    float calm = (1.0 - smoothstep(calm_height * 0.5, calm_height, significant_height))
+        * (1.0 - slope_t) * detail_fade;
+    if (calm > 0.001) {
+        float border = calm_cell_border(v_world_pos.xz * ring_scale, wave_time * 0.4);
+        float ring = 1.0 - smoothstep(ring_width, ring_width + 0.05, border);
+        col = mix(col, ring_color, ring * calm * ring_strength);
+    }
 
     // Foam: folding, modulated by drifting noise so the edge is torn rather than
     // a clean contour. Threshold stays hard — the decided edge is the art direction.
@@ -195,8 +296,8 @@ void fragment() {
     col = mix(col, foam_color, foam);
 
     ALBEDO = col;
-    ROUGHNESS = mix(0.14, 0.88, foam);
+    ROUGHNESS = mix(0.62, 0.9, foam);
     METALLIC = 0.0;
-    SPECULAR = mix(0.65, 0.10, foam);
+    SPECULAR = 0.15;
     NORMAL = n_view;
 }
