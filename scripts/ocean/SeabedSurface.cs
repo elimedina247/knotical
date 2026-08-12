@@ -41,6 +41,17 @@ public partial class SeabedSurface : MeshInstance3D
     public override void _Process(double delta)
     {
         if (_material == null) return;
-        _material.SetShaderParameter("wave_time", (float)(Ocean.Instance?.Time ?? 0.0));
+
+        Ocean ocean = Ocean.Instance;
+        if (ocean != null)
+        {
+            _material.SetShaderParameter("wave_time", (float)ocean.Time);
+        }
+
+        Knotical.Sky.DayCycle cycle = Knotical.Sky.DayCycle.Instance;
+        if (cycle != null)
+        {
+            _material.SetShaderParameter("light_direction", cycle.LightDirection);
+        }
     }
 }

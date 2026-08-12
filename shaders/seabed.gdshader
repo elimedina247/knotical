@@ -2,10 +2,11 @@ shader_type spatial;
 render_mode world_vertex_coords;
 
 // ---------------------------------------------------------------------------
-// The seabed is drawn twice: once here, and once painted onto the underside of
-// ocean.gdshader for viewers above the surface. seabed_albedo() and the caustic
-// web must match that shader exactly, or the floor changes pattern as the
-// camera crosses the waterline.
+// The water is transparent, so this is the one and only seabed: it is seen
+// directly through the surface from above and below. The foam-shadow web here
+// is the surface's calm_cell_border pattern from ocean.gdshader, projected
+// along the sun direction — same function, same scale, same clock, or the
+// shadows stop lining up with the foam that casts them.
 // ---------------------------------------------------------------------------
 
 uniform vec3 sand_color : source_color = vec3(0.886, 0.816, 0.635);
@@ -13,10 +14,13 @@ uniform vec3 seabed_dark_color : source_color = vec3(0.431, 0.478, 0.314);
 uniform vec3 murk_color : source_color = vec3(0.247, 0.596, 0.541);
 uniform float seabed_patch_scale = 0.022;
 uniform float seabed_contrast : hint_range(0.0, 0.4) = 0.10;
-uniform float caustic_strength : hint_range(0.0, 1.5) = 0.45;
 uniform float ring_scale = 0.35;
+uniform float ring_width : hint_range(0.01, 0.3) = 0.07;
 uniform float wave_time = 0.0;
 uniform float murk_distance : hint_range(5.0, 400.0) = 90.0;
+
+uniform vec3 light_direction = vec3(0.0, 1.0, 0.0);
+uniform float foam_shadow_strength : hint_range(0.0, 1.0) = 0.35;
 
 varying vec3 v_world_pos;
 
@@ -90,8 +94,11 @@ void vertex() {
 void fragment() {
     vec3 c = seabed_albedo(v_world_pos.xz);
 
-    float web = calm_cell_border(v_world_pos.xz * ring_scale, wave_time * 0.4);
-    c *= 1.0 + caustic_strength * (1.0 - smoothstep(0.0, 0.22, web));
+    float depth = max(-v_world_pos.y, 0.0);
+    vec2 surface_xz = v_world_pos.xz + light_direction.xz / max(light_direction.y, 0.2) * depth;
+    float web = calm_cell_border(surface_xz * ring_scale, wave_time * 0.4);
+    float line = 1.0 - smoothstep(ring_width, ring_width + 0.05, web);
+    c *= 1.0 - foam_shadow_strength * line;
 
     float dist = length(v_world_pos - CAMERA_POSITION_WORLD);
     c = mix(c, murk_color, smoothstep(murk_distance * 0.15, murk_distance, dist));

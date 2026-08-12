@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode world_vertex_coords, cull_disabled, specular_schlick_ggx;
+render_mode world_vertex_coords, cull_disabled, specular_schlick_ggx, depth_draw_always;
 
 // ---------------------------------------------------------------------------
 // Geometry here must stay in lockstep with Ocean.cs — same spectrum, same
@@ -39,23 +39,15 @@ uniform float band_softness : hint_range(0.0, 1.0) = 0.25;
 uniform float slope_range : hint_range(0.05, 0.6) = 0.22;
 uniform float band_slope_weight : hint_range(0.0, 1.0) = 0.65;
 
-uniform float seabed_height = -10.0;
+uniform sampler2D depth_texture : hint_depth_texture;
+
 uniform float depth_fade : hint_range(0.5, 120.0) = 22.0;
-uniform vec3 sand_color : source_color = vec3(0.886, 0.816, 0.635);
-uniform vec3 seabed_dark_color : source_color = vec3(0.431, 0.478, 0.314);
 uniform float sand_visibility : hint_range(0.1, 120.0) = 30.0;
 uniform float view_angle_influence : hint_range(0.0, 1.0) = 0.45;
-uniform float sand_opacity : hint_range(0.0, 1.0) = 0.95;
-uniform float seabed_patch_scale = 0.022;
-uniform float seabed_contrast : hint_range(0.0, 0.4) = 0.10;
-uniform float water_filter : hint_range(0.0, 1.0) = 0.55;
-uniform float caustic_strength : hint_range(0.0, 1.5) = 0.45;
-
-uniform vec3 ring_color = vec3(0.42, 0.78, 0.72);
+uniform float min_opacity : hint_range(0.0, 1.0) = 0.3;
 uniform float ring_scale = 0.35;
 uniform float ring_width : hint_range(0.01, 0.3) = 0.07;
 uniform float ring_strength : hint_range(0.0, 1.0) = 0.55;
-uniform float calm_height : hint_range(0.05, 3.0) = 0.8;
 
 // Foam appears where the surface folds, not where it is tall. Raise to make
 // whitecaps rarer; the useful range is narrow because folding is rare by nature.
@@ -107,16 +99,6 @@ float fbm(vec2 p) {
 vec2 hash22(vec2 p) {
     float n = hash21(p);
     return vec2(n, hash21(p + n + 17.17));
-}
-
-vec3 seabed_albedo(vec2 p) {
-    float patch = fbm(p * seabed_patch_scale);
-    float reef = fbm(p * seabed_patch_scale * 3.1 + 31.7);
-    float grain = fbm(p * seabed_patch_scale * 11.0);
-
-    vec3 c = mix(sand_color, seabed_dark_color, smoothstep(0.44, 0.44 + seabed_contrast, patch));
-    c = mix(c, seabed_dark_color * 0.8, smoothstep(0.58, 0.58 + seabed_contrast, reef) * 0.7);
-    return c * mix(0.88, 1.12, grain);
 }
 
 float calm_cell_border(vec2 p, float t) {
@@ -241,12 +223,20 @@ void fragment() {
 
     vec3 n_view = normalize((VIEW_MATRIX * vec4(n_detail, 0.0)).xyz);
 
+    float depth_raw = texture(depth_texture, SCREEN_UV).x;
+    vec3 ndc = vec3(SCREEN_UV * 2.0 - 1.0, depth_raw);
+    vec4 scene_h = INV_VIEW_MATRIX * (INV_PROJECTION_MATRIX * vec4(ndc, 1.0));
+    vec3 scene_world = scene_h.xyz / scene_h.w;
+
+    float thickness = distance(scene_world, v_world_pos);
+    float water_depth = max(v_world_pos.y - scene_world.y, 0.0);
+    float view_path = mix(water_depth, thickness, view_angle_influence);
+
     float h = v_height / (1.0 + abs(v_height));
     float height_t = 0.5 + 0.5 * h * depth_contrast;
     float slope_t = clamp((1.0 - n_detail.y) / slope_range, 0.0, 1.0);
     float wave_t = mix(height_t, slope_t, band_slope_weight);
 
-    float water_depth = max(v_world_pos.y - seabed_height, 0.0);
     float shallowness = exp(-water_depth / depth_fade);
 
     float lo = mix(0.0, 0.42, shallowness);
@@ -258,19 +248,6 @@ void fragment() {
     float edge = smoothstep(0.5 - band_softness * 0.5, 0.5 + band_softness * 0.5, fract(q));
     vec3 body = mix(water_ramp[band], water_ramp[min(band + 1, water_ramp_size - 1)], edge);
 
-    vec3 to_eye = normalize(CAMERA_POSITION_WORLD - v_world_pos);
-    float cos_view = max(to_eye.y, 0.1);
-    float slant = water_depth / cos_view;
-    float view_path = mix(water_depth, slant, view_angle_influence);
-    vec2 floor_xz = v_world_pos.xz - to_eye.xz * slant + n_detail.xz * water_depth * 0.35;
-
-    vec3 floor_col = seabed_albedo(floor_xz);
-    float web = calm_cell_border(floor_xz * ring_scale, wave_time * 0.4);
-    floor_col *= 1.0 + caustic_strength * (1.0 - smoothstep(0.0, 0.22, web));
-
-    vec3 filter_tint = mix(vec3(1.0), water_ramp[water_ramp_size - 1], water_filter);
-    body = mix(body, floor_col * filter_tint, exp(-view_path / sand_visibility) * sand_opacity);
-
     // Very low frequency tint so open water is not a single flat colour
     float tint = fbm(v_world_pos.xz * 0.0035);
     body *= mix(0.94, 1.07, tint);
@@ -279,12 +256,16 @@ void fragment() {
     float fres = pow(1.0 - clamp(dot(n_view, VIEW), 0.0, 1.0), fresnel_power);
     vec3 col = mix(body, sky_color, clamp(fres, 0.0, fresnel_max));
 
-    float calm = (1.0 - smoothstep(calm_height * 0.5, calm_height, significant_height))
-        * (1.0 - slope_t) * detail_fade;
-    if (calm > 0.001) {
+    float alpha = 1.0 - exp(-view_path / sand_visibility);
+    alpha = max(alpha, min_opacity);
+    alpha = max(alpha, clamp(fres, 0.0, fresnel_max));
+
+    float web_fade = (1.0 - slope_t * 0.7) * detail_fade;
+    if (web_fade > 0.001) {
         float border = calm_cell_border(v_world_pos.xz * ring_scale, wave_time * 0.4);
-        float ring = 1.0 - smoothstep(ring_width, ring_width + 0.05, border);
-        col = mix(col, ring_color, ring * calm * ring_strength);
+        float ring = (1.0 - smoothstep(ring_width, ring_width + 0.05, border)) * web_fade * ring_strength;
+        col = mix(col, foam_color, ring);
+        alpha = mix(alpha, 1.0, ring);
     }
 
     // Foam: folding, modulated by drifting noise so the edge is torn rather than
@@ -296,8 +277,10 @@ void fragment() {
     float foam = smoothstep(foam_threshold, foam_threshold + foam_softness, foam_mask);
     foam *= step(0.30, value_noise(foam_uv * 5.0 + vec2(wave_time * 0.07, 0.0)));
     col = mix(col, foam_color, foam);
+    alpha = mix(alpha, 1.0, foam);
 
     ALBEDO = col;
+    ALPHA = alpha;
     ROUGHNESS = mix(0.62, 0.9, foam);
     METALLIC = 0.0;
     SPECULAR = 0.15;

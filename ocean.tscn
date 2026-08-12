@@ -55,6 +55,13 @@ rings = 8
 shading_mode = 0
 albedo_color = Color(0.95, 0.25, 0.2, 1)
 
+[sub_resource type="CylinderMesh" id="CylinderMesh_uupup"]
+top_radius = 154.48438
+bottom_radius = 154.48438
+height = 848.0751
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_frxtq"]
+
 [node name="Main" type="Node3D" unique_id=100000001]
 
 [node name="OceanSurface" type="Node3D" parent="." unique_id=100000002]
@@ -123,3 +130,8 @@ SurfaceOffset = 1.5
 [node name="Mesh" type="MeshInstance3D" parent="Probes/Probe4" unique_id=100000014]
 mesh = SubResource("SphereMesh_1")
 surface_material_override/0 = SubResource("StandardMaterial3D_1")
+
+[node name="Island" type="MeshInstance3D" parent="." unique_id=1840518826]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 50.981537, -418.12045, -212.42859)
+mesh = SubResource("CylinderMesh_uupup")
+surface_material_override/0 = SubResource("StandardMaterial3D_frxtq")
