@@ -77,6 +77,16 @@ public partial class BoatHull : RigidBody3D
     [Export(PropertyHint.Range, "1,16,1")]
     public int CollisionSlices { get => _collisionSlices; set { _collisionSlices = value; Rebuild(); } }
 
+    private float _deckHeight = 2.7f;
+
+    [Export(PropertyHint.Range, "0,20,0.05")]
+    public float DeckHeight { get => _deckHeight; set { _deckHeight = value; Rebuild(); } }
+
+    private float _bulwarkThickness = 0.54f;
+
+    [Export(PropertyHint.Range, "0.05,2,0.01")]
+    public float BulwarkThickness { get => _bulwarkThickness; set { _bulwarkThickness = value; Rebuild(); } }
+
     private float _surfaceOffset = 0.075f;
 
     [Export(PropertyHint.Range, "0,2.5,0.005")]
@@ -143,7 +153,6 @@ public partial class BoatHull : RigidBody3D
 
         int stations = Mathf.Max(3, _solidStations);
         int levels = Mathf.Max(2, _solidRings);
-        int loop = stations * 2;
         int slices = Mathf.Clamp(_collisionSlices, 1, stations - 1);
         int span = Mathf.CeilToInt((float)(stations - 1) / slices);
 
@@ -156,22 +165,66 @@ public partial class BoatHull : RigidBody3D
             if (start >= end) break;
 
             points.Clear();
-            for (int r = 0; r < levels; r++)
+            for (int j = start; j <= end; j++)
             {
-                for (int j = start; j <= end; j++)
+                float t = (float)j / (stations - 1);
+                float top = _form.VAtHeight(t, DeckHeight);
+                for (int r = 0; r < levels; r++)
                 {
-                    points.Add(_local[r * loop + j]);
-                    points.Add(_local[r * loop + (loop - 1 - j)]);
+                    Vector3 p = _form.Shell(t, top * r / (levels - 1), _surfaceOffset, 1f);
+                    points.Add(p);
+                    points.Add(new Vector3(-p.X, p.Y, p.Z));
                 }
             }
+            AddSlice($"HullSlice{s}", points);
 
-            var shape = new CollisionShape3D
+            for (int side = -1; side <= 1; side += 2)
             {
-                Name = $"HullSlice{s}",
-                Shape = new ConvexPolygonShape3D { Points = points.ToArray() }
-            };
-            AddChild(shape);
+                points.Clear();
+                for (int j = start; j <= end; j++)
+                {
+                    float t = (float)j / (stations - 1);
+                    float low = _form.VAtHeight(t, DeckHeight);
+                    for (int r = 0; r < 2; r++)
+                    {
+                        float v = Mathf.Lerp(low, 1f, r);
+                        points.Add(_form.Shell(t, v, _surfaceOffset, side));
+                        points.Add(_form.Shell(t, v, _surfaceOffset - BulwarkThickness, side));
+                    }
+                }
+                AddSlice($"HullSliceRail{(side < 0 ? "P" : "S")}{s}", points);
+            }
         }
+
+        AddEndWall("HullSliceTransom", 0f);
+        AddEndWall("HullSliceStem", 1f);
+    }
+
+    private void AddEndWall(string name, float t)
+    {
+        float low = _form.VAtHeight(t, DeckHeight);
+        float inward = t < 0.5f ? -BulwarkThickness : BulwarkThickness;
+        var points = new List<Vector3>();
+
+        for (int r = 0; r < 2; r++)
+        {
+            Vector3 edge = _form.Shell(t, Mathf.Lerp(low, 1f, r), _surfaceOffset, 1f);
+            points.Add(edge);
+            points.Add(new Vector3(-edge.X, edge.Y, edge.Z));
+            points.Add(new Vector3(edge.X, edge.Y, edge.Z + inward));
+            points.Add(new Vector3(-edge.X, edge.Y, edge.Z + inward));
+        }
+
+        AddSlice(name, points);
+    }
+
+    private void AddSlice(string name, List<Vector3> points)
+    {
+        AddChild(new CollisionShape3D
+        {
+            Name = name,
+            Shape = new ConvexPolygonShape3D { Points = points.ToArray() }
+        });
     }
 
     public override void _IntegrateForces(PhysicsDirectBodyState3D state)

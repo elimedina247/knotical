@@ -88,6 +88,7 @@ public partial class PlayerBody : RigidBody3D
 
     private Node3D _pivot;
     private Vector3 _deckVelocity;
+    private Vector3 _groundNormal = Vector3.Up;
     private Vector3 _wish;
     private bool _grounded;
     private bool _downed;
@@ -223,10 +224,14 @@ public partial class PlayerBody : RigidBody3D
         Vector3 sum = Vector3.Zero;
         int found = 0;
 
+        Vector3 slope = Vector3.Zero;
+
         for (int i = 0; i < contacts; i++)
         {
             if (state.GetContactColliderPosition(i).Y > ceiling) continue;
             sum += state.GetContactColliderVelocityAtPosition(i);
+            Vector3 n = state.GetContactLocalNormal(i);
+            slope += n.Dot(Vector3.Up) < 0f ? -n : n;
             found++;
         }
 
@@ -235,6 +240,7 @@ public partial class PlayerBody : RigidBody3D
             _airborneFor = 0f;
             _grounded = true;
             _deckVelocity = sum / found;
+            _groundNormal = slope.LengthSquared() > 1e-6f ? slope.Normalized() : Vector3.Up;
             return;
         }
 
@@ -243,6 +249,7 @@ public partial class PlayerBody : RigidBody3D
 
         _grounded = false;
         _deckVelocity = Vector3.Zero;
+        _groundNormal = Vector3.Up;
     }
 
     private void UpdateBalanceState(float dt, PhysicsDirectBodyState3D state)
@@ -314,9 +321,13 @@ public partial class PlayerBody : RigidBody3D
 
     private void ApplyWalk(PhysicsDirectBodyState3D state)
     {
+        Vector3 ground = _grounded ? _groundNormal : Vector3.Up;
         Vector3 relative = state.LinearVelocity - _deckVelocity;
-        Vector3 planar = relative - Vector3.Up * relative.Dot(Vector3.Up);
-        Vector3 target = _wish * WalkSpeed;
+        Vector3 planar = relative - ground * relative.Dot(ground);
+
+        Vector3 aim = _wish - ground * _wish.Dot(ground);
+        if (aim.LengthSquared() > 1e-6f) aim = aim.Normalized() * _wish.Length();
+        Vector3 target = aim * WalkSpeed;
 
         Vector3 force = (target - planar) * (Acceleration * Mass);
 

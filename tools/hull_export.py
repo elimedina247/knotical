@@ -218,6 +218,149 @@ class Welder:
         return faces
 
 
+
+SC_WALL = THICKNESS
+SC_BULWARK = 0.8
+SC_RAIL_H = 0.7
+SC_RAIL_BAR = 0.1
+SC_DOOR_HALF = 0.5
+SC_DOOR_HEIGHT = 1.5
+SC_POST = 0.09
+SC_POST_GAP = 1.7
+SC_STAIR_HALF = 0.6
+SC_STAIR_RISE = 0.3
+SC_STAIR_RUN = 0.36
+SC_SAMPLES = 13
+
+SC_TIERS = [
+    dict(t_fwd=0.18, floor=DECK_HEIGHT, ceil=5.6, deck=5.8, stair_x=5.8),
+    dict(t_fwd=0.09, floor=5.8, ceil=8.8, deck=9.0, stair_x=4.0),
+]
+
+
+def quad(surface, a, b, c, d):
+    surface.tri(a, b, c)
+    surface.tri(a, c, d)
+
+
+def box(surface, lo, hi):
+    x0, y0, z0 = lo
+    x1, y1, z1 = hi
+    p0, p1, p2, p3 = (x0, y0, z0), (x1, y0, z0), (x1, y0, z1), (x0, y0, z1)
+    p4, p5, p6, p7 = (x0, y1, z0), (x1, y1, z0), (x1, y1, z1), (x0, y1, z1)
+    quad(surface, p4, p7, p6, p5)
+    quad(surface, p0, p1, p2, p3)
+    quad(surface, p1, p5, p6, p2)
+    quad(surface, p0, p3, p7, p4)
+    quad(surface, p0, p4, p5, p1)
+    quad(surface, p3, p2, p6, p7)
+
+
+def castle_stations(hull_shape, t_fwd):
+    out = []
+    for i in range(SC_SAMPLES):
+        t = t_fwd * i / (SC_SAMPLES - 1)
+        s = hull_shape.shell(t, 1.0, 0.0, 1.0)
+        out.append((s[0], hull_shape.sheer_y(t), s[2]))
+    return out
+
+
+def tier_walls(surface, stations, bases, top_y):
+    for k in range(len(stations) - 1):
+        for side in (1.0, -1.0):
+            xa, _, za = stations[k]
+            xb, _, zb = stations[k + 1]
+            ya, yb = bases[k], bases[k + 1]
+            oa, ob = xa * side, xb * side
+            ia, ib = (xa - SC_WALL) * side, (xb - SC_WALL) * side
+            o = [(oa, ya, za), (ob, yb, zb), (ob, top_y, zb), (oa, top_y, za)]
+            n = [(ia, ya, za), (ib, yb, zb), (ib, top_y, zb), (ia, top_y, za)]
+            if side > 0:
+                quad(surface, o[0], o[1], o[2], o[3])
+                quad(surface, n[3], n[2], n[1], n[0])
+                quad(surface, o[3], o[2], n[2], n[3])
+            else:
+                quad(surface, o[3], o[2], o[1], o[0])
+                quad(surface, n[0], n[1], n[2], n[3])
+                quad(surface, n[3], n[2], o[2], o[3])
+    xa, _, za = stations[0]
+    box(surface, (-xa, bases[0], za - SC_WALL), (xa, top_y, za))
+    xe, _, ze = stations[-1]
+    ie = xe - SC_WALL
+    quad(surface, (xe, bases[-1], ze), (xe, top_y, ze), (ie, top_y, ze), (ie, bases[-1], ze))
+    quad(surface, (-ie, bases[-1], ze), (-ie, top_y, ze), (-xe, top_y, ze), (-xe, bases[-1], ze))
+
+
+def tier_floor(surface, stations, ceil_y, deck_y):
+    for k in range(len(stations) - 1):
+        wa = stations[k][0] - SC_WALL
+        wb = stations[k + 1][0] - SC_WALL
+        za, zb = stations[k][2], stations[k + 1][2]
+        quad(surface, (-wb, deck_y, zb), (-wa, deck_y, za), (wa, deck_y, za), (wb, deck_y, zb))
+        quad(surface, (-wa, ceil_y, za), (-wb, ceil_y, zb), (wb, ceil_y, zb), (wa, ceil_y, za))
+
+
+def castle_parts(hull_shape):
+    tiers = []
+    base_top = None
+    for spec in SC_TIERS:
+        stations = castle_stations(hull_shape, spec["t_fwd"])
+        bases = [s[1] for s in stations] if base_top is None else [base_top] * len(stations)
+        top = spec["deck"] + SC_BULWARK
+        w = stations[-1][0] - SC_WALL
+        z = stations[-1][2]
+        floor_y, ceil_y, deck_y = spec["floor"], spec["ceil"], spec["deck"]
+        door_top = floor_y + SC_DOOR_HEIGHT
+
+        bulkhead = [
+            ((-w, floor_y, z), (-SC_DOOR_HALF, ceil_y, z + SC_WALL)),
+            ((SC_DOOR_HALF, floor_y, z), (w, ceil_y, z + SC_WALL)),
+            ((-SC_DOOR_HALF, door_top, z), (SC_DOOR_HALF, ceil_y, z + SC_WALL)),
+            ((-w, ceil_y, z), (w, deck_y, z + SC_WALL)),
+        ]
+
+        sx = spec["stair_x"]
+        runs = [(-w, -(sx + SC_STAIR_HALF)), (-(sx - SC_STAIR_HALF), sx - SC_STAIR_HALF),
+                (sx + SC_STAIR_HALF, w)]
+        rail_y = deck_y + SC_RAIL_H
+        rails = [((a, rail_y - SC_RAIL_BAR, z), (b, rail_y, z + SC_RAIL_BAR)) for a, b in runs]
+
+        posts = []
+        for a, b in runs:
+            count = max(2, int((b - a) / SC_POST_GAP) + 1)
+            for i in range(count):
+                cx = a + (b - a - SC_POST) * (i / (count - 1)) + SC_POST * 0.5
+                posts.append(((cx - SC_POST * 0.5, deck_y, z),
+                              (cx + SC_POST * 0.5, rail_y - SC_RAIL_BAR, z + SC_POST)))
+
+        steps = []
+        count = max(1, int(round((deck_y - floor_y) / SC_STAIR_RISE)))
+        rise = (deck_y - floor_y) / count
+        for side in (-sx, sx):
+            for i in range(count):
+                z1 = z - (count - 1 - i) * SC_STAIR_RUN
+                steps.append(((side - SC_STAIR_HALF, floor_y, z1 - SC_STAIR_RUN),
+                              (side + SC_STAIR_HALF, floor_y + (i + 1) * rise, z1)))
+
+        tiers.append(dict(stations=stations, bases=bases, top=top, deck=deck_y, ceil=ceil_y,
+                          floor=floor_y, rail_y=rail_y, width=w, z=z, bulkhead=bulkhead,
+                          rails=rails, posts=posts, steps=steps, stair_x=sx,
+                          stair_steps=count, stair_run=count * SC_STAIR_RUN))
+        base_top = top
+    return tiers
+
+
+def add_sterncastle(hull_shape, hull, deck):
+    for tier in castle_parts(hull_shape):
+        tier_walls(hull, tier["stations"], tier["bases"], tier["top"])
+        tier_floor(deck, tier["stations"], tier["ceil"], tier["deck"])
+        for lo, hi in tier["bulkhead"]:
+            box(hull, lo, hi)
+        for lo, hi in tier["rails"] + tier["posts"]:
+            box(hull, lo, hi)
+        for lo, hi in tier["steps"]:
+            box(deck, lo, hi)
+
 def build(transom_width, transom_rake):
     hull_shape = Hull(transom_width, transom_rake)
     strakes = max(1, STRAKE_COUNT)
@@ -246,6 +389,8 @@ def build(transom_width, transom_rake):
 
     deck = Surface()
     deck.cap(deck_edge, True)
+
+    add_sterncastle(hull_shape, hull, deck)
 
     return hull, deck
 

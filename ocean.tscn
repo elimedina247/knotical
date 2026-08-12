@@ -111,5 +111,6 @@ TransomWidth = 0.55
 TransomRake = 1.75
 BilgeFullness = 0.42
 SurfaceOffset = 0.22
+DeckHeight = 2.7
 CenterOfMassHeight = -2.6
 CenterOfMassLength = 0.38
