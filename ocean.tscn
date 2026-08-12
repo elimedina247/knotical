@@ -1,11 +1,11 @@
 [gd_scene format=3 uid="uid://dxbpkm30ldpar"]
 
 [ext_resource type="Script" uid="uid://dvl3k7wgixvcx" path="res://scripts/ocean/OceanSurface.cs" id="1_surface"]
-[ext_resource type="Script" uid="uid://dg1wd1u3l3lhm" path="res://scripts/ocean/WaveProbe.cs" id="2_probe"]
 [ext_resource type="Script" uid="uid://bjt58bdo85vby" path="res://scripts/debug/DebugFlyCamera.cs" id="3_flycam"]
 [ext_resource type="Script" uid="uid://cyemm0pt8ya88" path="res://scripts/debug/DebugWindHud.cs" id="4_windhud"]
 [ext_resource type="Script" uid="uid://lkd4cyvlw54e" path="res://scripts/sky/SkyController.cs" id="5_skyctl"]
 [ext_resource type="Shader" uid="uid://cwls1kmf1fiyw" path="res://shaders/sky.gdshader" id="6_skyshader"]
+[ext_resource type="PackedScene" path="res://boat_2.tscn" id="7_qijwg"]
 [ext_resource type="Script" uid="uid://u1udc6i0etiu" path="res://scripts/ocean/SeabedSurface.cs" id="8_seabed"]
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_seabed"]
@@ -44,16 +44,6 @@ ambient_light_source = 3
 reflected_light_source = 2
 tonemap_mode = 2
 tonemap_white = 3.0
-
-[sub_resource type="SphereMesh" id="SphereMesh_1"]
-radius = 1.5
-height = 3.0
-radial_segments = 16
-rings = 8
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1"]
-shading_mode = 0
-albedo_color = Color(0.95, 0.25, 0.2, 1)
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_uupup"]
 top_radius = 154.48438
@@ -94,44 +84,9 @@ script = ExtResource("4_windhud")
 [node name="SkyController" type="Node" parent="." unique_id=100000016]
 script = ExtResource("5_skyctl")
 
-[node name="Probes" type="Node3D" parent="." unique_id=100000006]
-
-[node name="Probe1" type="Node3D" parent="Probes" unique_id=100000007]
-script = ExtResource("2_probe")
-SurfaceOffset = 1.5
-
-[node name="Mesh" type="MeshInstance3D" parent="Probes/Probe1" unique_id=100000008]
-mesh = SubResource("SphereMesh_1")
-surface_material_override/0 = SubResource("StandardMaterial3D_1")
-
-[node name="Probe2" type="Node3D" parent="Probes" unique_id=100000009]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35, 0, -20)
-script = ExtResource("2_probe")
-SurfaceOffset = 1.5
-
-[node name="Mesh" type="MeshInstance3D" parent="Probes/Probe2" unique_id=100000010]
-mesh = SubResource("SphereMesh_1")
-surface_material_override/0 = SubResource("StandardMaterial3D_1")
-
-[node name="Probe3" type="Node3D" parent="Probes" unique_id=100000011]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28, 0, 18)
-script = ExtResource("2_probe")
-SurfaceOffset = 1.5
-
-[node name="Mesh" type="MeshInstance3D" parent="Probes/Probe3" unique_id=100000012]
-mesh = SubResource("SphereMesh_1")
-surface_material_override/0 = SubResource("StandardMaterial3D_1")
-
-[node name="Probe4" type="Node3D" parent="Probes" unique_id=100000013]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 60)
-script = ExtResource("2_probe")
-SurfaceOffset = 1.5
-
-[node name="Mesh" type="MeshInstance3D" parent="Probes/Probe4" unique_id=100000014]
-mesh = SubResource("SphereMesh_1")
-surface_material_override/0 = SubResource("StandardMaterial3D_1")
-
 [node name="Island" type="MeshInstance3D" parent="." unique_id=1840518826]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 50.981537, -418.12045, -212.42859)
 mesh = SubResource("CylinderMesh_uupup")
 surface_material_override/0 = SubResource("StandardMaterial3D_frxtq")
+
+[node name="Boat2" parent="." unique_id=2015638015 instance=ExtResource("7_qijwg")]

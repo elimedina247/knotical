@@ -1,6 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="ArrayMesh" path="res://models/hull.obj" id="1_hullmesh"]
+[ext_resource type="Script" path="res://scripts/boat/BoatHull.cs" id="2_boathull"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_planks"]
 albedo_color = Color(0.35, 0.21, 0.15, 1)
@@ -10,7 +11,9 @@ roughness = 0.92
 albedo_color = Color(0.7, 0.54, 0.33, 1)
 roughness = 0.88
 
-[node name="Boat2" type="Node3D"]
+[node name="Boat2" type="RigidBody3D"]
+mass = 36000.0
+script = ExtResource("2_boathull")
 
 [node name="Hull" type="MeshInstance3D" parent="."]
 mesh = ExtResource("1_hullmesh")

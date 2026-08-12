@@ -6,19 +6,8 @@ namespace Knotical.Boat;
 [GlobalClass]
 public partial class ClinkerHull : MeshInstance3D
 {
-    private float _length = 17f;
-    private float _beam = 6.2f;
-    private float _draft = 2.1f;
-    private float _freeboard = 2.3f;
+    private readonly HullForm _form = new();
     private float _deckHeight = 1.35f;
-    private float _bowSheerRise = 1.6f;
-    private float _sternSheerRise = 1.2f;
-    private float _sheerPower = 2.4f;
-    private float _rocker = 1.75f;
-    private float _rockerPower = 2.6f;
-    private float _bowSharpness = 2.2f;
-    private float _sternSharpness = 3f;
-    private float _bilgeFullness = 0.42f;
     private float _thickness = 0.16f;
     private float _strakeProud = 0.15f;
     private int _strakeCount = 24;
@@ -28,43 +17,49 @@ public partial class ClinkerHull : MeshInstance3D
     private Material _deckMaterial;
 
     [Export(PropertyHint.Range, "4,60,0.05")]
-    public float Length { get => _length; set { _length = value; Rebuild(); } }
+    public float Length { get => _form.Length; set { _form.Length = value; Rebuild(); } }
 
     [Export(PropertyHint.Range, "1,25,0.05")]
-    public float Beam { get => _beam; set { _beam = value; Rebuild(); } }
+    public float Beam { get => _form.Beam; set { _form.Beam = value; Rebuild(); } }
 
     [Export(PropertyHint.Range, "0.2,10,0.05")]
-    public float Draft { get => _draft; set { _draft = value; Rebuild(); } }
+    public float Draft { get => _form.Draft; set { _form.Draft = value; Rebuild(); } }
 
     [Export(PropertyHint.Range, "0.2,10,0.05")]
-    public float Freeboard { get => _freeboard; set { _freeboard = value; Rebuild(); } }
+    public float Freeboard { get => _form.Freeboard; set { _form.Freeboard = value; Rebuild(); } }
 
     [Export(PropertyHint.Range, "-2,8,0.05")]
     public float DeckHeight { get => _deckHeight; set { _deckHeight = value; Rebuild(); } }
 
     [Export(PropertyHint.Range, "0,6,0.05")]
-    public float BowSheerRise { get => _bowSheerRise; set { _bowSheerRise = value; Rebuild(); } }
+    public float BowSheerRise { get => _form.BowSheerRise; set { _form.BowSheerRise = value; Rebuild(); } }
 
     [Export(PropertyHint.Range, "0,6,0.05")]
-    public float SternSheerRise { get => _sternSheerRise; set { _sternSheerRise = value; Rebuild(); } }
+    public float SternSheerRise { get => _form.SternSheerRise; set { _form.SternSheerRise = value; Rebuild(); } }
 
     [Export(PropertyHint.Range, "1,6,0.05")]
-    public float SheerPower { get => _sheerPower; set { _sheerPower = value; Rebuild(); } }
+    public float SheerPower { get => _form.SheerPower; set { _form.SheerPower = value; Rebuild(); } }
 
     [Export(PropertyHint.Range, "0,5,0.05")]
-    public float Rocker { get => _rocker; set { _rocker = value; Rebuild(); } }
+    public float Rocker { get => _form.Rocker; set { _form.Rocker = value; Rebuild(); } }
 
     [Export(PropertyHint.Range, "1,6,0.05")]
-    public float RockerPower { get => _rockerPower; set { _rockerPower = value; Rebuild(); } }
+    public float RockerPower { get => _form.RockerPower; set { _form.RockerPower = value; Rebuild(); } }
 
     [Export(PropertyHint.Range, "0.5,6,0.05")]
-    public float BowSharpness { get => _bowSharpness; set { _bowSharpness = value; Rebuild(); } }
+    public float BowSharpness { get => _form.BowSharpness; set { _form.BowSharpness = value; Rebuild(); } }
 
     [Export(PropertyHint.Range, "0.5,6,0.05")]
-    public float SternSharpness { get => _sternSharpness; set { _sternSharpness = value; Rebuild(); } }
+    public float SternSharpness { get => _form.SternSharpness; set { _form.SternSharpness = value; Rebuild(); } }
+
+    [Export(PropertyHint.Range, "0,1,0.01")]
+    public float TransomWidth { get => _form.TransomWidth; set { _form.TransomWidth = value; Rebuild(); } }
+
+    [Export(PropertyHint.Range, "-2,3,0.05")]
+    public float TransomRake { get => _form.TransomRake; set { _form.TransomRake = value; Rebuild(); } }
 
     [Export(PropertyHint.Range, "0.15,1.5,0.01")]
-    public float BilgeFullness { get => _bilgeFullness; set { _bilgeFullness = value; Rebuild(); } }
+    public float BilgeFullness { get => _form.BilgeFullness; set { _form.BilgeFullness = value; Rebuild(); } }
 
     [Export(PropertyHint.Range, "0.02,1,0.01")]
     public float Thickness { get => _thickness; set { _thickness = value; Rebuild(); } }
@@ -90,72 +85,9 @@ public partial class ClinkerHull : MeshInstance3D
 
     public override void _EnterTree() => Rebuild();
 
-    private float PlanFactor(float t)
-    {
-        float m = Mathf.Abs(t * 2f - 1f);
-        float sharpness = t > 0.5f ? _bowSharpness : _sternSharpness;
-        return Mathf.Pow(Mathf.Max(0f, 1f - Mathf.Pow(m, sharpness)), 0.65f);
-    }
+    private Vector3[] Ring(float v, float offset) => _form.Ring(v, offset, _stations);
 
-    private float SectionFactor(float v) => Mathf.Pow(Mathf.Clamp(v, 0f, 1f), _bilgeFullness);
-
-    private float KeelY(float t)
-    {
-        float m = Mathf.Abs(t * 2f - 1f);
-        return -_draft + _rocker * Mathf.Pow(m, _rockerPower);
-    }
-
-    private float SheerY(float t)
-    {
-        float m = Mathf.Abs(t * 2f - 1f);
-        float rise = t > 0.5f ? _bowSheerRise : _sternSheerRise;
-        return _freeboard + rise * Mathf.Pow(m, _sheerPower);
-    }
-
-    private float ZAt(float t) => Mathf.Lerp(_length * 0.5f, -_length * 0.5f, t);
-
-    private float VAtHeight(float t, float y)
-    {
-        float keel = KeelY(t);
-        float sheer = SheerY(t);
-        if (sheer - keel < 0.001f) return 0f;
-        return Mathf.Clamp((y - keel) / (sheer - keel), 0f, 1f);
-    }
-
-    private Vector3 Shell(float t, float v, float offset, float side)
-    {
-        float y = Mathf.Lerp(KeelY(t), SheerY(t), v);
-        float half = Mathf.Max(0.02f, _beam * 0.5f * PlanFactor(t) * SectionFactor(v) + offset);
-        return new Vector3(half * side, y, ZAt(t));
-    }
-
-    private Vector3[] Ring(float v, float offset)
-    {
-        int count = Mathf.Max(3, _stations);
-        var points = new Vector3[count * 2];
-        for (int j = 0; j < count; j++)
-        {
-            float t = (float)j / (count - 1);
-            Vector3 starboard = Shell(t, v, offset, 1f);
-            points[j] = starboard;
-            points[count * 2 - 1 - j] = new Vector3(-starboard.X, starboard.Y, starboard.Z);
-        }
-        return points;
-    }
-
-    private Vector3[] RingAtHeight(float y, float offset)
-    {
-        int count = Mathf.Max(3, _stations);
-        var points = new Vector3[count * 2];
-        for (int j = 0; j < count; j++)
-        {
-            float t = (float)j / (count - 1);
-            Vector3 starboard = Shell(t, VAtHeight(t, y), offset, 1f);
-            points[j] = new Vector3(starboard.X, y, starboard.Z);
-            points[count * 2 - 1 - j] = new Vector3(-starboard.X, y, starboard.Z);
-        }
-        return points;
-    }
+    private Vector3[] RingAtHeight(float y, float offset) => _form.RingAtHeight(y, offset, _stations);
 
     private float[] StrakeSeams(int strakes)
     {
@@ -170,16 +102,16 @@ public partial class ClinkerHull : MeshInstance3D
 
         const int samples = 256;
         var girth = new float[samples + 1];
-        float keel = KeelY(0.5f);
-        float sheer = SheerY(0.5f);
-        float widest = _beam * 0.5f * PlanFactor(0.5f);
+        float keel = _form.KeelY(0.5f);
+        float sheer = _form.SheerY(0.5f);
+        float widest = _form.Beam * 0.5f * _form.PlanFactor(0.5f);
         float previousWidth = 0f;
         float previousY = keel;
 
         for (int i = 1; i <= samples; i++)
         {
             float v = (float)i / samples;
-            float width = widest * SectionFactor(v);
+            float width = widest * _form.SectionFactor(v);
             float y = Mathf.Lerp(keel, sheer, v);
             float dw = width - previousWidth;
             float dy = y - previousY;
