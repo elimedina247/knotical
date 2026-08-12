@@ -18,6 +18,15 @@ public partial class PlayerBody : RigidBody3D
     [Export(PropertyHint.Range, "0,1,0.01")]
     public float AirControl { get; set; } = 0.1f;
 
+    [Export(PropertyHint.Range, "0,90,1")]
+    public float GripHeel { get; set; } = 6f;
+
+    [Export(PropertyHint.Range, "0,90,1")]
+    public float SlipHeel { get; set; } = 20f;
+
+    [Export(PropertyHint.Range, "0,1,0.01")]
+    public float MinTraction { get; set; } = 0.05f;
+
     [Export(PropertyHint.Range, "1,60,0.5")]
     public float UprightStiffness { get; set; } = 14f;
 
@@ -88,6 +97,7 @@ public partial class PlayerBody : RigidBody3D
 
     private Node3D _pivot;
     private Vector3 _deckVelocity;
+    private Vector3 _deckUp = Vector3.Up;
     private Vector3 _groundNormal = Vector3.Up;
     private Vector3 _wish;
     private bool _grounded;
@@ -108,6 +118,16 @@ public partial class PlayerBody : RigidBody3D
     public float Submersion => _submersion;
     public Vector3 DeckVelocity => _deckVelocity;
     public float Authority => _authority;
+
+    public float Traction
+    {
+        get
+        {
+            float heel = Mathf.RadToDeg(_deckUp.AngleTo(Vector3.Up));
+            float fade = Mathf.InverseLerp(GripHeel, Mathf.Max(SlipHeel, GripHeel + 0.01f), heel);
+            return Mathf.Lerp(1f, MinTraction, Mathf.Clamp(fade, 0f, 1f));
+        }
+    }
 
     public Vector3 PlanarVelocity
     {
@@ -225,6 +245,7 @@ public partial class PlayerBody : RigidBody3D
         int found = 0;
 
         Vector3 slope = Vector3.Zero;
+        Vector3 up = Vector3.Up;
 
         for (int i = 0; i < contacts; i++)
         {
@@ -232,6 +253,7 @@ public partial class PlayerBody : RigidBody3D
             sum += state.GetContactColliderVelocityAtPosition(i);
             Vector3 n = state.GetContactLocalNormal(i);
             slope += n.Dot(Vector3.Up) < 0f ? -n : n;
+            if (state.GetContactColliderObject(i) is Node3D deck) up = deck.GlobalBasis.Y.Normalized();
             found++;
         }
 
@@ -240,6 +262,7 @@ public partial class PlayerBody : RigidBody3D
             _airborneFor = 0f;
             _grounded = true;
             _deckVelocity = sum / found;
+            _deckUp = up;
             _groundNormal = slope.LengthSquared() > 1e-6f ? slope.Normalized() : Vector3.Up;
             return;
         }
@@ -249,6 +272,7 @@ public partial class PlayerBody : RigidBody3D
 
         _grounded = false;
         _deckVelocity = Vector3.Zero;
+        _deckUp = Vector3.Up;
         _groundNormal = Vector3.Up;
     }
 
@@ -331,7 +355,7 @@ public partial class PlayerBody : RigidBody3D
 
         Vector3 force = (target - planar) * (Acceleration * Mass);
 
-        if (_grounded) force = force.LimitLength(MaxFootingForce);
+        if (_grounded) force = force.LimitLength(MaxFootingForce * Traction);
         else force *= AirControl;
 
         state.ApplyCentralForce(force * _authority);

@@ -18,7 +18,7 @@ public sealed class LimbChain
 
     public void Build(int segments, float length, Vector3 root, Vector3 direction)
     {
-        int count = Mathf.Max(2, segments) + 1;
+        int count = Mathf.Max(1, segments) + 1;
         SegmentLength = length / (count - 1);
         Points = new Vector3[count];
         Previous = new Vector3[count];

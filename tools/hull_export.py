@@ -265,36 +265,51 @@ def castle_stations(hull_shape, t_fwd):
     return out
 
 
-def tier_walls(surface, stations, bases, top_y):
-    for k in range(len(stations) - 1):
+def inner_half(hw):
+    return max(hw * 0.35, hw - SC_WALL)
+
+
+def tier_walls(surface, stations, bases, top_y, closed=0):
+    n = len(stations)
+    for k in range(n - 1):
+        ya, yb = min(bases[k], top_y), min(bases[k + 1], top_y)
+        if ya >= top_y - 1e-4 and yb >= top_y - 1e-4:
+            continue
         for side in (1.0, -1.0):
             xa, _, za = stations[k]
             xb, _, zb = stations[k + 1]
-            ya, yb = bases[k], bases[k + 1]
             oa, ob = xa * side, xb * side
-            ia, ib = (xa - SC_WALL) * side, (xb - SC_WALL) * side
+            ia, ib = inner_half(xa) * side, inner_half(xb) * side
             o = [(oa, ya, za), (ob, yb, zb), (ob, top_y, zb), (oa, top_y, za)]
-            n = [(ia, ya, za), (ib, yb, zb), (ib, top_y, zb), (ia, top_y, za)]
+            m = [(ia, ya, za), (ib, yb, zb), (ib, top_y, zb), (ia, top_y, za)]
             if side > 0:
                 quad(surface, o[0], o[1], o[2], o[3])
-                quad(surface, n[3], n[2], n[1], n[0])
-                quad(surface, o[3], o[2], n[2], n[3])
+                quad(surface, m[3], m[2], m[1], m[0])
+                quad(surface, o[3], o[2], m[2], m[3])
             else:
                 quad(surface, o[3], o[2], o[1], o[0])
-                quad(surface, n[0], n[1], n[2], n[3])
-                quad(surface, n[3], n[2], o[2], o[3])
-    xa, _, za = stations[0]
-    box(surface, (-xa, bases[0], za - SC_WALL), (xa, top_y, za))
-    xe, _, ze = stations[-1]
-    ie = xe - SC_WALL
-    quad(surface, (xe, bases[-1], ze), (xe, top_y, ze), (ie, top_y, ze), (ie, bases[-1], ze))
-    quad(surface, (-ie, bases[-1], ze), (-ie, top_y, ze), (-xe, top_y, ze), (-xe, bases[-1], ze))
+                quad(surface, m[0], m[1], m[2], m[3])
+                quad(surface, m[3], m[2], o[2], o[3])
+
+    ci = 0 if closed == 0 else n - 1
+    oi = n - 1 if closed == 0 else 0
+
+    xa, _, za = stations[ci]
+    if xa > 0.1 and bases[ci] < top_y:
+        lo, hi = (za - SC_WALL, za) if closed == 0 else (za, za + SC_WALL)
+        box(surface, (-xa, bases[ci], lo), (xa, top_y, hi))
+
+    xe, _, ze = stations[oi]
+    if xe > SC_WALL and bases[oi] < top_y:
+        zl, zh = (ze, ze + SC_WALL) if closed == 0 else (ze - SC_WALL, ze)
+        box(surface, (inner_half(xe), bases[oi], zl), (xe, top_y, zh))
+        box(surface, (-xe, bases[oi], zl), (-inner_half(xe), top_y, zh))
 
 
 def tier_floor(surface, stations, ceil_y, deck_y):
     for k in range(len(stations) - 1):
-        wa = stations[k][0] - SC_WALL
-        wb = stations[k + 1][0] - SC_WALL
+        wa = inner_half(stations[k][0])
+        wb = inner_half(stations[k + 1][0])
         za, zb = stations[k][2], stations[k + 1][2]
         quad(surface, (-wb, deck_y, zb), (-wa, deck_y, za), (wa, deck_y, za), (wb, deck_y, zb))
         quad(surface, (-wa, ceil_y, za), (-wb, ceil_y, zb), (wb, ceil_y, zb), (wa, ceil_y, za))
@@ -361,6 +376,110 @@ def add_sterncastle(hull_shape, hull, deck):
         for lo, hi in tier["steps"]:
             box(deck, lo, hi)
 
+
+MAST_SIDES = 12
+MASTS = [
+    dict(x=0.0, z=0.0, base=DECK_HEIGHT, top=34.7, r_base=0.55, r_top=0.28),
+    dict(x=0.0, z=24.5, base=SC_TIERS[1]["deck"], top=25.0, r_base=0.35, r_top=0.18),
+]
+
+
+def mast_rings(spec, sides=MAST_SIDES):
+    lower = []
+    upper = []
+    for i in range(sides):
+        a = math.tau * i / sides
+        c, s = math.cos(a), math.sin(a)
+        lower.append((spec["x"] + spec["r_base"] * c, spec["base"], spec["z"] + spec["r_base"] * s))
+        upper.append((spec["x"] + spec["r_top"] * c, spec["top"], spec["z"] + spec["r_top"] * s))
+    return lower, upper
+
+
+def add_masts(surface):
+    for spec in MASTS:
+        lower, upper = mast_rings(spec)
+        n = len(lower)
+        for i in range(n):
+            j = (i + 1) % n
+            quad(surface, lower[i], upper[i], upper[j], lower[j])
+        for i in range(1, n - 1):
+            surface.tri(upper[0], upper[i + 1], upper[i])
+            surface.tri(lower[0], lower[i], lower[i + 1])
+
+
+
+FC_T_AFT = 0.84
+FC_CEIL = 5.1
+FC_DECK = 5.3
+FC_TOP = 6.1
+FC_STAIR_X = 5.0
+
+
+def fore_stations(hull_shape):
+    out = []
+    for i in range(SC_SAMPLES):
+        t = FC_T_AFT + (1.0 - FC_T_AFT) * i / (SC_SAMPLES - 1)
+        p = hull_shape.shell(t, 1.0, 0.0, 1.0)
+        out.append((p[0], hull_shape.sheer_y(t), p[2]))
+    return out
+
+
+def forecastle_parts(hull_shape):
+    stations = fore_stations(hull_shape)
+    bases = [p[1] for p in stations]
+    w = stations[0][0] - SC_WALL
+    z = stations[0][2]
+    floor_y = DECK_HEIGHT
+    door_top = floor_y + SC_DOOR_HEIGHT
+
+    bulkhead = [
+        ((-w, floor_y, z - SC_WALL), (-SC_DOOR_HALF, FC_CEIL, z)),
+        ((SC_DOOR_HALF, floor_y, z - SC_WALL), (w, FC_CEIL, z)),
+        ((-SC_DOOR_HALF, door_top, z - SC_WALL), (SC_DOOR_HALF, FC_CEIL, z)),
+        ((-w, FC_CEIL, z - SC_WALL), (w, FC_DECK, z)),
+    ]
+
+    runs = [(-w, -(FC_STAIR_X + SC_STAIR_HALF)),
+            (-(FC_STAIR_X - SC_STAIR_HALF), FC_STAIR_X - SC_STAIR_HALF),
+            (FC_STAIR_X + SC_STAIR_HALF, w)]
+    rail_y = FC_DECK + SC_RAIL_H
+    rails = [((a, rail_y - SC_RAIL_BAR, z - SC_RAIL_BAR), (b, rail_y, z)) for a, b in runs]
+
+    posts = []
+    for a, b in runs:
+        count = max(2, int((b - a) / SC_POST_GAP) + 1)
+        for i in range(count):
+            cx = a + (b - a - SC_POST) * (i / (count - 1)) + SC_POST * 0.5
+            posts.append(((cx - SC_POST * 0.5, FC_DECK, z - SC_POST),
+                          (cx + SC_POST * 0.5, rail_y - SC_RAIL_BAR, z)))
+
+    count = max(1, int(round((FC_DECK - floor_y) / SC_STAIR_RISE)))
+    rise = (FC_DECK - floor_y) / count
+    steps = []
+    for side in (-FC_STAIR_X, FC_STAIR_X):
+        for i in range(count):
+            z1 = z + (count - 1 - i) * SC_STAIR_RUN
+            steps.append(((side - SC_STAIR_HALF, floor_y, z1),
+                          (side + SC_STAIR_HALF, floor_y + (i + 1) * rise, z1 + SC_STAIR_RUN)))
+
+    return dict(stations=stations, bases=bases, top=FC_TOP, deck=FC_DECK, ceil=FC_CEIL,
+                floor=floor_y, rail_y=rail_y, width=w, z=z, bulkhead=bulkhead,
+                rails=rails, posts=posts, steps=steps, stair_x=FC_STAIR_X,
+                stair_steps=count, stair_run=count * SC_STAIR_RUN)
+
+
+def add_forecastle(hull_shape, hull, deck):
+    f = forecastle_parts(hull_shape)
+    tier_walls(hull, f["stations"], f["bases"], f["top"], closed=1)
+    tier_floor(deck, f["stations"], f["ceil"], f["deck"])
+    for lo, hi in f["bulkhead"]:
+        box(hull, lo, hi)
+    for lo, hi in f["rails"] + f["posts"]:
+        box(hull, lo, hi)
+    for lo, hi in f["steps"]:
+        box(deck, lo, hi)
+
+
 def build(transom_width, transom_rake):
     hull_shape = Hull(transom_width, transom_rake)
     strakes = max(1, STRAKE_COUNT)
@@ -391,6 +510,8 @@ def build(transom_width, transom_rake):
     deck.cap(deck_edge, True)
 
     add_sterncastle(hull_shape, hull, deck)
+    add_forecastle(hull_shape, hull, deck)
+    add_masts(deck)
 
     return hull, deck
 

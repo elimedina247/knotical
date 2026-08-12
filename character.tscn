@@ -1,6 +1,7 @@
-[gd_scene load_steps=10 format=3 uid="uid://drik7re75csan"]
+[gd_scene load_steps=12 format=3 uid="uid://drik7re75csan"]
 
 [ext_resource type="Script" path="res://scripts/player/PlayerBody.cs" id="1_playerbody"]
+[ext_resource type="Script" path="res://scripts/player/DangleArm.cs" id="2_danglearm"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_body"]
 friction = 0.9
@@ -19,11 +20,17 @@ rings = 6
 albedo_color = Color(0.909804, 0.639216, 0.239216, 1)
 roughness = 0.95
 
-[sub_resource type="CapsuleMesh" id="Mesh_arm"]
+[sub_resource type="CapsuleMesh" id="Mesh_armsegment"]
 radius = 0.04
-height = 0.5
+height = 0.25
 radial_segments = 10
 rings = 3
+
+[sub_resource type="SphereMesh" id="Mesh_elbow"]
+radius = 0.045
+height = 0.09
+radial_segments = 10
+rings = 5
 
 [sub_resource type="CapsuleMesh" id="Mesh_legsegment"]
 radius = 0.055
@@ -70,18 +77,40 @@ surface_material_override/0 = SubResource("Material_skin")
 
 [node name="ArmLeft" type="Node3D" parent="." unique_id=1864184202]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.23, 0.9, 0)
+script = ExtResource("2_danglearm")
 
-[node name="Mesh" type="MeshInstance3D" parent="ArmLeft" unique_id=105841828]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.258, 0)
-mesh = SubResource("Mesh_arm")
+[node name="Bicep" type="MeshInstance3D" parent="ArmLeft" unique_id=105841828]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.125, 0)
+mesh = SubResource("Mesh_armsegment")
+surface_material_override/0 = SubResource("Material_skin")
+
+[node name="Elbow" type="MeshInstance3D" parent="ArmLeft"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.25, 0)
+mesh = SubResource("Mesh_elbow")
+surface_material_override/0 = SubResource("Material_skin")
+
+[node name="Forearm" type="MeshInstance3D" parent="ArmLeft"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.375, 0)
+mesh = SubResource("Mesh_armsegment")
 surface_material_override/0 = SubResource("Material_skin")
 
 [node name="ArmRight" type="Node3D" parent="." unique_id=89781565]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.23, 0.9, 0)
+script = ExtResource("2_danglearm")
 
-[node name="Mesh" type="MeshInstance3D" parent="ArmRight" unique_id=1760228191]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.258, 0)
-mesh = SubResource("Mesh_arm")
+[node name="Bicep" type="MeshInstance3D" parent="ArmRight" unique_id=1760228191]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.125, 0)
+mesh = SubResource("Mesh_armsegment")
+surface_material_override/0 = SubResource("Material_skin")
+
+[node name="Elbow" type="MeshInstance3D" parent="ArmRight"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.25, 0)
+mesh = SubResource("Mesh_elbow")
+surface_material_override/0 = SubResource("Material_skin")
+
+[node name="Forearm" type="MeshInstance3D" parent="ArmRight"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.375, 0)
+mesh = SubResource("Mesh_armsegment")
 surface_material_override/0 = SubResource("Material_skin")
 
 [node name="LegLeft" type="Node3D" parent="." unique_id=904629450]
