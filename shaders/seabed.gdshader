@@ -26,7 +26,7 @@ uniform float wave_time = 0.0;
 uniform float murk_distance : hint_range(5.0, 400.0) = 90.0;
 
 uniform vec3 light_direction = vec3(0.0, 1.0, 0.0);
-uniform float foam_shadow_strength : hint_range(0.0, 1.0) = 0.35;
+uniform float foam_shadow_strength : hint_range(0.0, 1.0) = 0.15;
 
 varying vec3 v_world_pos;
 

@@ -1,0 +1,18 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://models/hull.obj" id="1_hullmesh"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_planks"]
+albedo_color = Color(0.35, 0.21, 0.15, 1)
+roughness = 0.92
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_deck"]
+albedo_color = Color(0.7, 0.54, 0.33, 1)
+roughness = 0.88
+
+[node name="Boat2" type="Node3D"]
+
+[node name="Hull" type="MeshInstance3D" parent="."]
+mesh = ExtResource("1_hullmesh")
+surface_material_override/0 = SubResource("StandardMaterial3D_planks")
+surface_material_override/1 = SubResource("StandardMaterial3D_deck")
