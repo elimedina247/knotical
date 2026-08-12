@@ -61,6 +61,37 @@ public sealed class HullForm
         return Mathf.Clamp((y - keel) / (sheer - keel), 0f, 1f);
     }
 
+    public float VolumeBelow(float y, float offset, int stations, int levels)
+    {
+        int nt = Mathf.Max(8, stations);
+        int nv = Mathf.Max(8, levels);
+        float slice = Length / nt;
+        float total = 0f;
+
+        for (int i = 0; i < nt; i++)
+        {
+            float t = (i + 0.5f) / nt;
+            float keel = KeelY(t);
+            float span = SheerY(t) - keel;
+            if (span <= 0f) continue;
+
+            float widest = Beam * 0.5f * PlanFactor(t);
+            float step = span / nv;
+            float area = 0f;
+
+            for (int j = 0; j < nv; j++)
+            {
+                float v = (j + 0.5f) / nv;
+                if (keel + span * v > y) break;
+                area += 2f * Mathf.Max(0.02f, widest * SectionFactor(v) + offset) * step;
+            }
+
+            total += area * slice;
+        }
+
+        return total;
+    }
+
     public Vector3 Shell(float t, float v, float offset, float side)
     {
         float y = Mathf.Lerp(KeelY(t), SheerY(t), v);

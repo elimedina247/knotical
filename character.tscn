@@ -1,6 +1,135 @@
-[gd_scene format=3]
+[gd_scene load_steps=10 format=3 uid="uid://drik7re75csan"]
 
-[ext_resource type="Script" path="res://scripts/player/CharacterRig.cs" id="1_characterrig"]
+[ext_resource type="Script" path="res://scripts/player/PlayerBody.cs" id="1_playerbody"]
 
-[node name="Character" type="Node3D"]
-script = ExtResource("1_characterrig")
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_body"]
+friction = 0.9
+
+[sub_resource type="CapsuleShape3D" id="Shape_body"]
+radius = 0.21
+height = 1.19
+
+[sub_resource type="CapsuleMesh" id="Mesh_torso"]
+radius = 0.21
+height = 0.78218746
+radial_segments = 20
+rings = 6
+
+[sub_resource type="StandardMaterial3D" id="Material_skin"]
+albedo_color = Color(0.909804, 0.639216, 0.239216, 1)
+roughness = 0.95
+
+[sub_resource type="CapsuleMesh" id="Mesh_arm"]
+radius = 0.04
+height = 0.5
+radial_segments = 10
+rings = 3
+
+[sub_resource type="CapsuleMesh" id="Mesh_legsegment"]
+radius = 0.055
+height = 0.22
+radial_segments = 10
+rings = 3
+
+[sub_resource type="SphereMesh" id="Mesh_knee"]
+radius = 0.06
+height = 0.12
+radial_segments = 10
+rings = 5
+
+[sub_resource type="CapsuleMesh" id="Mesh_foot"]
+radius = 0.055
+height = 0.19
+radial_segments = 10
+rings = 3
+
+[node name="Character" type="RigidBody3D" unique_id=1910387467]
+mass = 70.0
+physics_material_override = SubResource("PhysicsMaterial_body")
+can_sleep = false
+contact_monitor = true
+max_contacts_reported = 6
+script = ExtResource("1_playerbody")
+CameraPivot = NodePath("CameraPivot")
+
+[node name="Collider" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.595, 0)
+shape = SubResource("Shape_body")
+
+[node name="CameraPivot" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.15, 0)
+
+[node name="Camera3D" type="Camera3D" parent="CameraPivot"]
+current = true
+far = 12000.0
+
+[node name="Torso" type="MeshInstance3D" parent="." unique_id=18217641]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+mesh = SubResource("Mesh_torso")
+surface_material_override/0 = SubResource("Material_skin")
+
+[node name="ArmLeft" type="Node3D" parent="." unique_id=1864184202]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.23, 0.9, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="ArmLeft" unique_id=105841828]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.258, 0)
+mesh = SubResource("Mesh_arm")
+surface_material_override/0 = SubResource("Material_skin")
+
+[node name="ArmRight" type="Node3D" parent="." unique_id=89781565]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.23, 0.9, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="ArmRight" unique_id=1760228191]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.258, 0)
+mesh = SubResource("Mesh_arm")
+surface_material_override/0 = SubResource("Material_skin")
+
+[node name="LegLeft" type="Node3D" parent="." unique_id=904629450]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.1, 0.5, 0)
+
+[node name="Thigh" type="MeshInstance3D" parent="LegLeft" unique_id=643028268]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.11, 0)
+mesh = SubResource("Mesh_legsegment")
+surface_material_override/0 = SubResource("Material_skin")
+
+[node name="Knee" type="Node3D" parent="LegLeft"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.22, 0)
+
+[node name="Ball" type="MeshInstance3D" parent="LegLeft/Knee"]
+mesh = SubResource("Mesh_knee")
+surface_material_override/0 = SubResource("Material_skin")
+
+[node name="Shin" type="MeshInstance3D" parent="LegLeft/Knee"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.11, 0)
+mesh = SubResource("Mesh_legsegment")
+surface_material_override/0 = SubResource("Material_skin")
+
+[node name="Foot" type="MeshInstance3D" parent="LegLeft/Knee" unique_id=708830263]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, -0.225, -0.05)
+mesh = SubResource("Mesh_foot")
+surface_material_override/0 = SubResource("Material_skin")
+
+[node name="LegRight" type="Node3D" parent="." unique_id=1308845229]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.1, 0.5, 0)
+
+[node name="Thigh" type="MeshInstance3D" parent="LegRight" unique_id=1841521291]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.11, 0)
+mesh = SubResource("Mesh_legsegment")
+surface_material_override/0 = SubResource("Material_skin")
+
+[node name="Knee" type="Node3D" parent="LegRight"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.22, 0)
+
+[node name="Ball" type="MeshInstance3D" parent="LegRight/Knee"]
+mesh = SubResource("Mesh_knee")
+surface_material_override/0 = SubResource("Material_skin")
+
+[node name="Shin" type="MeshInstance3D" parent="LegRight/Knee"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.11, 0)
+mesh = SubResource("Mesh_legsegment")
+surface_material_override/0 = SubResource("Material_skin")
+
+[node name="Foot" type="MeshInstance3D" parent="LegRight/Knee" unique_id=974473232]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, -0.225, -0.05)
+mesh = SubResource("Mesh_foot")
+surface_material_override/0 = SubResource("Material_skin")

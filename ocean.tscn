@@ -1,11 +1,11 @@
 [gd_scene format=3 uid="uid://dxbpkm30ldpar"]
 
+[ext_resource type="PackedScene" uid="uid://drik7re75csan" path="res://character.tscn" id="1_qijwg"]
 [ext_resource type="Script" uid="uid://dvl3k7wgixvcx" path="res://scripts/ocean/OceanSurface.cs" id="1_surface"]
-[ext_resource type="Script" uid="uid://bjt58bdo85vby" path="res://scripts/debug/DebugFlyCamera.cs" id="3_flycam"]
 [ext_resource type="Script" uid="uid://cyemm0pt8ya88" path="res://scripts/debug/DebugWindHud.cs" id="4_windhud"]
 [ext_resource type="Script" uid="uid://lkd4cyvlw54e" path="res://scripts/sky/SkyController.cs" id="5_skyctl"]
 [ext_resource type="Shader" uid="uid://cwls1kmf1fiyw" path="res://shaders/sky.gdshader" id="6_skyshader"]
-[ext_resource type="PackedScene" path="res://boat_2.tscn" id="7_qijwg"]
+[ext_resource type="PackedScene" uid="uid://b6sibho7df28i" path="res://boat_2.tscn" id="7_qijwg"]
 [ext_resource type="Script" uid="uid://u1udc6i0etiu" path="res://scripts/ocean/SeabedSurface.cs" id="8_seabed"]
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_seabed"]
@@ -52,7 +52,14 @@ height = 848.0751
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_frxtq"]
 
+[sub_resource type="CylinderShape3D" id="CylinderShape_island"]
+height = 848.0751
+radius = 154.48438
+
 [node name="Main" type="Node3D" unique_id=100000001]
+
+[node name="Character" parent="." unique_id=1910387467 instance=ExtResource("1_qijwg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 19.174889, 1.1109314)
 
 [node name="OceanSurface" type="Node3D" parent="." unique_id=100000002]
 script = ExtResource("1_surface")
@@ -72,12 +79,6 @@ shadow_enabled = true
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=100000004]
 environment = SubResource("Environment_1")
 
-[node name="Camera3D" type="Camera3D" parent="." unique_id=100000005]
-transform = Transform3D(1, 0, 0, 0, 0.939693, -0.34202, 0, 0.34202, 0.939693, 0, 22, 45)
-current = true
-far = 12000.0
-script = ExtResource("3_flycam")
-
 [node name="DebugWindHud" type="CanvasLayer" parent="." unique_id=100000015]
 script = ExtResource("4_windhud")
 
@@ -89,4 +90,26 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 50.981537, -418.12045, -212.4
 mesh = SubResource("CylinderMesh_uupup")
 surface_material_override/0 = SubResource("StandardMaterial3D_frxtq")
 
+[node name="StaticBody3D" type="StaticBody3D" parent="Island" unique_id=1502771969]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Island/StaticBody3D" unique_id=105336378]
+shape = SubResource("CylinderShape_island")
+
 [node name="Boat2" parent="." unique_id=2015638015 instance=ExtResource("7_qijwg")]
+HullLength = 50.0
+Beam = 18.0
+Draft = 7.0
+Freeboard = 3.5
+BowSheerRise = 2.6
+SternSheerRise = 1.9
+SheerPower = 2.4
+Rocker = 5.6
+RockerPower = 2.6
+BowSharpness = 2.2
+SternSharpness = 3.0
+TransomWidth = 0.55
+TransomRake = 1.75
+BilgeFullness = 0.42
+SurfaceOffset = 0.22
+CenterOfMassHeight = -2.6
+CenterOfMassLength = 0.38

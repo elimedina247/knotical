@@ -22,28 +22,28 @@ public partial class BoatHull : RigidBody3D
     private Vector3 _force;
     private Vector3 _torque;
 
-    [Export(PropertyHint.Range, "4,60,0.05")]
+    [Export(PropertyHint.Range, "4,300,0.05")]
     public float HullLength { get => _form.Length; set { _form.Length = value; Rebuild(); } }
 
-    [Export(PropertyHint.Range, "1,25,0.05")]
+    [Export(PropertyHint.Range, "1,120,0.05")]
     public float Beam { get => _form.Beam; set { _form.Beam = value; Rebuild(); } }
 
-    [Export(PropertyHint.Range, "0.2,10,0.05")]
+    [Export(PropertyHint.Range, "0.2,50,0.05")]
     public float Draft { get => _form.Draft; set { _form.Draft = value; Rebuild(); } }
 
-    [Export(PropertyHint.Range, "0.2,10,0.05")]
+    [Export(PropertyHint.Range, "0.2,50,0.05")]
     public float Freeboard { get => _form.Freeboard; set { _form.Freeboard = value; Rebuild(); } }
 
-    [Export(PropertyHint.Range, "0,6,0.05")]
+    [Export(PropertyHint.Range, "0,30,0.05")]
     public float BowSheerRise { get => _form.BowSheerRise; set { _form.BowSheerRise = value; Rebuild(); } }
 
-    [Export(PropertyHint.Range, "0,6,0.05")]
+    [Export(PropertyHint.Range, "0,30,0.05")]
     public float SternSheerRise { get => _form.SternSheerRise; set { _form.SternSheerRise = value; Rebuild(); } }
 
     [Export(PropertyHint.Range, "1,6,0.05")]
     public float SheerPower { get => _form.SheerPower; set { _form.SheerPower = value; Rebuild(); } }
 
-    [Export(PropertyHint.Range, "0,5,0.05")]
+    [Export(PropertyHint.Range, "0,25,0.05")]
     public float Rocker { get => _form.Rocker; set { _form.Rocker = value; Rebuild(); } }
 
     [Export(PropertyHint.Range, "1,6,0.05")]
@@ -58,7 +58,7 @@ public partial class BoatHull : RigidBody3D
     [Export(PropertyHint.Range, "0,1,0.01")]
     public float TransomWidth { get => _form.TransomWidth; set { _form.TransomWidth = value; Rebuild(); } }
 
-    [Export(PropertyHint.Range, "-2,3,0.05")]
+    [Export(PropertyHint.Range, "-10,15,0.05")]
     public float TransomRake { get => _form.TransomRake; set { _form.TransomRake = value; Rebuild(); } }
 
     [Export(PropertyHint.Range, "0.15,1.5,0.01")]
@@ -79,16 +79,21 @@ public partial class BoatHull : RigidBody3D
 
     private float _surfaceOffset = 0.075f;
 
-    [Export(PropertyHint.Range, "0,0.5,0.005")]
+    [Export(PropertyHint.Range, "0,2.5,0.005")]
     public float SurfaceOffset { get => _surfaceOffset; set { _surfaceOffset = value; Rebuild(); } }
 
-    [Export(PropertyHint.Range, "-4,3,0.05")]
+    [Export(PropertyHint.Range, "-20,15,0.05")]
     public float CenterOfMassHeight { get; set; } = -0.8f;
 
-    [Export(PropertyHint.Range, "-6,6,0.05")]
+    [Export(PropertyHint.Range, "-30,30,0.05")]
     public float CenterOfMassLength { get; set; } = 0.13f;
 
     [Export] public float WaterDensity { get; set; } = 1025f;
+
+    private float _displacement = 1f;
+
+    [Export(PropertyHint.Range, "0.2,1.4,0.005")]
+    public float Displacement { get => _displacement; set { _displacement = value; Rebuild(); } }
 
     [Export(PropertyHint.Range, "0,6,0.05")]
     public float NormalDrag { get; set; } = 2.5f;
@@ -120,6 +125,7 @@ public partial class BoatHull : RigidBody3D
         CenterOfMassMode = CenterOfMassModeEnum.Custom;
         CenterOfMass = new Vector3(0f, CenterOfMassHeight, CenterOfMassLength);
         GravityScale = 0f;
+        Mass = Mathf.Max(1f, WaterDensity * _displacement * _form.VolumeBelow(0f, _surfaceOffset, 192, 192));
 
         if (IsInsideTree()) BuildCollision();
     }
@@ -170,8 +176,10 @@ public partial class BoatHull : RigidBody3D
 
     public override void _IntegrateForces(PhysicsDirectBodyState3D state)
     {
+        Transform3D xform = state.Transform;
+
         _ocean = OceanField.Instance;
-        _com = state.CenterOfMass;
+        _com = xform * state.CenterOfMassLocal;
         _linear = state.LinearVelocity;
         _angular = state.AngularVelocity;
         _force = Vector3.Zero;
@@ -180,8 +188,6 @@ public partial class BoatHull : RigidBody3D
 
         if (_ocean != null && _local != null && _indices != null)
         {
-            Transform3D xform = state.Transform;
-
             for (int i = 0; i < _local.Length; i++)
             {
                 Vector3 p = xform * _local[i];

@@ -2,21 +2,21 @@ import argparse
 import math
 import os
 
-LENGTH = 17.0
-BEAM = 6.2
-DRAFT = 2.1
-FREEBOARD = 2.3
-DECK_HEIGHT = 1.35
-BOW_SHEER_RISE = 1.6
-STERN_SHEER_RISE = 1.2
+LENGTH = 50.0
+BEAM = 18.0
+DRAFT = 7.0
+FREEBOARD = 3.5
+DECK_HEIGHT = 2.7
+BOW_SHEER_RISE = 2.6
+STERN_SHEER_RISE = 1.9
 SHEER_POWER = 2.4
-ROCKER = 1.75
+ROCKER = 5.6
 ROCKER_POWER = 2.6
 BOW_SHARPNESS = 2.2
 STERN_SHARPNESS = 3.0
 BILGE_FULLNESS = 0.42
-THICKNESS = 0.16
-STRAKE_PROUD = 0.15
+THICKNESS = 0.32
+STRAKE_PROUD = 0.28
 STRAKE_COUNT = 24
 STATIONS = 40
 EVEN_PLANK_WIDTH = True
@@ -273,7 +273,7 @@ def write_obj(path, surfaces):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--transom-width", type=float, default=0.55)
-    parser.add_argument("--transom-rake", type=float, default=0.6)
+    parser.add_argument("--transom-rake", type=float, default=1.75)
     parser.add_argument("--out", default=None)
     args = parser.parse_args()
 

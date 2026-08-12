@@ -1,7 +1,7 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://b6sibho7df28i"]
 
-[ext_resource type="ArrayMesh" path="res://models/hull.obj" id="1_hullmesh"]
-[ext_resource type="Script" path="res://scripts/boat/BoatHull.cs" id="2_boathull"]
+[ext_resource type="ArrayMesh" uid="uid://b4lth4va5p5jv" path="res://models/hull.obj" id="1_hullmesh"]
+[ext_resource type="Script" uid="uid://c66i6vb2kbnlb" path="res://scripts/boat/BoatHull.cs" id="2_boathull"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_planks"]
 albedo_color = Color(0.35, 0.21, 0.15, 1)
@@ -11,11 +11,24 @@ roughness = 0.92
 albedo_color = Color(0.7, 0.54, 0.33, 1)
 roughness = 0.88
 
-[node name="Boat2" type="RigidBody3D"]
-mass = 36000.0
+[node name="Boat2" type="RigidBody3D" unique_id=1699574305]
+gravity_scale = 0.0
+center_of_mass_mode = 1
+center_of_mass = Vector3(0, -2.6, 0.38)
 script = ExtResource("2_boathull")
+HullLength = 50.0
+Beam = 18.0
+Draft = 7.0
+Freeboard = 3.5
+BowSheerRise = 2.6
+SternSheerRise = 1.9
+Rocker = 5.6
+TransomRake = 1.75
+SurfaceOffset = 0.22
+CenterOfMassHeight = -2.6
+CenterOfMassLength = 0.38
 
-[node name="Hull" type="MeshInstance3D" parent="."]
+[node name="Hull" type="MeshInstance3D" parent="." unique_id=2014393478]
 mesh = ExtResource("1_hullmesh")
 surface_material_override/0 = SubResource("StandardMaterial3D_planks")
 surface_material_override/1 = SubResource("StandardMaterial3D_deck")

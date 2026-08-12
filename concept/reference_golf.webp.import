@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cm0hddryptc47"
-path="res://.godot/imported/01_shallow_reef.svg-8ad8875b96465a07a6c1a593c9ac9b0f.ctex"
+uid="uid://cg205d4qwltgx"
+path="res://.godot/imported/reference_golf.webp-424c2f333fbdbd9c2d8f40283722f99c.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://concept/01_shallow_reef.svg"
-dest_files=["res://.godot/imported/01_shallow_reef.svg-8ad8875b96465a07a6c1a593c9ac9b0f.ctex"]
+source_file="res://concept/reference_golf.webp"
+dest_files=["res://.godot/imported/reference_golf.webp-424c2f333fbdbd9c2d8f40283722f99c.ctex"]
 
 [params]
 
@@ -38,6 +38,3 @@ process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
 detect_3d/compress_to=1
-svg/scale=1.0
-editor/scale_with_editor_scale=false
-editor/convert_colors_with_editor_theme=false
