@@ -1,6 +1,8 @@
 shader_type spatial;
 render_mode world_vertex_coords, cull_disabled, specular_schlick_ggx, depth_draw_always;
 
+#include "res://shaders/foam.gdshaderinc"
+
 // ---------------------------------------------------------------------------
 // Geometry here must stay in lockstep with Ocean.cs — same spectrum, same
 // dispersion, same signs. Buoyancy is computed from the CPU version and drawn
@@ -45,15 +47,18 @@ uniform float depth_fade : hint_range(0.5, 120.0) = 22.0;
 uniform float sand_visibility : hint_range(0.1, 120.0) = 30.0;
 uniform float view_angle_influence : hint_range(0.0, 1.0) = 0.45;
 uniform float min_opacity : hint_range(0.0, 1.0) = 0.3;
-uniform float ring_scale = 0.35;
-uniform float ring_width : hint_range(0.01, 0.3) = 0.07;
-uniform float ring_strength : hint_range(0.0, 1.0) = 0.55;
+uniform float foam_scale = 0.04;
+uniform float foam_warp : hint_range(0.0, 1.5) = 0.35;
+uniform float foam_drift : hint_range(0.0, 0.3) = 0.03;
+uniform float foam_edge : hint_range(0.002, 0.3) = 0.005;
+uniform float surface_foam_amount : hint_range(0.0, 1.0) = 0.5;
+uniform float surface_foam_opacity : hint_range(0.0, 1.0) = 0.20;
+uniform float crest_foam_opacity : hint_range(0.0, 1.0) = 0.85;
 
 // Foam appears where the surface folds, not where it is tall. Raise to make
 // whitecaps rarer; the useful range is narrow because folding is rare by nature.
 uniform float foam_threshold : hint_range(0.0, 0.6, 0.005) = 0.24;
 uniform float foam_softness : hint_range(0.0, 0.4, 0.005) = 0.04;
-uniform float foam_noise_scale : hint_range(0.01, 1.0) = 0.10;
 
 uniform float fresnel_power : hint_range(0.5, 8.0) = 4.0;
 uniform float fresnel_max : hint_range(0.0, 1.0) = 0.38;
@@ -94,34 +99,6 @@ float fbm(vec2 p) {
         a *= 0.5;
     }
     return v;
-}
-
-vec2 hash22(vec2 p) {
-    float n = hash21(p);
-    return vec2(n, hash21(p + n + 17.17));
-}
-
-float calm_cell_border(vec2 p, float t) {
-    vec2 cell = floor(p);
-    vec2 f = fract(p);
-    float f1 = 8.0;
-    float f2 = 8.0;
-    for (int y = -1; y <= 1; y++) {
-        for (int x = -1; x <= 1; x++) {
-            vec2 g = vec2(float(x), float(y));
-            vec2 o = hash22(cell + g);
-            o = 0.5 + 0.35 * sin(t + TAU * o);
-            vec2 r = g + o - f;
-            float d = dot(r, r);
-            if (d < f1) {
-                f2 = f1;
-                f1 = d;
-            } else if (d < f2) {
-                f2 = d;
-            }
-        }
-    }
-    return sqrt(f2) - sqrt(f1);
 }
 
 void vertex() {
@@ -260,24 +237,21 @@ void fragment() {
     alpha = max(alpha, min_opacity);
     alpha = max(alpha, clamp(fres, 0.0, fresnel_max));
 
-    float web_fade = (1.0 - slope_t * 0.7) * detail_fade;
-    if (web_fade > 0.001) {
-        float border = calm_cell_border(v_world_pos.xz * ring_scale, wave_time * 0.4);
-        float ring = (1.0 - smoothstep(ring_width, ring_width + 0.05, border)) * web_fade * ring_strength;
-        col = mix(col, foam_color, ring);
-        alpha = mix(alpha, 1.0, ring);
-    }
+    vec2 fp = v_world_pos.xz * foam_scale;
+    vec2 drift = vec2(wave_time * foam_drift, wave_time * foam_drift * -0.55);
+    vec2 warp = vec2(fbm(fp * 0.8 + drift), fbm(fp * 0.8 + drift + 19.3)) - 0.5;
+    fp += warp * foam_warp;
 
-    // Foam: folding, modulated by drifting noise so the edge is torn rather than
-    // a clean contour. Threshold stays hard — the decided edge is the art direction.
-    vec2 foam_uv = v_world_pos.xz * foam_noise_scale;
-    float patch = fbm(foam_uv + vec2(wave_time * 0.05, wave_time * -0.02));
-    float foam_mask = v_fold * v_fold * (0.9 + 0.5 * patch);
+    float fold = smoothstep(foam_threshold, foam_threshold + foam_softness, v_fold * v_fold);
 
-    float foam = smoothstep(foam_threshold, foam_threshold + foam_softness, foam_mask);
-    foam *= step(0.30, value_noise(foam_uv * 5.0 + vec2(wave_time * 0.07, 0.0)));
+    float radius_scale = mix(mix(1.35, 0.65, surface_foam_amount), 0.25, fold);
+    float lace = foam_layer(fp + drift + foam_swirl(fp, wave_time), radius_scale, foam_edge);
+    float coverage = mix(1.0 - slope_t * 0.7, 1.0, fold);
+
+    float foam = lace * coverage * detail_fade * mix(surface_foam_opacity, crest_foam_opacity, fold);
+
     col = mix(col, foam_color, foam);
-    alpha = mix(alpha, 1.0, foam);
+    alpha = max(alpha, foam);
 
     ALBEDO = col;
     ALPHA = alpha;

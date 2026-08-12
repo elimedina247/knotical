@@ -1,12 +1,15 @@
 shader_type spatial;
 render_mode world_vertex_coords;
 
+#include "res://shaders/foam.gdshaderinc"
+
 // ---------------------------------------------------------------------------
 // The water is transparent, so this is the one and only seabed: it is seen
-// directly through the surface from above and below. The foam-shadow web here
-// is the surface's calm_cell_border pattern from ocean.gdshader, projected
-// along the sun direction — same function, same scale, same clock, or the
-// shadows stop lining up with the foam that casts them.
+// directly through the surface from above and below. The foam shadow here is
+// the surface's foam_layer pattern from foam.gdshaderinc, projected along the sun
+// direction — same function, same clock, or the shadows stop lining up with the
+// foam that casts them. The shape uniforms are copied off ocean.gdshader by
+// SeabedSurface.cs at load, so tune the foam there and this follows.
 // ---------------------------------------------------------------------------
 
 uniform vec3 sand_color : source_color = vec3(0.886, 0.816, 0.635);
@@ -14,8 +17,11 @@ uniform vec3 seabed_dark_color : source_color = vec3(0.431, 0.478, 0.314);
 uniform vec3 murk_color : source_color = vec3(0.247, 0.596, 0.541);
 uniform float seabed_patch_scale = 0.022;
 uniform float seabed_contrast : hint_range(0.0, 0.4) = 0.10;
-uniform float ring_scale = 0.35;
-uniform float ring_width : hint_range(0.01, 0.3) = 0.07;
+uniform float foam_scale = 0.04;
+uniform float foam_warp : hint_range(0.0, 1.5) = 0.35;
+uniform float foam_drift : hint_range(0.0, 0.3) = 0.03;
+uniform float foam_edge : hint_range(0.002, 0.3) = 0.005;
+uniform float surface_foam_amount : hint_range(0.0, 1.0) = 0.5;
 uniform float wave_time = 0.0;
 uniform float murk_distance : hint_range(5.0, 400.0) = 90.0;
 
@@ -49,34 +55,6 @@ float fbm(vec2 p) {
     return v;
 }
 
-vec2 hash22(vec2 p) {
-    float n = hash21(p);
-    return vec2(n, hash21(p + n + 17.17));
-}
-
-float calm_cell_border(vec2 p, float t) {
-    vec2 cell = floor(p);
-    vec2 f = fract(p);
-    float f1 = 8.0;
-    float f2 = 8.0;
-    for (int y = -1; y <= 1; y++) {
-        for (int x = -1; x <= 1; x++) {
-            vec2 g = vec2(float(x), float(y));
-            vec2 o = hash22(cell + g);
-            o = 0.5 + 0.35 * sin(t + TAU * o);
-            vec2 r = g + o - f;
-            float d = dot(r, r);
-            if (d < f1) {
-                f2 = f1;
-                f1 = d;
-            } else if (d < f2) {
-                f2 = d;
-            }
-        }
-    }
-    return sqrt(f2) - sqrt(f1);
-}
-
 vec3 seabed_albedo(vec2 p) {
     float patch = fbm(p * seabed_patch_scale);
     float reef = fbm(p * seabed_patch_scale * 3.1 + 31.7);
@@ -96,9 +74,14 @@ void fragment() {
 
     float depth = max(-v_world_pos.y, 0.0);
     vec2 surface_xz = v_world_pos.xz + light_direction.xz / max(light_direction.y, 0.2) * depth;
-    float web = calm_cell_border(surface_xz * ring_scale, wave_time * 0.4);
-    float line = 1.0 - smoothstep(ring_width, ring_width + 0.05, web);
-    c *= 1.0 - foam_shadow_strength * line;
+    vec2 fp = surface_xz * foam_scale;
+    vec2 drift = vec2(wave_time * foam_drift, wave_time * foam_drift * -0.55);
+    vec2 warp = vec2(fbm(fp * 0.8 + drift), fbm(fp * 0.8 + drift + 19.3)) - 0.5;
+    fp += warp * foam_warp;
+
+    float radius_scale = mix(1.35, 0.65, surface_foam_amount);
+    float shadow = foam_layer(fp + drift + foam_swirl(fp, wave_time), radius_scale, foam_edge);
+    c *= 1.0 - foam_shadow_strength * shadow;
 
     float dist = length(v_world_pos - CAMERA_POSITION_WORLD);
     c = mix(c, murk_color, smoothstep(murk_distance * 0.15, murk_distance, dist));

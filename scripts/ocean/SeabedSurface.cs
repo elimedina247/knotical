@@ -17,6 +17,15 @@ public partial class SeabedSurface : MeshInstance3D
 
     private ShaderMaterial _material;
 
+    private static readonly StringName[] SharedFoamParameters =
+    {
+        "foam_scale",
+        "foam_warp",
+        "foam_drift",
+        "foam_edge",
+        "surface_foam_amount",
+    };
+
     public override void _Ready()
     {
         Palette ??= new GamePalette();
@@ -35,6 +44,22 @@ public partial class SeabedSurface : MeshInstance3D
         if (ramp != null && ramp.Length > 0)
         {
             _material.SetShaderParameter("murk_color", ramp[0]);
+        }
+
+        CopyFoamParametersFromOcean();
+    }
+
+    private void CopyFoamParametersFromOcean()
+    {
+        var oceanShader = GD.Load<Shader>("res://shaders/ocean.gdshader");
+        if (oceanShader == null) return;
+
+        foreach (StringName name in SharedFoamParameters)
+        {
+            Variant value = RenderingServer.ShaderGetParameterDefault(oceanShader.GetRid(), name);
+            if (value.VariantType == Variant.Type.Nil) continue;
+
+            _material.SetShaderParameter(name, value);
         }
     }
 
