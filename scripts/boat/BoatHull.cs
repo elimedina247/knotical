@@ -11,6 +11,7 @@ public partial class BoatHull : RigidBody3D
     private const float Gravity = 9.81f;
 
     private readonly HullForm _form = new();
+    private readonly List<Sail> _sails = new();
     private Vector3[] _local;
     private Vector3[] _world;
     private float[] _depth;
@@ -124,7 +125,26 @@ public partial class BoatHull : RigidBody3D
 
     public float SubmergedVolume { get; private set; }
 
-    public override void _Ready() => Rebuild();
+    public override void _Ready()
+    {
+        Rebuild();
+        RefreshRig();
+    }
+
+    public void RefreshRig()
+    {
+        _sails.Clear();
+        CollectSails(this);
+    }
+
+    private void CollectSails(Node node)
+    {
+        foreach (Node child in node.GetChildren())
+        {
+            if (child is Sail sail) _sails.Add(sail);
+            CollectSails(child);
+        }
+    }
 
     private void Rebuild()
     {
@@ -252,6 +272,18 @@ public partial class BoatHull : RigidBody3D
             {
                 Clip(_indices[i], _indices[i + 1], _indices[i + 2]);
             }
+        }
+
+        for (int i = 0; i < _sails.Count; i++)
+        {
+            Sail sail = _sails[i];
+            if (sail == null || !IsInstanceValid(sail)) continue;
+
+            Vector3 arm = sail.GlobalCentreOfEffort - _com;
+            Vector3 f = sail.ComputeForce(_linear + _angular.Cross(arm));
+
+            _force += f;
+            _torque += arm.Cross(f);
         }
 
         _force.Y -= Mass * Gravity;
