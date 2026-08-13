@@ -3,7 +3,7 @@ using Godot;
 namespace Knotical.Player;
 
 [GlobalClass]
-public partial class DangleArm : Node3D
+public partial class DangleArm : Node3D, IHand
 {
     [Export(PropertyHint.Range, "0.1,3,0.01")] public float Length { get; set; } = 0.5f;
 
@@ -21,6 +21,12 @@ public partial class DangleArm : Node3D
 
     [Export(PropertyHint.Range, "0,1,0.005")] public float Clearance { get; set; } = 0.25f;
 
+    [Export(PropertyHint.Range, "0.02,0.6,0.01")] public float ReachTime { get; set; } = 0.12f;
+
+    [Export(PropertyHint.Range, "0.02,0.6,0.01")] public float RelaxTime { get; set; } = 0.2f;
+
+    [Export(PropertyHint.Range, "0.01,1,0.01")] public float RigidDamping { get; set; } = 0.04f;
+
     private readonly LimbChain _chain = new();
     private MeshInstance3D[] _links = System.Array.Empty<MeshInstance3D>();
     private MeshInstance3D[] _joints = System.Array.Empty<MeshInstance3D>();
@@ -28,18 +34,37 @@ public partial class DangleArm : Node3D
     private Node3D _torso;
     private bool _pinned;
     private Vector3 _target;
+    private Vector3 _reachFrom;
+    private float _reach;
+    private float _rigid;
 
     public bool IsGripping => _pinned;
 
     public Vector3 Tip => _chain.Tip;
 
+    public Vector3 Root => GlobalPosition;
+
+    public float Rigidity => _rigid;
+
     public void Grip(Vector3 globalTarget)
     {
+        if (!_pinned)
+        {
+            _reachFrom = _chain.Tip;
+            _reach = 0f;
+        }
+
         _pinned = true;
         _target = globalTarget;
     }
 
     public void Release() => _pinned = false;
+
+    public void Resize(float length)
+    {
+        Length = length;
+        if (_links.Length > 0) _chain.Build(_links.Length, Length, GlobalPosition, Vector3.Down);
+    }
 
     public override void _Ready()
     {
@@ -75,12 +100,20 @@ public partial class DangleArm : Node3D
     {
         if (_links.Length == 0) return;
 
-        _chain.Gravity = Gravity;
-        _chain.Damping = Damping;
-        _chain.Stiffness = Stiffness;
+        float dt = (float)delta;
+        float rate = _pinned ? dt / Mathf.Max(ReachTime, 1e-3f) : -dt / Mathf.Max(RelaxTime, 1e-3f);
+
+        _reach = Mathf.Clamp(_reach + (_pinned ? dt / Mathf.Max(ReachTime, 1e-3f) : 0f), 0f, 1f);
+        _rigid = Mathf.Clamp(_rigid + rate, 0f, 1f);
+
+        _chain.Gravity = Gravity * (1f - _rigid);
+        _chain.Damping = Mathf.Lerp(Damping, RigidDamping, _rigid);
+        _chain.Stiffness = Mathf.Lerp(Stiffness, 1f, _rigid);
         _chain.MaxStretch = MaxStretch;
 
-        _chain.Step((float)delta, GlobalPosition, _pinned, _target);
+        Vector3 target = _reachFrom.Lerp(_target, Mathf.SmoothStep(0f, 1f, _reach));
+
+        _chain.Step(dt, GlobalPosition, _pinned, target);
 
         if (_torso != null)
         {

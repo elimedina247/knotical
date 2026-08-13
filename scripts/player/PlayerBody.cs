@@ -93,9 +93,45 @@ public partial class PlayerBody : RigidBody3D
     [Export(PropertyHint.Range, "1,40,0.5")]
     public float SwimAcceleration { get; set; } = 8f;
 
+    [Export(PropertyHint.Range, "0,1,0.01")]
+    public float SwellFilter { get; set; } = 0.35f;
+
+    [Export(PropertyHint.Range, "0.05,2,0.01")]
+    public float SwellFast { get; set; } = 0.5f;
+
+    [Export(PropertyHint.Range, "1,30,0.1")]
+    public float SwellSlow { get; set; } = 10f;
+
+    [Export(PropertyHint.Range, "0,0.4,0.005")]
+    public float SwellLimit { get; set; } = 0.09f;
+
+    [Export(PropertyHint.Range, "0.05,2,0.01")]
+    public float TiltFollowTime { get; set; } = 0.25f;
+
+    [Export(PropertyHint.Range, "0,30,0.5")]
+    public float GripFovPull { get; set; } = 6f;
+
+    [Export(PropertyHint.Range, "0,1,0.01")]
+    public float GripDrag { get; set; } = 1f;
+
     [Export] public Node3D CameraPivot { get; set; }
 
+    [Export] public PlayerGrab Grab { get; set; }
+
+    [Export] public Camera3D View { get; set; }
+
     private Node3D _pivot;
+    private PlayerGrab _grab;
+    private Camera3D _camera;
+    private Node3D _deck;
+    private float _pivotRest;
+    private float _baseFov;
+    private float _fovBlend;
+    private float _swellFast;
+    private float _swellSlow;
+    private float _swellBlend;
+    private bool _swellReady;
+    private float _tilt;
     private Vector3 _deckVelocity;
     private Vector3 _deckUp = Vector3.Up;
     private Vector3 _groundNormal = Vector3.Up;
@@ -141,6 +177,12 @@ public partial class PlayerBody : RigidBody3D
     public override void _Ready()
     {
         _pivot = CameraPivot ?? GetNodeOrNull<Node3D>("CameraPivot");
+        _grab = Grab ?? GetNodeOrNull<PlayerGrab>("Grab");
+        _camera = View ?? _pivot?.GetNodeOrNull<Camera3D>("Camera3D");
+
+        if (_pivot != null) _pivotRest = _pivot.Position.Y;
+        if (_camera != null) _baseFov = _camera.Fov;
+
         _yaw = Rotation.Y;
         CanSleep = false;
         ContactMonitor = true;
@@ -164,18 +206,58 @@ public partial class PlayerBody : RigidBody3D
 
     public override void _Process(double delta)
     {
-        if (_pivot != null)
-        {
-            var level = new Quaternion(Basis.FromEuler(new Vector3(_pitch, _yaw, 0f)));
-            var ride = new Quaternion(
-                GlobalBasis.Orthonormalized() * Basis.FromEuler(new Vector3(_pitch, 0f, 0f)));
-            _pivot.GlobalBasis = new Basis(level.Slerp(ride, _downed ? 1f : BodyTiltFollow));
-        }
+        ShapeView((float)delta);
 
         Vector2 move = Input.GetVector("move_left", "move_right", "move_forward", "move_back");
         Vector3 forward = new(-Mathf.Sin(_yaw), 0f, -Mathf.Cos(_yaw));
         Vector3 right = new(Mathf.Cos(_yaw), 0f, -Mathf.Sin(_yaw));
         _wish = (right * move.X - forward * move.Y).LimitLength(1f);
+    }
+
+    private void ShapeView(float dt)
+    {
+        if (_pivot != null)
+        {
+            float follow = _downed || _swimming ? 1f : BodyTiltFollow;
+            _tilt = Mathf.MoveToward(_tilt, follow, dt / Mathf.Max(TiltFollowTime, 1e-3f));
+
+            var level = new Quaternion(Basis.FromEuler(new Vector3(_pitch, _yaw, 0f)));
+            var ride = new Quaternion(
+                GlobalBasis.Orthonormalized() * Basis.FromEuler(new Vector3(_pitch, 0f, 0f)));
+            _pivot.GlobalBasis = new Basis(level.Slerp(ride, _tilt));
+
+            Vector3 seat = _pivot.Position;
+            _pivot.Position = new Vector3(seat.X, _pivotRest + Swell(dt), seat.Z);
+        }
+
+        if (_camera == null) return;
+
+        float grip = _grab?.Load ?? 0f;
+        _fovBlend = Mathf.MoveToward(_fovBlend, grip, dt / 0.3f);
+        _camera.Fov = _baseFov - GripFovPull * _fovBlend;
+    }
+
+    private float Swell(float dt)
+    {
+        float deck = _deck != null && IsInstanceValid(_deck) ? _deck.GlobalPosition.Y : 0f;
+
+        if (!_swellReady)
+        {
+            _swellFast = deck;
+            _swellSlow = deck;
+            _swellReady = true;
+        }
+
+        _swellFast = Mathf.Lerp(_swellFast, deck, 1f - Mathf.Exp(-dt / Mathf.Max(SwellFast, 1e-3f)));
+        _swellSlow = Mathf.Lerp(_swellSlow, deck, 1f - Mathf.Exp(-dt / Mathf.Max(SwellSlow, 1e-3f)));
+
+        float want = _grounded && !_downed && !_swimming ? SwellFilter : 0f;
+        _swellBlend = Mathf.MoveToward(_swellBlend, want, dt / 0.25f);
+
+        float limit = Mathf.Max(SwellLimit, 1e-4f);
+        float raw = -(_swellFast - _swellSlow) * _swellBlend;
+
+        return limit * System.MathF.Tanh(raw / limit);
     }
 
     public override void _IntegrateForces(PhysicsDirectBodyState3D state)
@@ -185,6 +267,8 @@ public partial class PlayerBody : RigidBody3D
         SampleWater(state);
         SampleFooting(state, dt);
         UpdateBalanceState(dt, state);
+
+        _grab?.Apply(state);
 
         if (_swimming)
         {
@@ -246,6 +330,7 @@ public partial class PlayerBody : RigidBody3D
 
         Vector3 slope = Vector3.Zero;
         Vector3 up = Vector3.Up;
+        Node3D floor = null;
 
         for (int i = 0; i < contacts; i++)
         {
@@ -253,7 +338,11 @@ public partial class PlayerBody : RigidBody3D
             sum += state.GetContactColliderVelocityAtPosition(i);
             Vector3 n = state.GetContactLocalNormal(i);
             slope += n.Dot(Vector3.Up) < 0f ? -n : n;
-            if (state.GetContactColliderObject(i) is Node3D deck) up = deck.GlobalBasis.Y.Normalized();
+            if (state.GetContactColliderObject(i) is Node3D deck)
+            {
+                up = deck.GlobalBasis.Y.Normalized();
+                floor = deck;
+            }
             found++;
         }
 
@@ -264,6 +353,7 @@ public partial class PlayerBody : RigidBody3D
             _deckVelocity = sum / found;
             _deckUp = up;
             _groundNormal = slope.LengthSquared() > 1e-6f ? slope.Normalized() : Vector3.Up;
+            SetDeck(floor);
             return;
         }
 
@@ -274,6 +364,13 @@ public partial class PlayerBody : RigidBody3D
         _deckVelocity = Vector3.Zero;
         _deckUp = Vector3.Up;
         _groundNormal = Vector3.Up;
+    }
+
+    private void SetDeck(Node3D floor)
+    {
+        if (floor == null || floor == _deck) return;
+        _deck = floor;
+        _swellReady = false;
     }
 
     private void UpdateBalanceState(float dt, PhysicsDirectBodyState3D state)
@@ -358,6 +455,7 @@ public partial class PlayerBody : RigidBody3D
         if (_grounded) force = force.LimitLength(MaxFootingForce * Traction);
         else force *= AirControl;
 
-        state.ApplyCentralForce(force * _authority);
+        float hands = 1f - (_grab?.Load ?? 0f) * GripDrag;
+        state.ApplyCentralForce(force * (_authority * Mathf.Max(hands, 0f)));
     }
 }

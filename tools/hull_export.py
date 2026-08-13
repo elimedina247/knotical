@@ -365,7 +365,7 @@ def castle_parts(hull_shape):
     return tiers
 
 
-def add_sterncastle(hull_shape, hull, deck):
+def add_sterncastle(hull_shape, hull, deck, stairs):
     for tier in castle_parts(hull_shape):
         tier_walls(hull, tier["stations"], tier["bases"], tier["top"])
         tier_floor(deck, tier["stations"], tier["ceil"], tier["deck"])
@@ -374,7 +374,7 @@ def add_sterncastle(hull_shape, hull, deck):
         for lo, hi in tier["rails"] + tier["posts"]:
             box(hull, lo, hi)
         for lo, hi in tier["steps"]:
-            box(deck, lo, hi)
+            box(stairs, lo, hi)
 
 
 MAST_SIDES = 12
@@ -468,7 +468,7 @@ def forecastle_parts(hull_shape):
                 stair_steps=count, stair_run=count * SC_STAIR_RUN)
 
 
-def add_forecastle(hull_shape, hull, deck):
+def add_forecastle(hull_shape, hull, deck, stairs):
     f = forecastle_parts(hull_shape)
     tier_walls(hull, f["stations"], f["bases"], f["top"], closed=1)
     tier_floor(deck, f["stations"], f["ceil"], f["deck"])
@@ -477,7 +477,7 @@ def add_forecastle(hull_shape, hull, deck):
     for lo, hi in f["rails"] + f["posts"]:
         box(hull, lo, hi)
     for lo, hi in f["steps"]:
-        box(deck, lo, hi)
+        box(stairs, lo, hi)
 
 
 def build(transom_width, transom_rake):
@@ -509,11 +509,14 @@ def build(transom_width, transom_rake):
     deck = Surface()
     deck.cap(deck_edge, True)
 
-    add_sterncastle(hull_shape, hull, deck)
-    add_forecastle(hull_shape, hull, deck)
-    add_masts(deck)
+    stairs = Surface()
+    spars = Surface()
 
-    return hull, deck
+    add_sterncastle(hull_shape, hull, deck, stairs)
+    add_forecastle(hull_shape, hull, deck, stairs)
+    add_masts(spars)
+
+    return hull, deck, stairs, spars
 
 
 def write_obj(path, surfaces):
@@ -546,8 +549,8 @@ def main():
     out = args.out or os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "hull.obj"
     )
-    hull, deck = build(args.transom_width, args.transom_rake)
-    write_obj(out, [("hull", hull), ("deck", deck)])
+    hull, deck, stairs, spars = build(args.transom_width, args.transom_rake)
+    write_obj(out, [("hull", hull), ("deck", deck), ("stair", stairs), ("spar", spars)])
     print("wrote", out)
 
 

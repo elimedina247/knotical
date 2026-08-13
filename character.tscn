@@ -1,7 +1,9 @@
-[gd_scene load_steps=12 format=3 uid="uid://drik7re75csan"]
+[gd_scene load_steps=14 format=3 uid="uid://drik7re75csan"]
 
 [ext_resource type="Script" path="res://scripts/player/PlayerBody.cs" id="1_playerbody"]
 [ext_resource type="Script" path="res://scripts/player/DangleArm.cs" id="2_danglearm"]
+[ext_resource type="Script" path="res://scripts/player/TorsoShape.cs" id="3_torsoshape"]
+[ext_resource type="Script" path="res://scripts/player/PlayerGrab.cs" id="4_playergrab"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_body"]
 friction = 0.9
@@ -58,6 +60,8 @@ contact_monitor = true
 max_contacts_reported = 6
 script = ExtResource("1_playerbody")
 CameraPivot = NodePath("CameraPivot")
+Grab = NodePath("Grab")
+View = NodePath("CameraPivot/Camera3D")
 
 [node name="Collider" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.595, 0)
@@ -162,3 +166,17 @@ surface_material_override/0 = SubResource("Material_skin")
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, -0.225, -0.05)
 mesh = SubResource("Mesh_foot")
 surface_material_override/0 = SubResource("Material_skin")
+
+[node name="Shape" type="Node3D" parent="."]
+script = ExtResource("3_torsoshape")
+Collider = NodePath("../Collider")
+Torso = NodePath("../Torso")
+ArmLeft = NodePath("../ArmLeft")
+ArmRight = NodePath("../ArmRight")
+
+[node name="Grab" type="Node3D" parent="."]
+script = ExtResource("4_playergrab")
+Pivot = NodePath("../CameraPivot")
+Shape = NodePath("../Shape")
+ArmLeft = NodePath("../ArmLeft")
+ArmRight = NodePath("../ArmRight")
