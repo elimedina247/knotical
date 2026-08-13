@@ -18,6 +18,15 @@ public partial class PlayerBody : RigidBody3D
     [Export(PropertyHint.Range, "0,1,0.01")]
     public float AirControl { get; set; } = 0.1f;
 
+    [Export(PropertyHint.Range, "1,10,0.1")]
+    public float JumpSpeed { get; set; } = 4.2f;
+
+    [Export(PropertyHint.Range, "0.15,1.5,0.01")]
+    public float MantleTime { get; set; } = 0.45f;
+
+    [Export(PropertyHint.Range, "0.02,1,0.01")]
+    public float MantleLip { get; set; } = 0.2f;
+
     [Export(PropertyHint.Range, "0,90,1")]
     public float GripHeel { get; set; } = 6f;
 
@@ -114,6 +123,8 @@ public partial class PlayerBody : RigidBody3D
     [Export(PropertyHint.Range, "0,1,0.01")]
     public float GripDrag { get; set; } = 1f;
 
+    [Export] public bool ShowHands { get; set; } = true;
+
     [Export] public Node3D CameraPivot { get; set; }
 
     [Export] public PlayerGrab Grab { get; set; }
@@ -124,6 +135,8 @@ public partial class PlayerBody : RigidBody3D
     private PlayerGrab _grab;
     private Camera3D _camera;
     private Node3D _deck;
+    private GeometryInstance3D[] _skin = System.Array.Empty<GeometryInstance3D>();
+    private bool _concealed;
     private float _pivotRest;
     private float _baseFov;
     private float _fovBlend;
@@ -145,6 +158,9 @@ public partial class PlayerBody : RigidBody3D
     private float _waterRise;
     private bool _swimming;
     private float _authority = 1f;
+    private bool _jump;
+    private Vector3 _mantle;
+    private float _mantleFor;
     private float _yaw;
     private float _pitch;
 
@@ -183,11 +199,42 @@ public partial class PlayerBody : RigidBody3D
         if (_pivot != null) _pivotRest = _pivot.Position.Y;
         if (_camera != null) _baseFov = _camera.Fov;
 
+        CollectSkin();
+
         _yaw = Rotation.Y;
         CanSleep = false;
         ContactMonitor = true;
         if (MaxContactsReported < 6) MaxContactsReported = 6;
         Input.MouseMode = Input.MouseModeEnum.Captured;
+    }
+
+    private void CollectSkin()
+    {
+        var parts = new System.Collections.Generic.List<GeometryInstance3D>();
+        Gather(this, parts);
+        _skin = parts.ToArray();
+    }
+
+    private void Gather(Node node, System.Collections.Generic.List<GeometryInstance3D> into)
+    {
+        foreach (Node child in node.GetChildren())
+        {
+            if (ShowHands && child is DangleArm) continue;
+            if (child is GeometryInstance3D part) into.Add(part);
+            Gather(child, into);
+        }
+    }
+
+    private void Conceal(bool hide)
+    {
+        if (hide == _concealed) return;
+        _concealed = hide;
+
+        GeometryInstance3D.ShadowCastingSetting mode = hide
+            ? GeometryInstance3D.ShadowCastingSetting.ShadowsOnly
+            : GeometryInstance3D.ShadowCastingSetting.On;
+
+        foreach (GeometryInstance3D part in _skin) part.CastShadow = mode;
     }
 
     public override void _UnhandledInput(InputEvent @event)
@@ -207,6 +254,8 @@ public partial class PlayerBody : RigidBody3D
     public override void _Process(double delta)
     {
         ShapeView((float)delta);
+
+        if (Input.IsActionJustPressed("jump")) _jump = true;
 
         Vector2 move = Input.GetVector("move_left", "move_right", "move_forward", "move_back");
         Vector3 forward = new(-Mathf.Sin(_yaw), 0f, -Mathf.Cos(_yaw));
@@ -231,6 +280,8 @@ public partial class PlayerBody : RigidBody3D
         }
 
         if (_camera == null) return;
+
+        Conceal(_camera.Current);
 
         float grip = _grab?.Load ?? 0f;
         _fovBlend = Mathf.MoveToward(_fovBlend, grip, dt / 0.3f);
@@ -264,9 +315,17 @@ public partial class PlayerBody : RigidBody3D
     {
         float dt = state.Step;
 
+        if (_mantleFor > 0f)
+        {
+            StepMantle(state, dt);
+            return;
+        }
+
         SampleWater(state);
         SampleFooting(state, dt);
         UpdateBalanceState(dt, state);
+
+        Launch(state);
 
         _grab?.Apply(state);
 
@@ -283,7 +342,65 @@ public partial class PlayerBody : RigidBody3D
 
         ApplyUpright(state, 1f);
         ApplyYaw(state);
-        ApplyWalk(state);
+
+        if (_grab == null || !_grab.IsClimbing) ApplyWalk(state);
+    }
+
+    private void StepMantle(PhysicsDirectBodyState3D state, float dt)
+    {
+        _mantleFor = Mathf.Max(_mantleFor - dt, 0f);
+
+        Vector3 delta = _mantle - state.Transform.Origin;
+
+        if (_mantleFor <= 0f || delta.LengthSquared() < 1e-4f)
+        {
+            _mantleFor = 0f;
+            state.LinearVelocity = _deckVelocity;
+            _grounded = true;
+            _airborneFor = 0f;
+            return;
+        }
+
+        Vector3 planar = delta - Vector3.Up * delta.Y;
+        float over = Mathf.Clamp(1f - delta.Y / Mathf.Max(MantleLip, 1e-3f), 0f, 1f);
+
+        state.LinearVelocity = (Vector3.Up * delta.Y + planar * over) / _mantleFor;
+        state.AngularVelocity = Vector3.Zero;
+    }
+
+    private void Launch(PhysicsDirectBodyState3D state)
+    {
+        if (!_jump) return;
+        _jump = false;
+
+        if (_grab != null && _grab.IsGripping)
+        {
+            if (_grab.FindLedge(state.Transform.Origin, out Vector3 stand))
+            {
+                _mantle = stand;
+                _mantleFor = MantleTime;
+                _grab.Drop();
+                _grounded = false;
+                _airborneFor = FootingGrace;
+                return;
+            }
+
+            if (_grab.Vault(state))
+            {
+                _grounded = false;
+                _airborneFor = FootingGrace;
+                return;
+            }
+        }
+
+        if (!_grounded || _downed || _swimming) return;
+
+        Vector3 velocity = state.LinearVelocity;
+        velocity.Y += Mathf.Max(JumpSpeed - (velocity.Y - _deckVelocity.Y), 0f);
+        state.LinearVelocity = velocity;
+
+        _grounded = false;
+        _airborneFor = FootingGrace;
     }
 
     private void SampleWater(PhysicsDirectBodyState3D state)

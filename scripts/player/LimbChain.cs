@@ -10,10 +10,10 @@ public sealed class LimbChain
     public float Gravity = 20f;
     public float Damping = 0.2f;
     public float Stiffness = 0.8f;
-    public float MaxStretch = 1.3f;
     public int Iterations = 8;
 
     public int Links => Points.Length - 1;
+    public float Span => SegmentLength * Links;
     public Vector3 Tip => Points[Points.Length - 1];
 
     public void Build(int segments, float length, Vector3 root, Vector3 direction)
@@ -35,8 +35,19 @@ public sealed class LimbChain
         }
     }
 
+    public Vector3 Reachable(Vector3 root, Vector3 target)
+    {
+        Vector3 span = target - root;
+        float distance = span.Length();
+        float limit = Span * 0.995f;
+
+        return distance <= limit || distance < 1e-5f ? target : root + span * (limit / distance);
+    }
+
     public void Step(float dt, Vector3 root, bool pinned, Vector3 target)
     {
+        if (pinned) target = Reachable(root, target);
+
         int last = Points.Length - 1;
         float retain = Mathf.Pow(Mathf.Clamp(Damping, 0.001f, 1f), dt);
         Vector3 fall = Vector3.Down * (Gravity * dt * dt);
@@ -75,18 +86,39 @@ public sealed class LimbChain
         }
 
         Points[0] = root;
-        if (pinned)
-        {
-            Points[last] = target;
-            return;
-        }
+        if (pinned) Points[last] = target;
 
-        float limit = SegmentLength * MaxStretch;
-        for (int i = 0; i < last; i++)
+        Contract();
+    }
+
+    public void Contract()
+    {
+        for (int i = 0; i < Points.Length - 1; i++)
         {
             Vector3 link = Points[i + 1] - Points[i];
             float distance = link.Length();
-            if (distance > limit) Points[i + 1] = Points[i] + link * (limit / distance);
+            if (distance <= SegmentLength) continue;
+
+            Points[i + 1] = Points[i] + link * (SegmentLength / distance);
+        }
+    }
+
+    public void Straighten(float amount)
+    {
+        if (amount <= 0f || Points.Length < 3) return;
+
+        int last = Points.Length - 1;
+        Vector3 root = Points[0];
+        Vector3 tip = Points[last];
+
+        float taut = Span > 1e-5f ? Mathf.Clamp(root.DistanceTo(tip) / Span, 0f, 1f) : 0f;
+        float blend = amount * taut;
+        if (blend <= 0f) return;
+
+        for (int i = 1; i < last; i++)
+        {
+            Points[i] = Points[i].Lerp(root.Lerp(tip, (float)i / last), blend);
+            Previous[i] = Points[i];
         }
     }
 

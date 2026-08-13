@@ -5,49 +5,64 @@ namespace Knotical.Player;
 [GlobalClass]
 public partial class PlayerGrab : Node3D
 {
-    private sealed class Grip
-    {
-        public bool Active;
-        public Node3D Node;
-        public IGrabbable Handle;
-        public Vector3 Local;
-        public Vector3 LastShoulder;
-        public Vector3 LastAnchor;
-        public float Slack;
-        public float Load;
-    }
-
     [Export(PropertyHint.Range, "0.2,2.5,0.01")]
     public float Reach { get; set; } = 0.62f;
 
     [Export(PropertyHint.Range, "0.3,4,0.01")]
-    public float CastRange { get; set; } = 1.5f;
+    public float AimDistance { get; set; } = 1.2f;
 
     [Export(PropertyHint.Range, "0.02,0.5,0.005")]
-    public float CastRadius { get; set; } = 0.14f;
+    public float CastRadius { get; set; } = 0.09f;
 
-    [Export(PropertyHint.Range, "1,400,1")]
-    public float Stiffness { get; set; } = 120f;
+    [Export(PropertyHint.Range, "0.5,20,0.1")]
+    public float MaxPullSpeed { get; set; } = 6f;
 
-    [Export(PropertyHint.Range, "0,60,0.5")]
-    public float Damping { get; set; } = 14f;
+    [Export(PropertyHint.Range, "0.05,1,0.01")]
+    public float Correction { get; set; } = 0.2f;
 
-    [Export(PropertyHint.Range, "500,80000,100")]
-    public float MaxForce { get; set; } = 9000f;
+    [Export(PropertyHint.Range, "0,20,0.1")]
+    public float SwingDamping { get; set; } = 3f;
 
     [Export(PropertyHint.Range, "500,80000,100")]
     public float BreakForce { get; set; } = 6500f;
 
-    [Export(PropertyHint.Range, "0.2,1,0.01")]
-    public float Slack { get; set; } = 0.8f;
-
-    [Export] public bool Climb { get; set; } = true;
+    [Export] public bool Breaks { get; set; }
 
     [Export(PropertyHint.Range, "0.05,1,0.01")]
-    public float MinSlack { get; set; } = 0.25f;
+    public float MinSpan { get; set; } = 0.4f;
 
     [Export(PropertyHint.Range, "0.05,3,0.01")]
-    public float ReelSpeed { get; set; } = 0.7f;
+    public float ClimbSpeed { get; set; } = 0.9f;
+
+    [Export(PropertyHint.Range, "0.05,1,0.01")]
+    public float ClimbBite { get; set; } = 0.25f;
+
+    [Export(PropertyHint.Range, "0.05,0.6,0.01")]
+    public float HandSpread { get; set; } = 0.24f;
+
+    [Export(PropertyHint.Range, "0.1,1.2,0.01")]
+    public float HandStride { get; set; } = 0.45f;
+
+    [Export(PropertyHint.Range, "0,1,0.01")]
+    public float VaultClearance { get; set; } = 0.35f;
+
+    [Export(PropertyHint.Range, "0,6,0.1")]
+    public float VaultReach { get; set; } = 1.6f;
+
+    [Export(PropertyHint.Range, "0.1,2,0.05")]
+    public float VaultPause { get; set; } = 0.45f;
+
+    [Export(PropertyHint.Range, "0.2,2.5,0.01")]
+    public float LedgeHigh { get; set; } = 1.6f;
+
+    [Export(PropertyHint.Range, "0,1,0.01")]
+    public float LedgeLow { get; set; } = 0.3f;
+
+    [Export(PropertyHint.Range, "0.05,1,0.01")]
+    public float LedgeDepth { get; set; } = 0.4f;
+
+    [Export(PropertyHint.Range, "0.1,1,0.01")]
+    public float LedgeFlat { get; set; } = 0.7f;
 
     [Export(PropertyHint.Layers3DPhysics)]
     public uint GrabMask { get; set; } = 0xFFFFFFFF;
@@ -60,185 +75,391 @@ public partial class PlayerGrab : Node3D
 
     [Export] public DangleArm ArmRight { get; set; }
 
-    private readonly Grip[] _grips = { new(), new() };
     private RigidBody3D _body;
-    private PlayerBody _player;
     private Node3D _pivot;
     private ShapeCast3D _cast;
+    private bool _mapped;
+    private bool _attached;
+    private bool _rearm;
+    private bool _climbing;
+    private Node3D _node;
+    private IGrabbable _handle;
+    private Vector3 _local;
+    private Vector3 _normal = Vector3.Up;
+    private Vector3 _lastAnchor;
+    private Vector3 _lastChest;
+    private Vector3 _step;
+    private float _span;
+    private float _phase;
+    private float _pause;
     private float _load;
 
     public float Load => _load;
 
-    public bool IsGripping => _grips[0].Active || _grips[1].Active;
+    public bool IsGripping => _attached;
+
+    public bool IsClimbing => _climbing;
 
     public override void _Ready()
     {
-        _body = GetParentOrNull<RigidBody3D>();
-        _player = _body as PlayerBody;
-        _pivot = Pivot ?? _body?.GetNodeOrNull<Node3D>("CameraPivot");
+        _mapped = InputMap.HasAction("grab");
 
-        if (_pivot == null) return;
+        _body = GetParentOrNull<RigidBody3D>();
+        _pivot = Pivot ?? _body?.GetNodeOrNull<Node3D>("CameraPivot");
+        ArmLeft ??= _body?.GetNodeOrNull<DangleArm>("ArmLeft");
+        ArmRight ??= _body?.GetNodeOrNull<DangleArm>("ArmRight");
+        Shape ??= _body?.GetNodeOrNull<TorsoShape>("Shape");
+
+        if (_pivot == null)
+        {
+            GD.PushWarning($"{Name}: grab is inert, no camera pivot.");
+            return;
+        }
 
         _cast = new ShapeCast3D
         {
             Name = "GrabCast",
             Shape = new SphereShape3D { Radius = CastRadius },
-            TargetPosition = new Vector3(0f, 0f, -CastRange),
             CollisionMask = GrabMask,
             CollideWithAreas = false,
             CollideWithBodies = true,
             Enabled = false,
         };
 
-        _pivot.AddChild(_cast);
+        AddChild(_cast);
         if (_body != null) _cast.AddException(_body);
     }
 
-    public override void _Process(double delta)
+    public override void _PhysicsProcess(double delta)
     {
-        if (Input.IsActionJustPressed("grab_left")) Take(0);
-        if (Input.IsActionJustReleased("grab_left")) Drop(0);
-        if (Input.IsActionJustPressed("grab_right")) Take(1);
-        if (Input.IsActionJustReleased("grab_right")) Drop(1);
+        if (_cast == null) return;
+
+        float dt = (float)delta;
+        bool held = _mapped ? Input.IsActionPressed("grab") : Input.IsMouseButtonPressed(MouseButton.Left);
+
+        _pause = Mathf.Max(_pause - dt, 0f);
+        if (!held) _rearm = false;
+
+        if (!held || _rearm || _pause > 0f)
+        {
+            Release();
+            Pose(false, dt);
+            return;
+        }
+
+        if (!_attached) Catch();
+
+        Vector2 move = Input.GetVector("move_left", "move_right", "move_forward", "move_back");
+
+        _climbing = _attached && (_handle == null || _handle.Anchors) && move.LengthSquared() > 0.01f;
+        _step = _climbing ? Surface(move) : Vector3.Zero;
+
+        if (_step != Vector3.Zero) Crawl(dt);
+
+        Pose(true, dt);
+    }
+
+    private void Catch()
+    {
+        float reach = Grasp();
+        Vector3 chest = ChestWorld();
+        Vector3 tip = chest + Aim(chest) * reach;
+
+        bool found = Sweep(chest, tip, true, out Node3D node, out Vector3 point, out Vector3 normal);
+
+        if (!found)
+            found = Sweep(chest, chest + Vector3.Up * reach, true, out node, out point, out normal);
+
+        if (!found) return;
+
+        _handle = FindHandle(node);
+        if (_handle != null) point = _handle.Attach(point);
+
+        _attached = true;
+        _node = node;
+        _normal = normal;
+        _local = node.GlobalTransform.AffineInverse() * point;
+        _lastAnchor = point;
+        _lastChest = chest;
+        _span = Mathf.Min((point - chest).Length(), reach);
+        _load = 0f;
+    }
+
+    private void Crawl(float dt)
+    {
+        if (!IsInstanceValid(_node)) return;
+
+        Vector3 goal = _node.GlobalTransform * _local + _step * (ClimbSpeed * dt);
+        Vector3 lift = _normal * ClimbBite;
+
+        if (!Sweep(goal + lift, goal - lift, out Node3D node, out Vector3 point, out Vector3 normal)) return;
+
+        _node = node;
+        _normal = normal;
+        _local = node.GlobalTransform.AffineInverse() * point;
+    }
+
+    private void Pose(bool held, float dt)
+    {
+        if (!_attached || !IsInstanceValid(_node))
+        {
+            if (!held)
+            {
+                ArmLeft?.Release();
+                ArmRight?.Release();
+                return;
+            }
+
+            Vector3 chest = ChestWorld();
+            Vector3 tip = chest + Aim(chest) * Grasp();
+            Vector3 side = _pivot.GlobalBasis.X * HandSpread;
+
+            ArmLeft?.Grip(tip - side);
+            ArmRight?.Grip(tip + side);
+            return;
+        }
+
+        _phase += _climbing ? Mathf.Tau * ClimbSpeed * dt / Mathf.Max(HandStride, 1e-3f) : 0f;
+
+        Vector3 anchor = _node.GlobalTransform * _local;
+        Vector3 across = Flatten(_pivot.GlobalBasis.X, _normal);
+        if (across == Vector3.Zero) across = _pivot.GlobalBasis.X;
+
+        Vector3 swing = _step * (HandStride * 0.5f * Mathf.Sin(_phase));
+
+        ArmLeft?.Grip(anchor - across * HandSpread + swing);
+        ArmRight?.Grip(anchor + across * HandSpread - swing);
+    }
+
+    private Vector3 Surface(Vector2 move)
+    {
+        Basis view = _pivot.GlobalBasis;
+
+        Vector3 along = Flatten(view.Y, _normal);
+        if (along == Vector3.Zero) along = Flatten(-view.Z, _normal);
+        if (along == Vector3.Zero) return Vector3.Zero;
+
+        Vector3 across = Flatten(view.X, _normal);
+        if (across == Vector3.Zero) across = along.Cross(_normal);
+
+        Vector3 step = across * move.X - along * move.Y;
+
+        return step.LengthSquared() > 1e-6f ? step.Normalized() : Vector3.Zero;
+    }
+
+    private static Vector3 Flatten(Vector3 axis, Vector3 normal)
+    {
+        Vector3 flat = axis - normal * axis.Dot(normal);
+        return flat.LengthSquared() > 1e-4f ? flat.Normalized() : Vector3.Zero;
+    }
+
+    public void Drop()
+    {
+        _pause = VaultPause;
+        _rearm = true;
+        Release();
+    }
+
+    private void Release()
+    {
+        _climbing = false;
+        _step = Vector3.Zero;
+
+        if (!_attached) return;
+
+        _handle?.Detach();
+        _attached = false;
+        _node = null;
+        _handle = null;
+        _load = 0f;
+    }
+
+    private bool Hold(out Vector3 anchor)
+    {
+        anchor = _lastAnchor;
+        if (!_attached || !IsInstanceValid(_node)) return false;
+
+        if (_handle == null) anchor = _node.GlobalTransform * _local;
+        return true;
+    }
+
+    public bool FindLedge(Vector3 origin, out Vector3 stand)
+    {
+        stand = Vector3.Zero;
+        if (_cast == null || !Hold(out Vector3 face)) return false;
+
+        Vector3 forward = -_pivot.GlobalBasis.Z;
+        forward -= Vector3.Up * forward.Y;
+        if (forward.LengthSquared() < 1e-4f) return false;
+
+        Vector3 lip = face + forward.Normalized() * LedgeDepth;
+        Vector3 from = new(lip.X, origin.Y + LedgeHigh, lip.Z);
+        Vector3 to = new(lip.X, face.Y - LedgeLow, lip.Z);
+
+        if (!Sweep(from, to, out _, out Vector3 top, out Vector3 normal)) return false;
+        if (normal.Dot(Vector3.Up) < LedgeFlat) return false;
+        if (top.Y - origin.Y > LedgeHigh) return false;
+
+        stand = new Vector3(lip.X, top.Y, lip.Z);
+        return true;
+    }
+
+    public bool Vault(PhysicsDirectBodyState3D state)
+    {
+        if (!Hold(out Vector3 top)) return false;
+
+        Vector3 origin = state.Transform.Origin;
+        Vector3 over = top - origin;
+        Vector3 lead = over - Vector3.Up * over.Y;
+
+        float gravity = Mathf.Max(state.TotalGravity.Length(), 0.1f);
+        float lift = Mathf.Max(over.Y + VaultClearance, 0f);
+
+        Vector3 velocity = state.LinearVelocity;
+        velocity.Y = Mathf.Max(velocity.Y, 0f) + Mathf.Sqrt(2f * gravity * lift);
+        if (lead.LengthSquared() > 1e-6f) velocity += lead.Normalized() * VaultReach;
+
+        state.LinearVelocity = velocity;
+
+        Drop();
+        return true;
     }
 
     public void Apply(PhysicsDirectBodyState3D state)
     {
-        float mass = state.InverseMass > 0f ? 1f / state.InverseMass : 1f;
         _load = 0f;
 
-        Solve(0, ArmLeft, false, state, mass);
-        Solve(1, ArmRight, true, state, mass);
-    }
+        if (!_attached) return;
 
-    private void Take(int index)
-    {
-        DangleArm hand = index == 0 ? ArmLeft : ArmRight;
-        if (hand == null || _cast == null) return;
-
-        _cast.ForceShapecastUpdate();
-        if (!_cast.IsColliding()) return;
-
-        Vector3 from = _cast.GlobalPosition;
-        float nearest = float.MaxValue;
-        int best = -1;
-
-        for (int i = 0; i < _cast.GetCollisionCount(); i++)
+        if (!IsInstanceValid(_node))
         {
-            float distance = from.DistanceSquaredTo(_cast.GetCollisionPoint(i));
-            if (distance >= nearest) continue;
-            nearest = distance;
-            best = i;
-        }
-
-        if (best < 0 || _cast.GetCollider(best) is not Node3D node) return;
-
-        Vector3 point = _cast.GetCollisionPoint(best);
-        IGrabbable handle = FindHandle(node);
-        if (handle != null) point = handle.Attach(point);
-
-        Grip grip = _grips[index];
-        grip.Active = true;
-        grip.Node = node;
-        grip.Handle = handle;
-        grip.Local = node.GlobalTransform.AffineInverse() * point;
-        grip.LastShoulder = ShoulderWorld(index == 1);
-        grip.LastAnchor = point;
-        grip.Slack = 1f;
-        grip.Load = 0f;
-
-        hand.Grip(point);
-    }
-
-    private void Drop(int index) => Release(_grips[index], index == 0 ? ArmLeft : ArmRight);
-
-    private static void Release(Grip grip, DangleArm hand)
-    {
-        if (!grip.Active) return;
-
-        grip.Handle?.Detach();
-        grip.Active = false;
-        grip.Node = null;
-        grip.Handle = null;
-        hand?.Release();
-    }
-
-    private void Solve(int index, DangleArm hand, bool right, PhysicsDirectBodyState3D state, float mass)
-    {
-        Grip grip = _grips[index];
-        if (!grip.Active || hand == null) return;
-
-        if (!IsInstanceValid(grip.Node))
-        {
-            Release(grip, hand);
+            Release();
             return;
         }
 
         float dt = state.Step;
-        Vector3 shoulder = state.Transform * ShoulderLocal(right);
+        float mass = state.InverseMass > 0f ? 1f / state.InverseMass : 1f;
+        Vector3 chest = state.Transform * ChestLocal();
         Vector3 anchor;
 
-        if (grip.Handle != null)
+        if (_handle != null)
         {
-            Vector3 request = grip.LastAnchor + (shoulder - grip.LastShoulder);
-            anchor = grip.Handle.Track(request, dt);
+            anchor = _handle.Track(
+                new GrabHold
+                {
+                    Point = _lastAnchor + (chest - _lastChest),
+                    Chest = chest,
+                    Aim = Aim(chest),
+                },
+                dt);
         }
         else
         {
-            anchor = grip.Node.GlobalTransform * grip.Local;
+            anchor = _node.GlobalTransform * _local;
         }
 
-        Vector3 span = anchor - shoulder;
+        _lastChest = chest;
+        _lastAnchor = anchor;
+
+        if (_handle != null && !_handle.Anchors) return;
+
+        if (_climbing) _span = Mathf.MoveToward(_span, Grasp() * MinSpan, ClimbSpeed * dt);
+
+        Vector3 span = anchor - chest;
         float distance = span.Length();
-
-        hand.Grip(shoulder + span.LimitLength(Reach));
-        grip.LastShoulder = shoulder;
-        grip.LastAnchor = anchor;
-
-        if (grip.Handle != null && !grip.Handle.Anchors) return;
-
-        bool footed = _player == null || _player.IsGrounded;
-        grip.Slack = Climb && !footed
-            ? Mathf.MoveToward(grip.Slack, MinSlack, ReelSpeed * dt)
-            : Mathf.MoveToward(grip.Slack, 1f, ReelSpeed * dt);
-
-        float limit = Reach * Mathf.Clamp(Slack * grip.Slack, 0.05f, 1f);
-
-        if (distance <= limit || distance < 1e-4f)
-        {
-            grip.Load = 0f;
-            return;
-        }
+        if (distance < 1e-4f) return;
 
         Vector3 direction = span / distance;
-        Vector3 offset = shoulder - state.CenterOfMass;
-        Vector3 pointVelocity = state.LinearVelocity + state.AngularVelocity.Cross(offset);
-        float closing = (pointVelocity - AnchorVelocity(grip.Node, anchor)).Dot(direction);
+        Vector3 relative = state.LinearVelocity - AnchorVelocity(_node, anchor);
+        float closing = relative.Dot(direction);
+        float error = distance - _span;
 
-        float pull = (distance - limit) * Stiffness - closing * Damping;
-        Vector3 force = (direction * (pull * mass)).LimitLength(MaxForce);
+        if (error < 0f) return;
 
-        state.ApplyForce(force, offset);
+        state.LinearVelocity -= (relative - direction * closing) * Mathf.Min(SwingDamping * dt, 1f);
 
-        if (grip.Node is RigidBody3D rigid)
-            rigid.ApplyForce(-force, anchor - CenterOfMass(rigid));
+        float want = Mathf.Min(error * Correction / dt, MaxPullSpeed);
+        if (closing >= want) return;
 
-        grip.Load = force.Length() / Mathf.Max(BreakForce, 1f);
-        _load = Mathf.Max(_load, Mathf.Min(grip.Load, 1f));
+        float change = want - closing;
+        state.LinearVelocity += direction * change;
 
-        if (grip.Load >= 1f) Release(grip, hand);
+        if (_node is RigidBody3D rigid)
+            rigid.ApplyImpulse(direction * (-change * mass), anchor - CenterOfMass(rigid));
+
+        _load = Mathf.Min(change * mass / (dt * Mathf.Max(BreakForce, 1f)), 1f);
+
+        if (Breaks && _load >= 1f) Release();
     }
 
-    private Vector3 ShoulderLocal(bool right)
+    private float Grasp()
     {
-        if (Shape != null) return Shape.Shoulder(right);
-
-        DangleArm arm = right ? ArmRight : ArmLeft;
-        return arm?.Position ?? new Vector3(right ? 0.23f : -0.23f, 0.9f, 0f);
+        float arms = Mathf.Max(ArmLeft?.Length ?? 0f, ArmRight?.Length ?? 0f);
+        return arms > 1e-3f ? Mathf.Min(Reach, arms) : Reach;
     }
 
-    private Vector3 ShoulderWorld(bool right) =>
-        _body == null ? ShoulderLocal(right) : _body.GlobalTransform * ShoulderLocal(right);
+    private Vector3 ChestLocal() =>
+        Shape != null
+            ? (Shape.Shoulder(false) + Shape.Shoulder(true)) * 0.5f
+            : new Vector3(0f, 0.9f, 0f);
+
+    private Vector3 ChestWorld() =>
+        _body == null ? ChestLocal() : _body.GlobalTransform * ChestLocal();
+
+    private Vector3 Aim(Vector3 chest)
+    {
+        Vector3 forward = -_pivot.GlobalBasis.Z;
+        Vector3 span = _pivot.GlobalPosition + forward * AimDistance - chest;
+
+        return span.LengthSquared() > 1e-6f ? span.Normalized() : forward;
+    }
+
+    private bool Sweep(Vector3 from, Vector3 to, out Node3D node, out Vector3 point, out Vector3 normal) =>
+        Sweep(from, to, false, out node, out point, out normal);
+
+    private bool Sweep(Vector3 from, Vector3 to, bool handles, out Node3D node, out Vector3 point, out Vector3 normal)
+    {
+        node = null;
+        point = Vector3.Zero;
+        normal = Vector3.Up;
+
+        _cast.GlobalTransform = new Transform3D(Basis.Identity, from);
+        _cast.TargetPosition = to - from;
+        _cast.ForceShapecastUpdate();
+
+        if (!_cast.IsColliding()) return false;
+
+        float nearest = float.MaxValue;
+        float handled = float.MaxValue;
+        int best = -1;
+        int grip = -1;
+
+        for (int i = 0; i < _cast.GetCollisionCount(); i++)
+        {
+            float distance = from.DistanceSquaredTo(_cast.GetCollisionPoint(i));
+
+            if (distance < nearest)
+            {
+                nearest = distance;
+                best = i;
+            }
+
+            if (!handles || distance >= handled) continue;
+            if (FindHandle(_cast.GetCollider(i) as Node) == null) continue;
+
+            handled = distance;
+            grip = i;
+        }
+
+        if (grip >= 0) best = grip;
+
+        if (best < 0 || _cast.GetCollider(best) is not Node3D hit) return false;
+
+        node = hit;
+        point = _cast.GetCollisionPoint(best);
+        normal = _cast.GetCollisionNormal(best);
+        return true;
+    }
 
     private static Vector3 AnchorVelocity(Node3D node, Vector3 at)
     {

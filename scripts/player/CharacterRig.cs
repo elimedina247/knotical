@@ -103,9 +103,6 @@ public partial class CharacterRig : Node3D
     [Export(PropertyHint.Range, "0.1,1,0.01")]
     public float DangleStiffness { get; set; } = 0.8f;
 
-    [Export(PropertyHint.Range, "1,2,0.01")]
-    public float MaxStretch { get; set; } = 1.3f;
-
     [Export] public bool PlantFeet { get; set; } = true;
 
     [Export] public bool RebuildNow { get => false; set { if (value) Rebuild(); } }
@@ -341,7 +338,6 @@ public partial class CharacterRig : Node3D
             chain.Gravity = DangleGravity;
             chain.Damping = DangleDamping;
             chain.Stiffness = DangleStiffness;
-            chain.MaxStretch = MaxStretch;
 
             bool pinned = _pinned[limb];
             Vector3 target = _targets[limb];
@@ -353,9 +349,9 @@ public partial class CharacterRig : Node3D
                 target = xform * new Vector3(hip.X, _form.FootSize.Y * 0.5f, 0f);
             }
 
-            chain.Step(dt, xform * _form.Root(limb), pinned, target);
-
             if (_form.IsArm(limb)) chain.PushOutside(spineLow, spineHigh, clearance);
+
+            chain.Step(dt, xform * _form.Root(limb), pinned, target);
 
             Apply(limb);
         }

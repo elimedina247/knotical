@@ -11,7 +11,7 @@ public partial class BoatHull : RigidBody3D
     private const float Gravity = 9.81f;
 
     private readonly HullForm _form = new();
-    private readonly List<Sail> _sails = new();
+    private readonly List<IFoil> _foils = new();
     private Vector3[] _local;
     private Vector3[] _world;
     private float[] _depth;
@@ -123,6 +123,14 @@ public partial class BoatHull : RigidBody3D
 
     [Export] public bool RebuildNow { get => false; set { if (value) Rebuild(); } }
 
+    [Export] public bool Trace { get; set; }
+
+    private double _tick;
+    private float _commanded;
+    private float _lastVy;
+    private float _lift;
+    private Vector3 _liftCentre;
+
     public float SubmergedVolume { get; private set; }
 
     public override void _Ready()
@@ -133,16 +141,16 @@ public partial class BoatHull : RigidBody3D
 
     public void RefreshRig()
     {
-        _sails.Clear();
-        CollectSails(this);
+        _foils.Clear();
+        CollectFoils(this);
     }
 
-    private void CollectSails(Node node)
+    private void CollectFoils(Node node)
     {
         foreach (Node child in node.GetChildren())
         {
-            if (child is Sail sail) _sails.Add(sail);
-            CollectSails(child);
+            if (child is IFoil foil) _foils.Add(foil);
+            CollectFoils(child);
         }
     }
 
@@ -257,6 +265,8 @@ public partial class BoatHull : RigidBody3D
         _angular = state.AngularVelocity;
         _force = Vector3.Zero;
         _torque = Vector3.Zero;
+        _lift = 0f;
+        _liftCentre = Vector3.Zero;
         SubmergedVolume = 0f;
 
         if (_ocean != null && _local != null && _indices != null)
@@ -274,17 +284,20 @@ public partial class BoatHull : RigidBody3D
             }
         }
 
-        for (int i = 0; i < _sails.Count; i++)
-        {
-            Sail sail = _sails[i];
-            if (sail == null || !IsInstanceValid(sail)) continue;
+        Vector3 hull = _force;
 
-            Vector3 arm = sail.GlobalCentreOfEffort - _com;
-            Vector3 f = sail.ComputeForce(_linear + _angular.Cross(arm));
+        for (int i = 0; i < _foils.Count; i++)
+        {
+            if (_foils[i] is not Node3D node || !IsInstanceValid(node)) continue;
+
+            Vector3 arm = _foils[i].GlobalCentreOfEffort - _com;
+            Vector3 f = _foils[i].ComputeForce(_linear + _angular.Cross(arm));
 
             _force += f;
             _torque += arm.Cross(f);
         }
+
+        Vector3 rig = _force - hull;
 
         _force.Y -= Mass * Gravity;
 
@@ -298,8 +311,37 @@ public partial class BoatHull : RigidBody3D
         float maxTorque = maxForce * _form.Length * 0.5f;
         if (_torque.LengthSquared() > maxTorque * maxTorque) _torque = _torque.Normalized() * maxTorque;
 
+        if (Trace) Report(state, hull, rig);
+
         state.ApplyCentralForce(_force);
         state.ApplyTorque(_torque);
+    }
+
+    private void Report(PhysicsDirectBodyState3D state, Vector3 hull, Vector3 rig)
+    {
+        float vy = state.LinearVelocity.Y;
+
+        _commanded += _force.Y / Mass * state.Step;
+        _tick += state.Step;
+        if (_tick < 0.25) return;
+
+        Vector3 at = state.Transform.Origin;
+        float sea = _ocean != null ? _ocean.GetHeight(new Vector2(at.X, at.Z)) : float.NaN;
+
+        Vector3 cob = Mathf.Abs(_lift) > 1f ? _liftCentre / _lift : _com;
+        Vector3 local = state.Transform.AffineInverse() * cob;
+        float pitch = Mathf.RadToDeg(Mathf.Asin(Mathf.Clamp(-state.Transform.Basis.Z.Y, -1f, 1f)));
+
+        GD.Print(
+            $"hull y={at.Y:F2} sea={sea:F2} vol={SubmergedVolume:F0} pitch={pitch:F1} " +
+            $"cobz={local.Z:F2} comz={CenterOfMass.Z:F2} trim={local.Z - CenterOfMass.Z:F2} " +
+            $"buoy={hull.Y:F0} rig={rig.Y:F0} net={_force.Y:F0} vy={vy:F2} " +
+            $"commanded={_commanded:F2} actual={vy - _lastVy:F2} " +
+            $"mass={Mass:F0} enginemass={(state.InverseMass > 0f ? 1f / state.InverseMass : 0f):F0}");
+
+        _tick = 0.0;
+        _commanded = 0f;
+        _lastVy = vy;
     }
 
     private void Clip(int i0, int i1, int i2)
@@ -365,6 +407,9 @@ public partial class BoatHull : RigidBody3D
         SubmergedVolume += depth * area * -normal.Y;
 
         Vector3 f = normal * (-WaterDensity * Gravity * depth * area);
+
+        _lift += f.Y;
+        _liftCentre += centroid * f.Y;
 
         Vector3 arm = centroid - _com;
         Vector3 relative = _linear + _angular.Cross(arm);

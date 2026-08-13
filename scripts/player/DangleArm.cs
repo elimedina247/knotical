@@ -13,8 +13,6 @@ public partial class DangleArm : Node3D, IHand
 
     [Export(PropertyHint.Range, "0.1,1,0.01")] public float Stiffness { get; set; } = 0.8f;
 
-    [Export(PropertyHint.Range, "1,2,0.01")] public float MaxStretch { get; set; } = 1.25f;
-
     [Export(PropertyHint.Range, "0,2,0.01")] public float SpineLowY { get; set; } = 0.62f;
 
     [Export(PropertyHint.Range, "0,2,0.01")] public float SpineHighY { get; set; } = 0.98f;
@@ -109,11 +107,10 @@ public partial class DangleArm : Node3D, IHand
         _chain.Gravity = Gravity * (1f - _rigid);
         _chain.Damping = Mathf.Lerp(Damping, RigidDamping, _rigid);
         _chain.Stiffness = Mathf.Lerp(Stiffness, 1f, _rigid);
-        _chain.MaxStretch = MaxStretch;
 
         Vector3 target = _reachFrom.Lerp(_target, Mathf.SmoothStep(0f, 1f, _reach));
 
-        _chain.Step(dt, GlobalPosition, _pinned, target);
+        _chain.Straighten(_rigid);
 
         if (_torso != null)
         {
@@ -121,8 +118,10 @@ public partial class DangleArm : Node3D, IHand
             _chain.PushOutside(
                 body * new Vector3(0f, SpineLowY, 0f),
                 body * new Vector3(0f, SpineHighY, 0f),
-                Clearance);
+                Clearance * (1f - _rigid));
         }
+
+        _chain.Step(dt, GlobalPosition, _pinned, target);
 
         for (int i = 0; i < _links.Length && i < _chain.Links; i++)
         {
