@@ -18,6 +18,8 @@ public sealed class HullForm
     public float SternSharpness = 3f;
     public float TransomWidth = 0.55f;
     public float TransomRake = 0.6f;
+    public float StemRake = 0f;
+    public float StemPower = 3f;
     public float BilgeFullness = 0.42f;
 
     public float PlanFactor(float t)
@@ -29,11 +31,16 @@ public sealed class HullForm
         return f;
     }
 
-    public float TransomZ(float t, float v)
+    public float RakeZ(float t, float v)
     {
-        if (t >= 0.5f) return 0f;
-        float m = 1f - t * 2f;
-        return TransomRake * v * m * m * m;
+        if (t < 0.5f)
+        {
+            float m = 1f - t * 2f;
+            return TransomRake * v * m * m * m;
+        }
+
+        float n = t * 2f - 1f;
+        return -StemRake * v * Mathf.Pow(n, StemPower);
     }
 
     public float SectionFactor(float v) => Mathf.Pow(Mathf.Clamp(v, 0f, 1f), BilgeFullness);
@@ -96,7 +103,7 @@ public sealed class HullForm
     {
         float y = Mathf.Lerp(KeelY(t), SheerY(t), v);
         float half = Mathf.Max(0.02f, Beam * 0.5f * PlanFactor(t) * SectionFactor(v) + offset);
-        return new Vector3(half * side, y, ZAt(t) + TransomZ(t, v));
+        return new Vector3(half * side, y, ZAt(t) + RakeZ(t, v));
     }
 
     public Vector3[] Ring(float v, float offset, int stations)

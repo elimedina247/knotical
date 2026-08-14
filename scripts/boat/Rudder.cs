@@ -36,7 +36,7 @@ public partial class Rudder : MeshInstance3D, IFoil
     public float HeadRise { get => _headRise; set { _headRise = value; Rebuild(); } }
 
     [Export(PropertyHint.Range, "1,60,0.5")]
-    public float MaxAngleDegrees { get; set; } = 35f;
+    public float MaxAngleDegrees { get; set; } = 45f;
 
     [Export(PropertyHint.Range, "-1,1,0.005")]
     public float Steering
@@ -46,10 +46,10 @@ public partial class Rudder : MeshInstance3D, IFoil
     }
 
     [Export(PropertyHint.Range, "0,3,0.01")]
-    public float NormalCoefficient { get; set; } = 1.2f;
+    public float NormalCoefficient { get; set; } = 1.6f;
 
     [Export(PropertyHint.Range, "0,200,0.5")]
-    public float Gain { get; set; } = 20f;
+    public float Gain { get; set; } = 45f;
 
     [Export(PropertyHint.Range, "0,1,0.01")]
     public float CentreOfPressure { get; set; } = 0.4f;
@@ -102,9 +102,17 @@ public partial class Rudder : MeshInstance3D, IFoil
         Vector3 stream = WaterVelocity() - pointVelocity;
         Flow = stream.Length();
 
+        if (Flow <= 0.0001f)
+        {
+            StockTorque = 0f;
+            return Vector3.Zero;
+        }
+
         Vector3 n = Normal;
-        float along = stream.Dot(n);
-        float push = 0.5f * WaterDensity * NormalCoefficient * area * along * Mathf.Abs(along) * Gain;
+        float sin = Mathf.Clamp(stream.Dot(n) / Flow, -1f, 1f);
+        float cos = Mathf.Sqrt(Mathf.Max(1f - sin * sin, 0f));
+
+        float push = WaterDensity * NormalCoefficient * area * Flow * Flow * sin * cos * Gain;
 
         StockTorque = LocalCentreOfEffort.Z * push;
 

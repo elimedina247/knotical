@@ -62,6 +62,12 @@ public partial class BoatHull : RigidBody3D
     [Export(PropertyHint.Range, "-10,15,0.05")]
     public float TransomRake { get => _form.TransomRake; set { _form.TransomRake = value; Rebuild(); } }
 
+    [Export(PropertyHint.Range, "0,20,0.05")]
+    public float StemRake { get => _form.StemRake; set { _form.StemRake = value; Rebuild(); } }
+
+    [Export(PropertyHint.Range, "1,6,0.05")]
+    public float StemPower { get => _form.StemPower; set { _form.StemPower = value; Rebuild(); } }
+
     [Export(PropertyHint.Range, "0.15,1.5,0.01")]
     public float BilgeFullness { get => _form.BilgeFullness; set { _form.BilgeFullness = value; Rebuild(); } }
 
@@ -123,13 +129,6 @@ public partial class BoatHull : RigidBody3D
 
     [Export] public bool RebuildNow { get => false; set { if (value) Rebuild(); } }
 
-    [Export] public bool Trace { get; set; }
-
-    private double _tick;
-    private float _commanded;
-    private float _lastVy;
-    private float _lift;
-    private Vector3 _liftCentre;
 
     public float SubmergedVolume { get; private set; }
 
@@ -265,8 +264,6 @@ public partial class BoatHull : RigidBody3D
         _angular = state.AngularVelocity;
         _force = Vector3.Zero;
         _torque = Vector3.Zero;
-        _lift = 0f;
-        _liftCentre = Vector3.Zero;
         SubmergedVolume = 0f;
 
         if (_ocean != null && _local != null && _indices != null)
@@ -284,8 +281,6 @@ public partial class BoatHull : RigidBody3D
             }
         }
 
-        Vector3 hull = _force;
-
         for (int i = 0; i < _foils.Count; i++)
         {
             if (_foils[i] is not Node3D node || !IsInstanceValid(node)) continue;
@@ -296,8 +291,6 @@ public partial class BoatHull : RigidBody3D
             _force += f;
             _torque += arm.Cross(f);
         }
-
-        Vector3 rig = _force - hull;
 
         _force.Y -= Mass * Gravity;
 
@@ -311,38 +304,10 @@ public partial class BoatHull : RigidBody3D
         float maxTorque = maxForce * _form.Length * 0.5f;
         if (_torque.LengthSquared() > maxTorque * maxTorque) _torque = _torque.Normalized() * maxTorque;
 
-        if (Trace) Report(state, hull, rig);
-
         state.ApplyCentralForce(_force);
         state.ApplyTorque(_torque);
     }
 
-    private void Report(PhysicsDirectBodyState3D state, Vector3 hull, Vector3 rig)
-    {
-        float vy = state.LinearVelocity.Y;
-
-        _commanded += _force.Y / Mass * state.Step;
-        _tick += state.Step;
-        if (_tick < 0.25) return;
-
-        Vector3 at = state.Transform.Origin;
-        float sea = _ocean != null ? _ocean.GetHeight(new Vector2(at.X, at.Z)) : float.NaN;
-
-        Vector3 cob = Mathf.Abs(_lift) > 1f ? _liftCentre / _lift : _com;
-        Vector3 local = state.Transform.AffineInverse() * cob;
-        float pitch = Mathf.RadToDeg(Mathf.Asin(Mathf.Clamp(-state.Transform.Basis.Z.Y, -1f, 1f)));
-
-        GD.Print(
-            $"hull y={at.Y:F2} sea={sea:F2} vol={SubmergedVolume:F0} pitch={pitch:F1} " +
-            $"cobz={local.Z:F2} comz={CenterOfMass.Z:F2} trim={local.Z - CenterOfMass.Z:F2} " +
-            $"buoy={hull.Y:F0} rig={rig.Y:F0} net={_force.Y:F0} vy={vy:F2} " +
-            $"commanded={_commanded:F2} actual={vy - _lastVy:F2} " +
-            $"mass={Mass:F0} enginemass={(state.InverseMass > 0f ? 1f / state.InverseMass : 0f):F0}");
-
-        _tick = 0.0;
-        _commanded = 0f;
-        _lastVy = vy;
-    }
 
     private void Clip(int i0, int i1, int i2)
     {
@@ -407,9 +372,6 @@ public partial class BoatHull : RigidBody3D
         SubmergedVolume += depth * area * -normal.Y;
 
         Vector3 f = normal * (-WaterDensity * Gravity * depth * area);
-
-        _lift += f.Y;
-        _liftCentre += centroid * f.Y;
 
         Vector3 arm = centroid - _com;
         Vector3 relative = _linear + _angular.Cross(arm);

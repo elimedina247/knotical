@@ -12,8 +12,10 @@ STERN_SHEER_RISE = 1.9
 SHEER_POWER = 2.4
 ROCKER = 5.6
 ROCKER_POWER = 2.6
-BOW_SHARPNESS = 2.2
+BOW_SHARPNESS = 1.7
 STERN_SHARPNESS = 3.0
+STEM_RAKE = 4.0
+STEM_POWER = 3.0
 BILGE_FULLNESS = 0.42
 THICKNESS = 0.32
 STRAKE_PROUD = 0.28
@@ -36,11 +38,12 @@ class Hull:
             f = f + (1.0 - f) * w
         return f
 
-    def transom_z(self, t, v):
-        if t >= 0.5:
-            return 0.0
-        m = 1.0 - t * 2.0
-        return self.transom_rake * v * m * m * m
+    def rake_z(self, t, v):
+        if t < 0.5:
+            m = 1.0 - t * 2.0
+            return self.transom_rake * v * m * m * m
+        n = t * 2.0 - 1.0
+        return -STEM_RAKE * v * n ** STEM_POWER
 
     @staticmethod
     def section_factor(v):
@@ -71,7 +74,7 @@ class Hull:
     def shell(self, t, v, offset, side):
         y = self.keel_y(t) + (self.sheer_y(t) - self.keel_y(t)) * v
         half = max(0.02, BEAM * 0.5 * self.plan_factor(t) * self.section_factor(v) + offset)
-        return (half * side, y, self.z_at(t) + self.transom_z(t, v))
+        return (half * side, y, self.z_at(t) + self.rake_z(t, v))
 
     def ring(self, v, offset):
         count = max(3, STATIONS)
@@ -238,6 +241,15 @@ SC_TIERS = [
 ]
 
 
+def hull_half_at(hull_shape, t, y):
+    return hull_shape.shell(t, hull_shape.v_at_height(t, y), 0.0, 1.0)[0]
+
+
+def fit_stair(want, width):
+    room = width - SC_STAIR_HALF - SC_WALL
+    return max(SC_STAIR_HALF, min(want, room))
+
+
 def quad(surface, a, b, c, d):
     surface.tri(a, b, c)
     surface.tri(a, c, d)
@@ -325,16 +337,17 @@ def castle_parts(hull_shape):
         w = stations[-1][0] - SC_WALL
         z = stations[-1][2]
         floor_y, ceil_y, deck_y = spec["floor"], spec["ceil"], spec["deck"]
+        low = min(w, hull_half_at(hull_shape, spec["t_fwd"], floor_y) - SC_WALL)
         door_top = floor_y + SC_DOOR_HEIGHT
 
         bulkhead = [
-            ((-w, floor_y, z), (-SC_DOOR_HALF, ceil_y, z + SC_WALL)),
-            ((SC_DOOR_HALF, floor_y, z), (w, ceil_y, z + SC_WALL)),
+            ((-low, floor_y, z), (-SC_DOOR_HALF, ceil_y, z + SC_WALL)),
+            ((SC_DOOR_HALF, floor_y, z), (low, ceil_y, z + SC_WALL)),
             ((-SC_DOOR_HALF, door_top, z), (SC_DOOR_HALF, ceil_y, z + SC_WALL)),
-            ((-w, ceil_y, z), (w, deck_y, z + SC_WALL)),
+            ((-low, ceil_y, z), (low, deck_y, z + SC_WALL)),
         ]
 
-        sx = spec["stair_x"]
+        sx = fit_stair(spec["stair_x"], low)
         runs = [(-w, -(sx + SC_STAIR_HALF)), (-(sx - SC_STAIR_HALF), sx - SC_STAIR_HALF),
                 (sx + SC_STAIR_HALF, w)]
         rail_y = deck_y + SC_RAIL_H
@@ -430,18 +443,20 @@ def forecastle_parts(hull_shape):
     w = stations[0][0] - SC_WALL
     z = stations[0][2]
     floor_y = DECK_HEIGHT
+    low = min(w, hull_half_at(hull_shape, FC_T_AFT, floor_y) - SC_WALL)
     door_top = floor_y + SC_DOOR_HEIGHT
 
     bulkhead = [
-        ((-w, floor_y, z - SC_WALL), (-SC_DOOR_HALF, FC_CEIL, z)),
-        ((SC_DOOR_HALF, floor_y, z - SC_WALL), (w, FC_CEIL, z)),
+        ((-low, floor_y, z - SC_WALL), (-SC_DOOR_HALF, FC_CEIL, z)),
+        ((SC_DOOR_HALF, floor_y, z - SC_WALL), (low, FC_CEIL, z)),
         ((-SC_DOOR_HALF, door_top, z - SC_WALL), (SC_DOOR_HALF, FC_CEIL, z)),
-        ((-w, FC_CEIL, z - SC_WALL), (w, FC_DECK, z)),
+        ((-low, FC_CEIL, z - SC_WALL), (low, FC_DECK, z)),
     ]
 
-    runs = [(-w, -(FC_STAIR_X + SC_STAIR_HALF)),
-            (-(FC_STAIR_X - SC_STAIR_HALF), FC_STAIR_X - SC_STAIR_HALF),
-            (FC_STAIR_X + SC_STAIR_HALF, w)]
+    sx = fit_stair(FC_STAIR_X, low)
+    runs = [(-w, -(sx + SC_STAIR_HALF)),
+            (-(sx - SC_STAIR_HALF), sx - SC_STAIR_HALF),
+            (sx + SC_STAIR_HALF, w)]
     rail_y = FC_DECK + SC_RAIL_H
     rails = [((a, rail_y - SC_RAIL_BAR, z - SC_RAIL_BAR), (b, rail_y, z)) for a, b in runs]
 
@@ -456,7 +471,7 @@ def forecastle_parts(hull_shape):
     count = max(1, int(round((FC_DECK - floor_y) / SC_STAIR_RISE)))
     rise = (FC_DECK - floor_y) / count
     steps = []
-    for side in (-FC_STAIR_X, FC_STAIR_X):
+    for side in (-sx, sx):
         for i in range(count):
             z1 = z + (count - 1 - i) * SC_STAIR_RUN
             steps.append(((side - SC_STAIR_HALF, floor_y, z1),
@@ -464,7 +479,7 @@ def forecastle_parts(hull_shape):
 
     return dict(stations=stations, bases=bases, top=FC_TOP, deck=FC_DECK, ceil=FC_CEIL,
                 floor=floor_y, rail_y=rail_y, width=w, z=z, bulkhead=bulkhead,
-                rails=rails, posts=posts, steps=steps, stair_x=FC_STAIR_X,
+                rails=rails, posts=posts, steps=steps, stair_x=sx,
                 stair_steps=count, stair_run=count * SC_STAIR_RUN)
 
 
@@ -478,6 +493,139 @@ def add_forecastle(hull_shape, hull, deck, stairs):
         box(hull, lo, hi)
     for lo, hi in f["steps"]:
         box(stairs, lo, hi)
+
+
+COLLISION_SPANS = 4
+MANAGED = ("SCT0", "SCT1", "FC", "Mast")
+
+
+def span_range(n, s):
+    per = (n - 1) // COLLISION_SPANS
+    a = s * per
+    return a, (n - 1) if s == COLLISION_SPANS - 1 else a + per
+
+
+def box_corners(lo, hi):
+    return [(x, y, z) for x in (lo[0], hi[0]) for y in (lo[1], hi[1]) for z in (lo[2], hi[2])]
+
+
+def tier_collision(prefix, part, closed, out):
+    stations, bases, top = part["stations"], part["bases"], part["top"]
+    n = len(stations)
+
+    for s in range(COLLISION_SPANS):
+        a, b = span_range(n, s)
+        floor, wall_s, wall_p = [], [], []
+        for k in range(a, b + 1):
+            x, _, z = stations[k]
+            inner = inner_half(x)
+            base = min(bases[k], top)
+            for y in (part["ceil"], part["deck"]):
+                floor += [(-inner, y, z), (inner, y, z)]
+            for y in (base, top):
+                wall_s += [(x, y, z), (inner, y, z)]
+                wall_p += [(-x, y, z), (-inner, y, z)]
+        out.append((prefix + "Floor%d" % s, "convex", floor))
+        out.append((prefix + "WallS%d" % s, "convex", wall_s))
+        out.append((prefix + "WallP%d" % s, "convex", wall_p))
+
+    for i, (lo, hi) in enumerate(part["bulkhead"]):
+        out.append((prefix + "Bulk%d" % i, "box", (lo, hi)))
+
+    for i, (lo, hi) in enumerate(part["rails"]):
+        out.append((prefix + "Rail%d" % i, "box",
+                    ((lo[0], part["deck"], lo[2]), (hi[0], part["rail_y"], hi[2]))))
+
+    count = part["stair_steps"]
+    for label, chunk in (("P", part["steps"][:count]), ("S", part["steps"][count:])):
+        pts = []
+        for lo, hi in chunk:
+            pts += box_corners(lo, hi)
+        out.append((prefix + "Stair" + label, "convex", pts))
+
+    if closed == 0:
+        x, _, z = stations[0]
+        if x > 0.1 and bases[0] < top:
+            out.append((prefix + "Transom", "convex",
+                        box_corners((-x, bases[0], z - SC_WALL), (x, top, z))))
+
+
+def collision_shapes(hull_shape):
+    out = []
+    for i, part in enumerate(castle_parts(hull_shape)):
+        tier_collision("SCT%d" % i, part, 0, out)
+    tier_collision("FC", forecastle_parts(hull_shape), 1, out)
+
+    for name, spec in (("MastMain", MASTS[0]), ("MastMizzen", MASTS[1])):
+        lower, upper = mast_rings(spec)
+        out.append((name, "convex", lower + upper))
+    return out
+
+
+def scene_blocks(shapes):
+    subs, nodes, boxes, convex = [], [], {}, 0
+    for name, kind, data in shapes:
+        if kind == "convex":
+            sid = "Convex_sc%d" % convex
+            convex += 1
+            flat = ", ".join("%.4f" % v for p in data for v in p)
+            subs.append('[sub_resource type="ConvexPolygonShape3D" id="%s"]\npoints = PackedVector3Array(%s)'
+                        % (sid, flat))
+            nodes.append('[node name="%s" type="CollisionShape3D" parent="."]\nshape = SubResource("%s")'
+                         % (name, sid))
+        else:
+            lo, hi = data
+            size = tuple(round(hi[i] - lo[i], 4) for i in range(3))
+            mid = tuple(round((hi[i] + lo[i]) * 0.5, 4) for i in range(3))
+            if size not in boxes:
+                boxes[size] = "Box_sc%d" % len(boxes)
+                subs.append('[sub_resource type="BoxShape3D" id="%s"]\nsize = Vector3(%g, %g, %g)'
+                            % ((boxes[size],) + size))
+            nodes.append('[node name="%s" type="CollisionShape3D" parent="."]\n'
+                         'transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, %g, %g, %g)\n'
+                         'shape = SubResource("%s")' % ((name,) + mid + (boxes[size],)))
+    return subs, nodes
+
+
+def stale_sub(b):
+    if not b.startswith("[sub_resource"):
+        return False
+    head = b.split("\n")[0]
+    return 'id="Convex_sc' in head or 'id="Box_sc' in head
+
+
+def managed_node(b):
+    head = b.split("\n")[0]
+    if not head.startswith("[node name="):
+        return False
+    if 'type="CollisionShape3D"' not in head or 'parent="."' not in head:
+        return False
+    return head.split('"')[1].startswith(MANAGED)
+
+
+def patch_scene(path, shapes):
+    text = open(path, encoding="utf-8").read()
+    blocks = text.split("\n\n")
+    subs, nodes = scene_blocks(shapes)
+
+    first_node = next(i for i, b in enumerate(blocks) if b.startswith("[node "))
+    anchor = next((i for i, b in enumerate(blocks) if managed_node(b)), first_node + 1)
+
+    out, placed = [], False
+    for i, b in enumerate(blocks):
+        if i == anchor:
+            out += nodes
+            placed = True
+        if stale_sub(b) or managed_node(b):
+            continue
+        out.append(b)
+    if not placed:
+        out += nodes
+
+    head = next(i for i, b in enumerate(out) if b.startswith("[node "))
+    out = out[:head] + subs + out[head:]
+    open(path, "w", encoding="utf-8", newline="\n").write("\n\n".join(out))
+    return len(subs), len(nodes)
 
 
 def build(transom_width, transom_rake):
@@ -544,6 +692,7 @@ def main():
     parser.add_argument("--transom-width", type=float, default=0.55)
     parser.add_argument("--transom-rake", type=float, default=1.75)
     parser.add_argument("--out", default=None)
+    parser.add_argument("--scene", default=None)
     args = parser.parse_args()
 
     out = args.out or os.path.join(
@@ -552,6 +701,14 @@ def main():
     hull, deck, stairs, spars = build(args.transom_width, args.transom_rake)
     write_obj(out, [("hull", hull), ("deck", deck), ("stair", stairs), ("spar", spars)])
     print("wrote", out)
+
+    scene = args.scene or os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "boat_2.tscn"
+    )
+    if os.path.exists(scene):
+        shape = Hull(args.transom_width, args.transom_rake)
+        n_sub, n_node = patch_scene(scene, collision_shapes(shape))
+        print("patched %s: %d shapes, %d colliders" % (scene, n_sub, n_node))
 
 
 if __name__ == "__main__":

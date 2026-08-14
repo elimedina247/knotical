@@ -58,6 +58,12 @@ public partial class ClinkerHull : MeshInstance3D
     [Export(PropertyHint.Range, "-2,3,0.05")]
     public float TransomRake { get => _form.TransomRake; set { _form.TransomRake = value; Rebuild(); } }
 
+    [Export(PropertyHint.Range, "0,20,0.05")]
+    public float StemRake { get => _form.StemRake; set { _form.StemRake = value; Rebuild(); } }
+
+    [Export(PropertyHint.Range, "1,6,0.05")]
+    public float StemPower { get => _form.StemPower; set { _form.StemPower = value; Rebuild(); } }
+
     [Export(PropertyHint.Range, "0.15,1.5,0.01")]
     public float BilgeFullness { get => _form.BilgeFullness; set { _form.BilgeFullness = value; Rebuild(); } }
 

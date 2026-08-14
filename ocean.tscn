@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://dxbpkm30ldpar"]
+﻿[gd_scene format=3 uid="uid://dxbpkm30ldpar"]
 
 [ext_resource type="PackedScene" uid="uid://drik7re75csan" path="res://character.tscn" id="1_qijwg"]
 [ext_resource type="Script" uid="uid://dvl3k7wgixvcx" path="res://scripts/ocean/OceanSurface.cs" id="1_surface"]
@@ -83,4 +83,3 @@ script = ExtResource("10_compass")
 script = ExtResource("5_skyctl")
 
 [node name="Boat2" parent="." unique_id=2015638015 instance=ExtResource("7_qijwg")]
-Trace = true

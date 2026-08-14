@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using Knotical.Weather;
 using OceanField = Knotical.Ocean.Ocean;
 
@@ -23,6 +23,7 @@ public partial class Sail : MeshInstance3D, IFoil
     private ShaderMaterial _material;
     private float _pressure = 1f;
     private float _windStrength = 1f;
+    private float _brace;
 
     [Export(PropertyHint.Range, "0.5,60,0.1")]
     public float HeadWidth { get => _headWidth; set { _headWidth = value; Rebuild(); } }
@@ -110,10 +111,26 @@ public partial class Sail : MeshInstance3D, IFoil
     public float HaulRate { get; set; } = 0.12f;
 
     [Export(PropertyHint.Range, "0,200,0.5")]
-    public float DriveGain { get; set; } = 35f;
+    public float DriveGain { get; set; } = 30f;
 
-    [Export(PropertyHint.Range, "0,3,0.01")]
-    public float NormalCoefficient { get; set; } = 1.2f;
+    [Export(PropertyHint.Range, "0,4,0.01")]
+    public float LiftCoefficient { get; set; } = 1.6f;
+
+    [Export(PropertyHint.Range, "0,4,0.01")]
+    public float DragCoefficient { get; set; } = 1.3f;
+
+    [Export(PropertyHint.Range, "0,1,0.005")]
+    public float DragBase { get; set; } = 0.08f;
+
+    [Export] public Node3D Boom { get; set; }
+
+    [Export] public bool AutoTrim { get; set; } = true;
+
+    [Export(PropertyHint.Range, "0,90,1")]
+    public float MaxBraceDegrees { get; set; } = 80f;
+
+    [Export(PropertyHint.Range, "0.05,6,0.05")]
+    public float TrimRate { get; set; } = 0.7f;
 
     [Export] public Color CanvasColor { get; set; } = new(0.855f, 0.816f, 0.718f);
 
@@ -168,10 +185,48 @@ public partial class Sail : MeshInstance3D, IFoil
 
     public float Exposure { get; private set; } = 1f;
 
+    public float Brace => _brace;
+
     public override void _Ready()
     {
         if (!Engine.IsEditorHint()) TargetDeployment = _deployment;
+
+        Boom ??= GetParentOrNull<Node3D>();
+        _brace = Boom?.Rotation.Y ?? 0f;
+
         Rebuild();
+    }
+
+    public override void _PhysicsProcess(double delta)
+    {
+        if (Engine.IsEditorHint() || !AutoTrim || Boom == null) return;
+        if (_deployment <= 0.01f) return;
+
+        Node3D rig = Boom.GetParentOrNull<Node3D>();
+        if (rig == null) return;
+
+        Vector3 wind = SampleWind();
+        if (rig is RigidBody3D body) wind -= body.LinearVelocity;
+        wind.Y = 0f;
+
+        Vector3 local = rig.GlobalBasis.Inverse() * wind;
+        if (local.LengthSquared() < 0.01f) return;
+
+        float bearing = Mathf.Atan2(local.X, -local.Z);
+        float off = Mathf.Pi - Mathf.Abs(bearing);
+        float attack = 0.5f * Mathf.Atan2(
+            2f * LiftCoefficient * Mathf.Sin(off),
+            Mathf.Max(DragCoefficient, 0.01f) * Mathf.Cos(off));
+
+        float limit = Mathf.DegToRad(MaxBraceDegrees);
+        float want = Mathf.Clamp(
+            Mathf.Sign(bearing) * (Mathf.Pi * 0.5f - attack) - bearing, -limit, limit);
+
+        float swing = Mathf.Max(TrimRate, 0f) * (float)delta;
+        _brace += Mathf.Clamp(Mathf.AngleDifference(_brace, want), -swing, swing);
+
+        Vector3 rotation = Boom.Rotation;
+        Boom.Rotation = new Vector3(rotation.X, _brace, rotation.Z);
     }
 
     public override void _Process(double delta)
@@ -194,14 +249,24 @@ public partial class Sail : MeshInstance3D, IFoil
         if (area <= 0.0001f) return Vector3.Zero;
 
         Vector3 n = Normal;
-        var drive = new Vector3(n.X, 0f, n.Z);
-        if (drive.LengthSquared() < 1e-6f) return Vector3.Zero;
+        n.Y = 0f;
+        if (n.LengthSquared() < 1e-6f) return Vector3.Zero;
+        n = n.Normalized();
 
         Vector3 apparent = SampleWind() - pointVelocity;
-        float along = apparent.Dot(n);
+        apparent.Y = 0f;
 
-        return drive.Normalized() *
-            (0.5f * AirDensity * NormalCoefficient * area * along * Mathf.Abs(along) * DriveGain);
+        float speed = apparent.Length();
+        if (speed < 0.01f) return Vector3.Zero;
+
+        Vector3 w = apparent / speed;
+        float attack = Mathf.Clamp(w.Dot(n), -1f, 1f);
+
+        float force = 0.5f * AirDensity * area * speed * speed * DriveGain;
+        Vector3 lift = (n - w * attack) * (2f * LiftCoefficient * attack);
+        Vector3 drag = w * (DragBase + DragCoefficient * attack * attack);
+
+        return (lift + drag) * force;
     }
 
     private float Windage()

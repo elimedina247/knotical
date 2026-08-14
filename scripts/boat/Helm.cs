@@ -13,31 +13,31 @@ public partial class Helm : Node3D, IGrabbable
     [Export] public HelmPointer Pointer { get; set; }
 
     [Export(PropertyHint.Range, "0.25,6,0.05")]
-    public float TurnsToLock { get; set; } = 1.5f;
+    public float TurnsToLock { get; set; } = 0.5f;
 
     [Export(PropertyHint.Range, "0.5,400,0.5")]
-    public float Inertia { get; set; } = 12f;
+    public float Inertia { get; set; } = 3f;
 
     [Export(PropertyHint.Range, "1,600,0.5")]
-    public float GripStiffness { get; set; } = 110f;
+    public float GripStiffness { get; set; } = 260f;
 
     [Export(PropertyHint.Range, "0,300,0.5")]
-    public float GripDamping { get; set; } = 40f;
+    public float GripDamping { get; set; } = 55f;
 
     [Export(PropertyHint.Range, "0,4000,5")]
-    public float GripTorque { get; set; } = 480f;
+    public float GripTorque { get; set; } = 1200f;
 
     [Export(PropertyHint.Range, "0,200,0.5")]
-    public float Friction { get; set; } = 5f;
+    public float Friction { get; set; } = 6f;
 
     [Export(PropertyHint.Range, "0,500,0.5")]
-    public float Stiction { get; set; } = 10f;
+    public float Stiction { get; set; } = 14f;
 
     [Export(PropertyHint.Range, "0,1,0.0005")]
-    public float Feedback { get; set; } = 0.007f;
+    public float Feedback { get; set; } = 0.0006f;
 
     [Export(PropertyHint.Range, "0,4000,5")]
-    public float MaxFeedbackTorque { get; set; } = 700f;
+    public float MaxFeedbackTorque { get; set; } = 45f;
 
     [Export(PropertyHint.Range, "0,1,0.01")]
     public float StopBounce { get; set; } = 0.12f;
