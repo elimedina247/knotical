@@ -245,4 +245,33 @@ public partial class Ocean : Node
 
 		return v;
 	}
+
+	/// <summary>
+	/// Full orbital velocity of the water at a point, horizontal included, falling off with
+	/// depth as exp(k*y). Drag should be measured against this rather than against still
+	/// water, or a hull fights a current that is not there.
+	/// </summary>
+	public Vector3 GetFlow(Vector3 worldPos)
+	{
+		var flat = new Vector2(worldPos.X, worldPos.Z);
+		var flow = Vector3.Zero;
+		float t = (float)Time;
+
+		for (int i = 0; i < _waves.Length; i++)
+		{
+			Vector4 w = _waves[i];
+			var dir = new Vector2(w.X, w.Y);
+			float k = Mathf.Tau / w.W;
+			float omega = Mathf.Sqrt(Gravity * k);
+			float phase = k * dir.Dot(flat) - omega * t + _phases[i];
+			float amplitude = w.Z * omega * Mathf.Exp(k * Mathf.Min(worldPos.Y, 0f));
+			float swing = Mathf.Sin(phase);
+
+			flow.X += dir.X * amplitude * swing;
+			flow.Z += dir.Y * amplitude * swing;
+			flow.Y -= amplitude * Mathf.Cos(phase);
+		}
+
+		return flow;
+	}
 }

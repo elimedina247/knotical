@@ -1,4 +1,5 @@
 using Godot;
+using Knotical.Boat;
 using Knotical.Sky;
 using Knotical.Weather;
 using OceanSystem = Knotical.Ocean.Ocean;
@@ -36,10 +37,46 @@ public partial class DebugWindHud : CanvasLayer
         "W", "WNW", "NW", "NNW", "N", "NNE", "NE", "ENE"
     };
 
+    [Export] public BoatHull Boat { get; set; }
+
+    [Export] public Rudder Blade { get; set; }
+
+    [Export] public Helm Wheel { get; set; }
+
+    private Sail[] _canvas = System.Array.Empty<Sail>();
+
     private Label _label;
 
     public override void _Ready()
     {
+        foreach (string arg in OS.GetCmdlineUserArgs())
+        {
+            if (!arg.StartsWith("--wind=")) continue;
+            if (!float.TryParse(arg["--wind=".Length..], out float forced)) continue;
+            if (Wind.Instance?.Settings == null) continue;
+
+            Wind.Instance.Settings.BaseSpeed = forced;
+            GD.Print($"wind forced to {forced} m/s");
+        }
+
+        foreach (string arg in OS.GetCmdlineUserArgs())
+        {
+            if (!arg.StartsWith("--seacap=")) continue;
+            if (!float.TryParse(arg["--seacap=".Length..], out float cap)) continue;
+            if (OceanSystem.Instance?.Settings == null) continue;
+
+            OceanSystem.Instance.Settings.MaxWaveHeight = cap;
+            GD.Print($"sea capped at {cap} m");
+        }
+
+        Boat ??= FindBoat(GetTree().Root);
+
+        var found = new System.Collections.Generic.List<Sail>();
+        Gather(GetTree().Root, found);
+        _canvas = found.ToArray();
+        Blade ??= Find<Rudder>(GetTree().Root);
+        Wheel ??= Find<Helm>(GetTree().Root);
+
         _label = new Label
         {
             Position = new Vector2(16f, 12f),
@@ -80,6 +117,8 @@ public partial class DebugWindHud : CanvasLayer
         }
 
         _label.Text =
+            Sailing(wind, (float)delta) +
+            Canvas() +
             $"WIND   {wind.Speed,5:0.0} m/s  ({wind.Speed * 1.944f,4:0.0} kn)   " +
             $"Force {wind.BeaufortForce} — {wind.BeaufortName}\n" +
             $"       {headingDeg,5:0}°  {Compass(headingDeg)}\n" +
@@ -113,6 +152,98 @@ public partial class DebugWindHud : CanvasLayer
         // needs to — otherwise winding it down parks it a long way below zero and the key
         // appears dead on the way back up.
         wind.SpeedBias = Mathf.Max(wind.SpeedBias, -wind.Settings.BaseSpeed * 2f);
+    }
+
+    private Vector3 _rigMean;
+    private Vector3 _hullMean;
+
+    private string Sailing(Wind wind, float delta)
+    {
+        if (Boat == null || !IsInstanceValid(Boat)) return "";
+
+        float blend = 1f - Mathf.Exp(-delta / 2f);
+        _rigMean = _rigMean.Lerp(Boat.RigForce, blend);
+        _hullMean = _hullMean.Lerp(Boat.HullForce, blend);
+
+        Vector3 velocity = Boat.LinearVelocity;
+        float speed = new Vector2(velocity.X, velocity.Z).Length();
+
+        Basis basis = Boat.GlobalBasis.Orthonormalized();
+        Vector3 forward = -basis.Z;
+        float heading = Mathf.PosMod(Mathf.RadToDeg(Mathf.Atan2(forward.X, -forward.Z)), 360f);
+
+        Vector2 gust = wind.Velocity;
+        Vector3 local = basis.Inverse() * new Vector3(gust.X, 0f, gust.Y);
+        float off = 180f - Mathf.Abs(Mathf.RadToDeg(Mathf.Atan2(local.X, -local.Z)));
+
+        string steering = Blade == null
+            ? "no rudder found\n"
+            : $"       helm {(Wheel != null ? Wheel.Steering : Blade.Steering),+5:0.00}   " +
+              $"blade {Mathf.RadToDeg(Blade.Angle),4:0}°   " +
+              $"flow {Blade.Flow,4:0.0} m/s   " +
+              $"wet {Blade.Immersion,4:0.00}   " +
+              $"yaw {Mathf.RadToDeg(Boat.AngularVelocity.Y),5:0.0}°/s" +
+              (Wheel != null && Wheel.Rudder == null ? "   ** HELM NOT LINKED **" : "") + "\n";
+
+        Vector3 rig = _rigMean;
+        Vector3 hull = _hullMean;
+
+        Vector3 spin = basis.Inverse() * Boat.AngularVelocity;
+
+        string forces =
+            $"       rig {rig.Dot(forward) / 1e6f,6:0.00} MN fwd   drag {hull.Dot(forward) / 1e6f,6:0.00} MN   " +
+            $"foils {Boat.FoilCount}\n" +
+            $"       pitch {Mathf.RadToDeg(spin.X),5:0.0}°/s   roll {Mathf.RadToDeg(spin.Z),5:0.0}°/s   " +
+            $"heave {Boat.LinearVelocity.Y,5:0.0} m/s\n";
+
+        return $"BOAT   {speed,5:0.0} m/s  ({speed * 1.944f,4:0.0} kn)   heading {heading,3:0}°\n" +
+               $"       wind {off,5:0}° off the bow — {PointOfSail(off)}\n" +
+               steering + forces + "\n";
+    }
+
+    private static string PointOfSail(float off) =>
+        off < 25f ? "in irons, no drive"
+        : off < 45f ? "close hauled, weak"
+        : off < 70f ? "close hauled"
+        : off < 110f ? "beam reach"
+        : off < 150f ? "broad reach"
+        : "running — fastest";
+
+    private static void Gather(Node node, System.Collections.Generic.List<Sail> into)
+    {
+        if (node is Sail sail) into.Add(sail);
+        foreach (Node child in node.GetChildren()) Gather(child, into);
+    }
+
+    private string Canvas()
+    {
+        if (_canvas.Length == 0) return "";
+
+        float total = 0f;
+        string each = "";
+
+        foreach (Sail sail in _canvas)
+        {
+            total += sail.Deployment;
+            each += $"  {sail.Name}{sail.Deployment * 100f,4:0}%";
+        }
+
+        return $"CANVAS {total / _canvas.Length * 100f,4:0}% set  {each}\n\n";
+    }
+
+    private static BoatHull FindBoat(Node node) => Find<BoatHull>(node);
+
+    private static T Find<T>(Node node) where T : class
+    {
+        if (node is T match) return match;
+
+        foreach (Node child in node.GetChildren())
+        {
+            T found = Find<T>(child);
+            if (found != null) return found;
+        }
+
+        return null;
     }
 
     private static string Compass(float headingDeg)

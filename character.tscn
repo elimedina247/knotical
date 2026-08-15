@@ -1,9 +1,17 @@
-[gd_scene load_steps=14 format=3 uid="uid://drik7re75csan"]
+[gd_scene format=3 uid="uid://drik7re75csan"]
 
-[ext_resource type="Script" path="res://scripts/player/PlayerBody.cs" id="1_playerbody"]
-[ext_resource type="Script" path="res://scripts/player/DangleArm.cs" id="2_danglearm"]
-[ext_resource type="Script" path="res://scripts/player/TorsoShape.cs" id="3_torsoshape"]
-[ext_resource type="Script" path="res://scripts/player/PlayerGrab.cs" id="4_playergrab"]
+[ext_resource type="Script" uid="uid://cflpge0jhysau" path="res://scripts/player/PlayerBody.cs" id="1_playerbody"]
+[ext_resource type="Script" uid="uid://c2ynfgi4xw37n" path="res://scripts/player/DangleArm.cs" id="2_danglearm"]
+[ext_resource type="Script" uid="uid://bi2q2qppuf82" path="res://scripts/player/TorsoShape.cs" id="3_torsoshape"]
+[ext_resource type="Script" uid="uid://bv3sw1mc1e1io" path="res://scripts/player/PlayerGrab.cs" id="4_playergrab"]
+[ext_resource type="Script" uid="uid://02e4xxw8gwb1" path="res://scripts/audio/Footsteps.cs" id="5_footsteps"]
+[ext_resource type="Script" uid="uid://dtnyjdpej2oat" path="res://scripts/audio/SoundEmitter.cs" id="6_emitter"]
+[ext_resource type="Script" path="res://scripts/audio/WaterSplash.cs" id="7_splash"]
+[ext_resource type="Resource" path="res://audio/water_splash.tres" id="8_splashset"]
+[ext_resource type="Script" path="res://scripts/audio/UnderwaterSound.cs" id="9_underwater"]
+[ext_resource type="Resource" path="res://audio/submerges.tres" id="10_submerges"]
+[ext_resource type="Resource" path="res://audio/emerges.tres" id="11_emerges"]
+[ext_resource type="AudioStream" uid="uid://dj25jpdhmjg56" path="res://assets/audio/underwater/underwater.mp3" id="12_underbed"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_body"]
 friction = 0.9
@@ -59,18 +67,15 @@ can_sleep = false
 contact_monitor = true
 max_contacts_reported = 6
 script = ExtResource("1_playerbody")
-CameraPivot = NodePath("CameraPivot")
-Grab = NodePath("Grab")
-View = NodePath("CameraPivot/Camera3D")
 
-[node name="Collider" type="CollisionShape3D" parent="."]
+[node name="Collider" type="CollisionShape3D" parent="." unique_id=138523272]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.595, 0)
 shape = SubResource("Shape_body")
 
-[node name="CameraPivot" type="Node3D" parent="."]
+[node name="CameraPivot" type="Node3D" parent="." unique_id=1867777047]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.15, 0)
 
-[node name="Camera3D" type="Camera3D" parent="CameraPivot"]
+[node name="Camera3D" type="Camera3D" parent="CameraPivot" unique_id=1063483447]
 current = true
 far = 12000.0
 
@@ -88,12 +93,12 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.125, 0)
 mesh = SubResource("Mesh_armsegment")
 surface_material_override/0 = SubResource("Material_skin")
 
-[node name="Elbow" type="MeshInstance3D" parent="ArmLeft"]
+[node name="Elbow" type="MeshInstance3D" parent="ArmLeft" unique_id=593716177]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.25, 0)
 mesh = SubResource("Mesh_elbow")
 surface_material_override/0 = SubResource("Material_skin")
 
-[node name="Forearm" type="MeshInstance3D" parent="ArmLeft"]
+[node name="Forearm" type="MeshInstance3D" parent="ArmLeft" unique_id=1989961135]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.375, 0)
 mesh = SubResource("Mesh_armsegment")
 surface_material_override/0 = SubResource("Material_skin")
@@ -107,12 +112,12 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.125, 0)
 mesh = SubResource("Mesh_armsegment")
 surface_material_override/0 = SubResource("Material_skin")
 
-[node name="Elbow" type="MeshInstance3D" parent="ArmRight"]
+[node name="Elbow" type="MeshInstance3D" parent="ArmRight" unique_id=2017386508]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.25, 0)
 mesh = SubResource("Mesh_elbow")
 surface_material_override/0 = SubResource("Material_skin")
 
-[node name="Forearm" type="MeshInstance3D" parent="ArmRight"]
+[node name="Forearm" type="MeshInstance3D" parent="ArmRight" unique_id=1433056432]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.375, 0)
 mesh = SubResource("Mesh_armsegment")
 surface_material_override/0 = SubResource("Material_skin")
@@ -125,14 +130,14 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.11, 0)
 mesh = SubResource("Mesh_legsegment")
 surface_material_override/0 = SubResource("Material_skin")
 
-[node name="Knee" type="Node3D" parent="LegLeft"]
+[node name="Knee" type="Node3D" parent="LegLeft" unique_id=704614229]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.22, 0)
 
-[node name="Ball" type="MeshInstance3D" parent="LegLeft/Knee"]
+[node name="Ball" type="MeshInstance3D" parent="LegLeft/Knee" unique_id=2006582749]
 mesh = SubResource("Mesh_knee")
 surface_material_override/0 = SubResource("Material_skin")
 
-[node name="Shin" type="MeshInstance3D" parent="LegLeft/Knee"]
+[node name="Shin" type="MeshInstance3D" parent="LegLeft/Knee" unique_id=1740584345]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.11, 0)
 mesh = SubResource("Mesh_legsegment")
 surface_material_override/0 = SubResource("Material_skin")
@@ -150,14 +155,14 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.11, 0)
 mesh = SubResource("Mesh_legsegment")
 surface_material_override/0 = SubResource("Material_skin")
 
-[node name="Knee" type="Node3D" parent="LegRight"]
+[node name="Knee" type="Node3D" parent="LegRight" unique_id=1370116231]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.22, 0)
 
-[node name="Ball" type="MeshInstance3D" parent="LegRight/Knee"]
+[node name="Ball" type="MeshInstance3D" parent="LegRight/Knee" unique_id=1127461265]
 mesh = SubResource("Mesh_knee")
 surface_material_override/0 = SubResource("Material_skin")
 
-[node name="Shin" type="MeshInstance3D" parent="LegRight/Knee"]
+[node name="Shin" type="MeshInstance3D" parent="LegRight/Knee" unique_id=1500635042]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.11, 0)
 mesh = SubResource("Mesh_legsegment")
 surface_material_override/0 = SubResource("Material_skin")
@@ -167,16 +172,45 @@ transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, -0.225, -0.05)
 mesh = SubResource("Mesh_foot")
 surface_material_override/0 = SubResource("Material_skin")
 
-[node name="Shape" type="Node3D" parent="."]
+[node name="Shape" type="Node3D" parent="." unique_id=1959196165]
 script = ExtResource("3_torsoshape")
-Collider = NodePath("../Collider")
-Torso = NodePath("../Torso")
-ArmLeft = NodePath("../ArmLeft")
-ArmRight = NodePath("../ArmRight")
 
-[node name="Grab" type="Node3D" parent="."]
+[node name="Grab" type="Node3D" parent="." unique_id=1053406108]
 script = ExtResource("4_playergrab")
-Pivot = NodePath("../CameraPivot")
-Shape = NodePath("../Shape")
-ArmLeft = NodePath("../ArmLeft")
-ArmRight = NodePath("../ArmRight")
+
+[node name="Footsteps" type="Node3D" parent="." unique_id=978384498]
+script = ExtResource("5_footsteps")
+
+[node name="SoundEmitter" type="AudioStreamPlayer3D" parent="Footsteps" unique_id=1795630920]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.12, 0)
+unit_size = 1.0
+max_db = 0.0
+max_distance = 30.0
+script = ExtResource("6_emitter")
+
+[node name="WaterSplash" type="Node3D" parent="."]
+script = ExtResource("7_splash")
+Splashes = ExtResource("8_splashset")
+
+[node name="SoundEmitter" type="AudioStreamPlayer3D" parent="WaterSplash"]
+top_level = true
+unit_size = 8.0
+max_distance = 120.0
+script = ExtResource("6_emitter")
+
+[node name="UnderwaterSound" type="Node3D" parent="CameraPivot"]
+script = ExtResource("9_underwater")
+Submerges = ExtResource("10_submerges")
+Emerges = ExtResource("11_emerges")
+
+[node name="Bed" type="AudioStreamPlayer" parent="CameraPivot/UnderwaterSound"]
+stream = ExtResource("12_underbed")
+bus = &"Master"
+
+[node name="SoundEmitter" type="AudioStreamPlayer3D" parent="CameraPivot/UnderwaterSound"]
+unit_size = 1.0
+max_db = 0.0
+max_distance = 20.0
+bus = &"Master"
+script = ExtResource("6_emitter")
+DefaultBus = "Master"

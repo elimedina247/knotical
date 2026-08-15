@@ -9,8 +9,21 @@
 [ext_resource type="Script" path="res://scripts/boat/Helm.cs" id="6_helm"]
 [ext_resource type="Script" path="res://scripts/boat/Wheel.cs" id="7_wheel"]
 [ext_resource type="Script" path="res://scripts/boat/Rudder.cs" id="8_rudder"]
+[ext_resource type="Script" path="res://scripts/boat/Halyard.cs" id="14_halyard"]
 [ext_resource type="Script" path="res://scripts/boat/HelmStand.cs" id="9_stand"]
 [ext_resource type="Script" path="res://scripts/boat/HelmPointer.cs" id="10_pointer"]
+[ext_resource type="Script" path="res://scripts/audio/SurfaceSound.cs" id="11_surface"]
+[ext_resource type="Script" path="res://scripts/audio/HullCreaks.cs" id="12_creaks"]
+[ext_resource type="Script" path="res://scripts/audio/SoundEmitter.cs" id="13_emitter"]
+[ext_resource type="Resource" path="res://audio/wood_steps.tres" id="14_woodsteps"]
+[ext_resource type="Resource" path="res://audio/wood_landings.tres" id="15_woodlands"]
+[ext_resource type="Resource" path="res://audio/hull_creaks.tres" id="16_creakset"]
+[ext_resource type="Resource" path="res://audio/wood_thud.tres" id="17_woodthud"]
+[ext_resource type="Script" path="res://scripts/audio/SailSound.cs" id="18_sailsound"]
+[ext_resource type="Resource" path="res://audio/sail_flutters.tres" id="19_flutters"]
+[ext_resource type="Resource" path="res://audio/sail_snaps.tres" id="20_snaps"]
+[ext_resource type="AudioStream" uid="uid://b7regafa0vf1" path="res://assets/audio/sail/sail_passive_flutter01.wav" id="21_sailbed"]
+[ext_resource type="AudioStream" uid="uid://b5digtvtca0t0" path="res://assets/audio/sail/sail_soft_flutter01.wav" id="22_sailcalm"]
 
 [sub_resource type="CylinderShape3D" id="Cylinder_wheel"]
 height = 0.1
@@ -411,16 +424,16 @@ mass = 2632512.3
 physics_material_override = SubResource("PhysicsMaterial_deck")
 gravity_scale = 0.0
 center_of_mass_mode = 1
-center_of_mass = Vector3(0, -2.6, 0.38)
+center_of_mass = Vector3(0, -2, 0.38)
 script = ExtResource("2_boathull")
 HullLength = 50.0
-Beam = 18.0
+Beam = 21.0
 Draft = 7.0
 Freeboard = 3.5
 BowSheerRise = 2.6
 SternSheerRise = 1.9
 SheerPower = 2.4
-Rocker = 5.6
+Rocker = 3.0
 RockerPower = 2.6
 BowSharpness = 1.7
 SternSharpness = 3.0
@@ -430,7 +443,7 @@ StemRake = 4.0
 StemPower = 3.0
 BilgeFullness = 0.42
 SurfaceOffset = 0.22
-CenterOfMassHeight = -2.6
+CenterOfMassHeight = -2.0
 CenterOfMassLength = 0.38
 
 [node name="Hull" type="MeshInstance3D" parent="." unique_id=2014393478]
@@ -783,3 +796,121 @@ sync_to_physics = false
 [node name="Shape" type="CollisionShape3D" parent="Helm/Mount/Wheel/Grip"]
 transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, 0)
 shape = SubResource("Cylinder_wheel")
+
+[node name="SurfaceSound" type="Node" parent="."]
+script = ExtResource("11_surface")
+Steps = ExtResource("14_woodsteps")
+Landings = ExtResource("15_woodlands")
+Impacts = ExtResource("17_woodthud")
+
+[node name="HullCreaks" type="Node3D" parent="."]
+script = ExtResource("12_creaks")
+Hull = NodePath("..")
+Emitter = NodePath("SoundEmitter")
+Creaks = ExtResource("16_creakset")
+Spread = 18.0
+Scatter = 4.0
+
+[node name="SoundEmitter" type="AudioStreamPlayer3D" parent="HullCreaks"]
+unit_size = 6.0
+max_distance = 80.0
+script = ExtResource("13_emitter")
+
+[node name="SailSound" type="Node3D" parent="BoomMain/SailMain"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -6, 0)
+script = ExtResource("18_sailsound")
+Flutters = ExtResource("19_flutters")
+Snaps = ExtResource("20_snaps")
+
+[node name="CalmBed" type="AudioStreamPlayer3D" parent="BoomMain/SailMain/SailSound"]
+stream = ExtResource("22_sailcalm")
+unit_size = 18.0
+max_db = 0.0
+max_distance = 90.0
+bus = &"Ambience"
+
+[node name="Bed" type="AudioStreamPlayer3D" parent="BoomMain/SailMain/SailSound"]
+stream = ExtResource("21_sailbed")
+unit_size = 18.0
+max_db = 0.0
+max_distance = 90.0
+bus = &"Ambience"
+
+[node name="SoundEmitter" type="AudioStreamPlayer3D" parent="BoomMain/SailMain/SailSound"]
+unit_size = 8.0
+max_db = 0.0
+max_distance = 90.0
+script = ExtResource("13_emitter")
+
+[node name="SailSound" type="Node3D" parent="BoomMizzen/SailMizzen"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -5.5, 0)
+script = ExtResource("18_sailsound")
+Flutters = ExtResource("19_flutters")
+Snaps = ExtResource("20_snaps")
+
+[node name="CalmBed" type="AudioStreamPlayer3D" parent="BoomMizzen/SailMizzen/SailSound"]
+stream = ExtResource("22_sailcalm")
+unit_size = 15.0
+max_db = 0.0
+max_distance = 90.0
+bus = &"Ambience"
+
+[node name="Bed" type="AudioStreamPlayer3D" parent="BoomMizzen/SailMizzen/SailSound"]
+stream = ExtResource("21_sailbed")
+unit_size = 15.0
+max_db = 0.0
+max_distance = 90.0
+bus = &"Ambience"
+
+[node name="SoundEmitter" type="AudioStreamPlayer3D" parent="BoomMizzen/SailMizzen/SailSound"]
+unit_size = 7.0
+max_db = 0.0
+max_distance = 90.0
+script = ExtResource("13_emitter")
+
+[node name="SailSound" type="Node3D" parent="BoomTopsail/SailTopsail"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -5, 0)
+script = ExtResource("18_sailsound")
+Flutters = ExtResource("19_flutters")
+Snaps = ExtResource("20_snaps")
+
+[node name="CalmBed" type="AudioStreamPlayer3D" parent="BoomTopsail/SailTopsail/SailSound"]
+stream = ExtResource("22_sailcalm")
+unit_size = 13.0
+max_db = 0.0
+max_distance = 90.0
+bus = &"Ambience"
+
+[node name="Bed" type="AudioStreamPlayer3D" parent="BoomTopsail/SailTopsail/SailSound"]
+stream = ExtResource("21_sailbed")
+unit_size = 13.0
+max_db = 0.0
+max_distance = 90.0
+bus = &"Ambience"
+
+[node name="SoundEmitter" type="AudioStreamPlayer3D" parent="BoomTopsail/SailTopsail/SailSound"]
+unit_size = 6.0
+max_db = 0.0
+max_distance = 90.0
+script = ExtResource("13_emitter")
+
+[node name="HalyardMain" type="MeshInstance3D" parent="." unique_id=1900000001]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 5.6, 0.9)
+material_override = SubResource("StandardMaterial3D_spar")
+script = ExtResource("14_halyard")
+SailPath = NodePath("../BoomMain/SailMain")
+Drop = 2.4
+
+[node name="HalyardTopsail" type="MeshInstance3D" parent="." unique_id=1900000002]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.4, 5.6, 0.9)
+material_override = SubResource("StandardMaterial3D_spar")
+script = ExtResource("14_halyard")
+SailPath = NodePath("../BoomTopsail/SailTopsail")
+Drop = 2.4
+
+[node name="HalyardMizzen" type="MeshInstance3D" parent="." unique_id=1900000003]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 5.6, 25.4)
+material_override = SubResource("StandardMaterial3D_spar")
+script = ExtResource("14_halyard")
+SailPath = NodePath("../BoomMizzen/SailMizzen")
+Drop = 2.4

@@ -49,7 +49,10 @@ public partial class Rudder : MeshInstance3D, IFoil
     public float NormalCoefficient { get; set; } = 1.6f;
 
     [Export(PropertyHint.Range, "0,200,0.5")]
-    public float Gain { get; set; } = 45f;
+    public float Gain { get; set; } = 3f;
+
+    [Export(PropertyHint.Range, "0,20,0.1")]
+    public float LowSpeedBite { get; set; } = 4f;
 
     [Export(PropertyHint.Range, "0,1,0.01")]
     public float CentreOfPressure { get; set; } = 0.4f;
@@ -112,7 +115,7 @@ public partial class Rudder : MeshInstance3D, IFoil
         float sin = Mathf.Clamp(stream.Dot(n) / Flow, -1f, 1f);
         float cos = Mathf.Sqrt(Mathf.Max(1f - sin * sin, 0f));
 
-        float push = WaterDensity * NormalCoefficient * area * Flow * Flow * sin * cos * Gain;
+        float push = WaterDensity * NormalCoefficient * area * Flow * (Flow + LowSpeedBite) * sin * cos * Gain;
 
         StockTorque = LocalCentreOfEffort.Z * push;
 

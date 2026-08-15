@@ -13,7 +13,7 @@ public partial class Helm : Node3D, IGrabbable
     [Export] public HelmPointer Pointer { get; set; }
 
     [Export(PropertyHint.Range, "0.25,6,0.05")]
-    public float TurnsToLock { get; set; } = 0.5f;
+    public float TurnsToLock { get; set; } = 0.25f;
 
     [Export(PropertyHint.Range, "0.5,400,0.5")]
     public float Inertia { get; set; } = 3f;
@@ -39,6 +39,14 @@ public partial class Helm : Node3D, IGrabbable
     [Export(PropertyHint.Range, "0,4000,5")]
     public float MaxFeedbackTorque { get; set; } = 45f;
 
+    [Export] public bool HoldsPosition { get; set; } = true;
+
+    [Export(PropertyHint.Range, "0,0.4,0.01")]
+    public float CentreDetent { get; set; } = 0.12f;
+
+    [Export(PropertyHint.Range, "0,4,0.05")]
+    public float CentreSnap { get; set; } = 1.2f;
+
     [Export(PropertyHint.Range, "0,1,0.01")]
     public float StopBounce { get; set; } = 0.12f;
 
@@ -56,6 +64,7 @@ public partial class Helm : Node3D, IGrabbable
 
     [Export] public bool Trace { get; set; }
 
+    private float _forced;
     private float _turn;
     private float _spin;
     private float _demand;
@@ -79,8 +88,17 @@ public partial class Helm : Node3D, IGrabbable
     {
         Wheel ??= GetNodeOrNull<Wheel>("Mount/Wheel");
         Pointer ??= GetNodeOrNull<HelmPointer>("Pointer");
+        Rudder ??= GetParent()?.GetNodeOrNull<Rudder>("Rudder") ?? Hunt(GetParent());
 
         if (Wheel == null) GD.PushWarning($"{Name}: helm has no wheel to turn.");
+        if (Rudder == null) GD.PushWarning($"{Name}: helm has no rudder to steer.");
+        else GD.Print($"{Name}: steering {Rudder.GetPath()}");
+
+        foreach (string arg in OS.GetCmdlineUserArgs())
+        {
+            if (!arg.StartsWith("--helm=")) continue;
+            if (float.TryParse(arg["--helm=".Length..], out float forced)) _forced = forced;
+        }
 
         Drive();
     }
@@ -117,12 +135,33 @@ public partial class Helm : Node3D, IGrabbable
         _demand = 0f;
     }
 
+    private static Rudder Hunt(Node node)
+    {
+        if (node == null) return null;
+        if (node is Rudder blade) return blade;
+
+        foreach (Node child in node.GetChildren())
+        {
+            Rudder found = Hunt(child);
+            if (found != null) return found;
+        }
+
+        return null;
+    }
+
     private void Step(float dt)
     {
         if (dt <= 0f) return;
 
+        if (_forced != 0f)
+        {
+            _turn = Mathf.Clamp(_forced, -1f, 1f) * Limit;
+            Drive();
+            return;
+        }
+
         float inertia = Mathf.Max(Inertia, 0.01f);
-        float weather = Weather();
+        float weather = HoldsPosition ? 0f : Weather();
         float hand = _held
             ? Mathf.Clamp(GripStiffness * _demand - GripDamping * _spin, -GripTorque, GripTorque)
             : 0f;
@@ -131,12 +170,19 @@ public partial class Helm : Node3D, IGrabbable
 
         _spin = Mathf.Clamp(_spin + (weather + hand) / inertia * dt, -MaxSpin, MaxSpin);
         _spin = Mathf.MoveToward(_spin, 0f, (Friction * Mathf.Abs(_spin) + Stiction) / inertia * dt);
+        if (HoldsPosition && !_held) _spin = 0f;
         _turn += _spin * dt;
 
         if (Mathf.Abs(_turn) > Limit)
         {
             _turn = Mathf.Clamp(_turn, -Limit, Limit);
             _spin = -_spin * StopBounce;
+        }
+
+        if (!_held && Mathf.Abs(_turn) < CentreDetent * Limit)
+        {
+            _turn = Mathf.MoveToward(_turn, 0f, CentreSnap * Limit * dt);
+            if (_turn == 0f) _spin = 0f;
         }
 
         _demand = 0f;

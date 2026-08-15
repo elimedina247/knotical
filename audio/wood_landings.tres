@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="ClipSet" format=3 uid="uid://cqd364k0l1e3j"]
+
+[ext_resource type="Script" uid="uid://bkjwacy62ogt7" path="res://scripts/audio/ClipSet.cs" id="1_clipset"]
+[ext_resource type="AudioStream" uid="uid://bpbyr5ywkf5kd" path="res://assets/audio/wood_step/wood_thud.mp3" id="2_thud"]
+
+[resource]
+script = ExtResource("1_clipset")
+Clips = [ExtResource("2_thud")]
+VolumeDb = -6.0
+VolumeJitterDb = 1.5
+PitchJitter = 0.08

@@ -18,6 +18,9 @@ public partial class PlayerBody : RigidBody3D
     [Export(PropertyHint.Range, "0,1,0.01")]
     public float AirControl { get; set; } = 0.1f;
 
+    [Export(PropertyHint.Range, "0,8,0.05")]
+    public float CarryTime { get; set; } = 2f;
+
     [Export(PropertyHint.Range, "1,10,0.1")]
     public float JumpSpeed { get; set; } = 4.2f;
 
@@ -28,13 +31,24 @@ public partial class PlayerBody : RigidBody3D
     public float MantleLip { get; set; } = 0.2f;
 
     [Export(PropertyHint.Range, "0,90,1")]
-    public float GripHeel { get; set; } = 6f;
+    public float GripHeel { get; set; } = 12f;
 
     [Export(PropertyHint.Range, "0,90,1")]
-    public float SlipHeel { get; set; } = 20f;
+    public float SlipHeel { get; set; } = 38f;
 
     [Export(PropertyHint.Range, "0,1,0.01")]
-    public float MinTraction { get; set; } = 0.05f;
+    public float MinTraction { get; set; } = 0.15f;
+
+    [Export(PropertyHint.Range, "0,90,1")]
+    public float KnockdownHeel { get; set; } = 48f;
+
+    [Export(PropertyHint.Range, "10,85,1")]
+    public float FloorMaxAngle { get; set; } = 55f;
+
+    [Export(PropertyHint.Range, "0.01,1,0.01")]
+    public float FootingSmooth { get; set; } = 0.25f;
+
+    [Export] public bool Trace { get; set; }
 
     [Export(PropertyHint.Range, "1,60,0.5")]
     public float UprightStiffness { get; set; } = 14f;
@@ -97,10 +111,19 @@ public partial class PlayerBody : RigidBody3D
     public float WaterDrag { get; set; } = 3.5f;
 
     [Export(PropertyHint.Range, "0.2,6,0.05")]
-    public float SwimSpeed { get; set; } = 1.6f;
+    public float SwimSpeed { get; set; } = 2.2f;
 
     [Export(PropertyHint.Range, "1,40,0.5")]
-    public float SwimAcceleration { get; set; } = 8f;
+    public float SwimAcceleration { get; set; } = 10f;
+
+    [Export(PropertyHint.Range, "0.2,4,0.05")]
+    public float SwimVertical { get; set; } = 1.4f;
+
+    [Export(PropertyHint.Range, "0,5,0.05")]
+    public float StrokeKick { get; set; } = 2.2f;
+
+    [Export(PropertyHint.Range, "0.4,1.2,0.01")]
+    public float DiveBuoyancy { get; set; } = 0.85f;
 
     [Export(PropertyHint.Range, "0,1,0.01")]
     public float SwellFilter { get; set; } = 0.35f;
@@ -146,7 +169,6 @@ public partial class PlayerBody : RigidBody3D
     private bool _swellReady;
     private float _tilt;
     private Vector3 _deckVelocity;
-    private Vector3 _deckUp = Vector3.Up;
     private Vector3 _groundNormal = Vector3.Up;
     private Vector3 _wish;
     private bool _grounded;
@@ -157,26 +179,33 @@ public partial class PlayerBody : RigidBody3D
     private float _submersion;
     private float _waterRise;
     private bool _swimming;
+    private float _stroke;
     private float _authority = 1f;
     private bool _jump;
     private Vector3 _mantle;
     private float _mantleFor;
     private float _yaw;
     private float _pitch;
+    private float _traceTick;
+    private bool _wantsCapture = true;
 
     public bool IsDowned => _downed;
     public bool IsGrounded => _grounded;
     public bool IsSwimming => _swimming;
     public float Submersion => _submersion;
     public Vector3 DeckVelocity => _deckVelocity;
+    public Node3D Deck => _deck;
     public float Authority => _authority;
+
+    public float DeckHeel => Mathf.RadToDeg(_groundNormal.AngleTo(Vector3.Up));
+
+    public bool IsFootless => _grounded && DeckHeel > KnockdownHeel;
 
     public float Traction
     {
         get
         {
-            float heel = Mathf.RadToDeg(_deckUp.AngleTo(Vector3.Up));
-            float fade = Mathf.InverseLerp(GripHeel, Mathf.Max(SlipHeel, GripHeel + 0.01f), heel);
+            float fade = Mathf.InverseLerp(GripHeel, Mathf.Max(SlipHeel, GripHeel + 0.01f), DeckHeel);
             return Mathf.Lerp(1f, MinTraction, Mathf.Clamp(fade, 0f, 1f));
         }
     }
@@ -205,7 +234,21 @@ public partial class PlayerBody : RigidBody3D
         CanSleep = false;
         ContactMonitor = true;
         if (MaxContactsReported < 6) MaxContactsReported = 6;
+        Capture();
+    }
+
+    private void Capture()
+    {
+        _wantsCapture = true;
+        Input.MouseMode = Input.MouseModeEnum.Visible;
         Input.MouseMode = Input.MouseModeEnum.Captured;
+    }
+
+    public override void _Notification(int what)
+    {
+        base._Notification(what);
+
+        if (what == NotificationApplicationFocusIn && _wantsCapture) Capture();
     }
 
     private void CollectSkin()
@@ -220,7 +263,11 @@ public partial class PlayerBody : RigidBody3D
         foreach (Node child in node.GetChildren())
         {
             if (ShowHands && child is DangleArm) continue;
-            if (child is GeometryInstance3D part) into.Add(part);
+
+            if (child is GeometryInstance3D part
+                && part.CastShadow != GeometryInstance3D.ShadowCastingSetting.Off)
+                into.Add(part);
+
             Gather(child, into);
         }
     }
@@ -248,7 +295,19 @@ public partial class PlayerBody : RigidBody3D
                 Mathf.DegToRad(PitchLimit));
         }
 
-        if (@event.IsActionPressed("ui_cancel")) Input.MouseMode = Input.MouseModeEnum.Visible;
+        if (@event.IsActionPressed("ui_cancel"))
+        {
+            _wantsCapture = false;
+            Input.MouseMode = Input.MouseModeEnum.Visible;
+            return;
+        }
+
+        if (@event is InputEventMouseButton { Pressed: true }
+            && Input.MouseMode != Input.MouseModeEnum.Captured)
+        {
+            Capture();
+            GetViewport().SetInputAsHandled();
+        }
     }
 
     public override void _Process(double delta)
@@ -256,6 +315,8 @@ public partial class PlayerBody : RigidBody3D
         ShapeView((float)delta);
 
         if (Input.IsActionJustPressed("jump")) _jump = true;
+
+        _stroke = (Input.IsActionPressed("jump") ? 1f : 0f) - (Input.IsActionPressed("dive") ? 1f : 0f);
 
         Vector2 move = Input.GetVector("move_left", "move_right", "move_forward", "move_back");
         Vector3 forward = new(-Mathf.Sin(_yaw), 0f, -Mathf.Cos(_yaw));
@@ -393,7 +454,15 @@ public partial class PlayerBody : RigidBody3D
             }
         }
 
-        if (!_grounded || _downed || _swimming) return;
+        if (_swimming)
+        {
+            Vector3 water = state.LinearVelocity;
+            water.Y += Mathf.Max(StrokeKick * _submersion - (water.Y - _waterRise), 0f);
+            state.LinearVelocity = water;
+            return;
+        }
+
+        if (!_grounded || _downed) return;
 
         Vector3 velocity = state.LinearVelocity;
         velocity.Y += Mathf.Max(JumpSpeed - (velocity.Y - _deckVelocity.Y), 0f);
@@ -424,7 +493,8 @@ public partial class PlayerBody : RigidBody3D
 
     private void ApplyBuoyancy(PhysicsDirectBodyState3D state)
     {
-        Vector3 lift = -state.TotalGravity * (Mass * _submersion * Buoyancy);
+        float buoy = Mathf.Lerp(Buoyancy, DiveBuoyancy, Mathf.Max(-_stroke, 0f));
+        Vector3 lift = -state.TotalGravity * (Mass * _submersion * buoy);
         float rise = state.LinearVelocity.Y - _waterRise;
         lift.Y -= rise * (WaterDrag * Mass * _submersion);
         state.ApplyCentralForce(lift);
@@ -435,6 +505,13 @@ public partial class PlayerBody : RigidBody3D
         Vector3 velocity = state.LinearVelocity;
         Vector3 planar = velocity - Vector3.Up * velocity.Y;
         Vector3 force = (_wish * SwimSpeed - planar) * (SwimAcceleration * Mass * _submersion);
+
+        if (_stroke != 0f)
+        {
+            float want = _waterRise + _stroke * SwimVertical;
+            force.Y = (want - velocity.Y) * (SwimAcceleration * Mass * _submersion);
+        }
+
         state.ApplyCentralForce(force.LimitLength(MaxFootingForce));
     }
 
@@ -446,21 +523,35 @@ public partial class PlayerBody : RigidBody3D
         int found = 0;
 
         Vector3 slope = Vector3.Zero;
-        Vector3 up = Vector3.Up;
         Node3D floor = null;
+
+        float standable = Mathf.Cos(Mathf.DegToRad(FloorMaxAngle));
 
         for (int i = 0; i < contacts; i++)
         {
             if (state.GetContactColliderPosition(i).Y > ceiling) continue;
-            sum += state.GetContactColliderVelocityAtPosition(i);
+
             Vector3 n = state.GetContactLocalNormal(i);
-            slope += n.Dot(Vector3.Up) < 0f ? -n : n;
-            if (state.GetContactColliderObject(i) is Node3D deck)
-            {
-                up = deck.GlobalBasis.Y.Normalized();
-                floor = deck;
-            }
+            if (n.Dot(Vector3.Up) < 0f) n = -n;
+            if (n.Dot(Vector3.Up) < standable) continue;
+
+            sum += state.GetContactColliderVelocityAtPosition(i);
+            slope += n;
+            if (state.GetContactColliderObject(i) is Node3D deck) floor = deck;
             found++;
+        }
+
+        if (Trace && found > 0)
+        {
+            _traceTick += dt;
+            if (_traceTick >= 0.5f)
+            {
+                _traceTick = 0f;
+                GD.Print($"player grounded={_grounded} contacts={contacts} floors={found} " +
+                         $"heel={DeckHeel,5:0.0}deg ship={(_deck != null ? Mathf.RadToDeg(_deck.GlobalBasis.Y.Normalized().AngleTo(Vector3.Up)) : 0f),5:0.0}deg " +
+                         $"footless={IsFootless} downed={_downed} " +
+                         $"authority={_authority,4:0.00} traction={Traction,4:0.00}");
+            }
         }
 
         if (found > 0)
@@ -468,19 +559,32 @@ public partial class PlayerBody : RigidBody3D
             _airborneFor = 0f;
             _grounded = true;
             _deckVelocity = sum / found;
-            _deckUp = up;
-            _groundNormal = slope.LengthSquared() > 1e-6f ? slope.Normalized() : Vector3.Up;
+            Vector3 sensed = slope.LengthSquared() > 1e-6f ? slope.Normalized() : Vector3.Up;
+            float ease = 1f - Mathf.Exp(-dt / Mathf.Max(FootingSmooth, 1e-3f));
+            _groundNormal = _groundNormal.Lerp(sensed, ease).Normalized();
             SetDeck(floor);
             return;
+        }
+
+        if (Trace)
+        {
+            _traceTick += dt;
+            if (_traceTick >= 0.5f)
+            {
+                _traceTick = 0f;
+                GD.Print($"player grounded={_grounded} contacts={contacts} floors={found} " +
+                         $"heel={DeckHeel,5:0.0}deg ship={(_deck != null ? Mathf.RadToDeg(_deck.GlobalBasis.Y.Normalized().AngleTo(Vector3.Up)) : 0f),5:0.0}deg " +
+                         $"footless={IsFootless} downed={_downed} " +
+                         $"authority={_authority,4:0.00} traction={Traction,4:0.00}");
+            }
         }
 
         _airborneFor += dt;
         if (_airborneFor < FootingGrace) return;
 
         _grounded = false;
-        _deckVelocity = Vector3.Zero;
-        _deckUp = Vector3.Up;
-        _groundNormal = Vector3.Up;
+        _deckVelocity = _deckVelocity.Lerp(Vector3.Zero, 1f - Mathf.Exp(-dt / Mathf.Max(CarryTime, 1e-3f)));
+        _groundNormal = _groundNormal.Lerp(Vector3.Up, 1f - Mathf.Exp(-dt / Mathf.Max(FootingSmooth, 1e-3f))).Normalized();
     }
 
     private void SetDeck(Node3D floor)
@@ -493,6 +597,7 @@ public partial class PlayerBody : RigidBody3D
     private void UpdateBalanceState(float dt, PhysicsDirectBodyState3D state)
     {
         float tilt = Mathf.RadToDeg(state.Transform.Basis.Y.AngleTo(Vector3.Up));
+        bool footless = IsFootless;
 
         if (_swimming)
         {
@@ -504,7 +609,7 @@ public partial class PlayerBody : RigidBody3D
 
         if (!_downed)
         {
-            _tiltedFor = tilt > KnockdownAngle ? _tiltedFor + dt : 0f;
+            _tiltedFor = tilt > KnockdownAngle || footless ? _tiltedFor + dt : 0f;
 
             if (_tiltedFor >= KnockdownDwell)
             {
@@ -520,7 +625,7 @@ public partial class PlayerBody : RigidBody3D
         }
 
         _downedFor += dt;
-        if (_downedFor < DownedTime) return;
+        if (_downedFor < DownedTime || footless) return;
 
         _authority = Mathf.Min(1f, _authority + dt / RecoverTime);
         if (_authority >= 1f && tilt < RecoverAngle) _downed = false;

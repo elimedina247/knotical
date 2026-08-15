@@ -67,6 +67,13 @@ public partial class PlayerGrab : Node3D
     [Export(PropertyHint.Layers3DPhysics)]
     public uint GrabMask { get; set; } = 0xFFFFFFFF;
 
+    [Export] public bool ShowMarker { get; set; } = true;
+
+    [Export(PropertyHint.Range, "0.01,0.2,0.005")]
+    public float MarkerRadius { get; set; } = 0.045f;
+
+    [Export] public Color MarkerColor { get; set; } = new("#3FA9F5");
+
     [Export] public Node3D Pivot { get; set; }
 
     [Export] public TorsoShape Shape { get; set; }
@@ -78,6 +85,7 @@ public partial class PlayerGrab : Node3D
     private RigidBody3D _body;
     private Node3D _pivot;
     private ShapeCast3D _cast;
+    private MeshInstance3D _marker;
     private bool _mapped;
     private bool _attached;
     private bool _rearm;
@@ -99,6 +107,8 @@ public partial class PlayerGrab : Node3D
     public bool IsGripping => _attached;
 
     public bool IsClimbing => _climbing;
+
+    public float HandPhase => _phase;
 
     public override void _Ready()
     {
@@ -128,6 +138,27 @@ public partial class PlayerGrab : Node3D
 
         AddChild(_cast);
         if (_body != null) _cast.AddException(_body);
+
+        _marker = new MeshInstance3D
+        {
+            Name = "GrabMarker",
+            Mesh = new SphereMesh { Radius = MarkerRadius, Height = MarkerRadius * 2f, RadialSegments = 12, Rings = 6 },
+            MaterialOverride = new StandardMaterial3D
+            {
+                AlbedoColor = MarkerColor,
+                ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+                Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+                DepthDrawMode = BaseMaterial3D.DepthDrawModeEnum.Disabled,
+                CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+                NoDepthTest = true,
+                RenderPriority = 15,
+            },
+            CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            TopLevel = true,
+            Visible = false,
+        };
+
+        AddChild(_marker);
     }
 
     public override void _PhysicsProcess(double delta)
@@ -170,6 +201,9 @@ public partial class PlayerGrab : Node3D
         if (!found)
             found = Sweep(chest, chest + Vector3.Up * reach, true, out node, out point, out normal);
 
+        if (!found)
+            found = Sweep(chest, chest + Vector3.Down * reach, true, out node, out point, out normal);
+
         if (!found) return;
 
         _handle = FindHandle(node);
@@ -205,6 +239,7 @@ public partial class PlayerGrab : Node3D
         {
             if (!held)
             {
+                Mark(null);
                 ArmLeft?.Release();
                 ArmRight?.Release();
                 return;
@@ -214,6 +249,7 @@ public partial class PlayerGrab : Node3D
             Vector3 tip = chest + Aim(chest) * Grasp();
             Vector3 side = _pivot.GlobalBasis.X * HandSpread;
 
+            Mark(tip);
             ArmLeft?.Grip(tip - side);
             ArmRight?.Grip(tip + side);
             return;
@@ -222,6 +258,8 @@ public partial class PlayerGrab : Node3D
         _phase += _climbing ? Mathf.Tau * ClimbSpeed * dt / Mathf.Max(HandStride, 1e-3f) : 0f;
 
         Vector3 anchor = _node.GlobalTransform * _local;
+        Mark(Hold(out Vector3 grip) ? grip : anchor);
+
         Vector3 across = Flatten(_pivot.GlobalBasis.X, _normal);
         if (across == Vector3.Zero) across = _pivot.GlobalBasis.X;
 
@@ -229,6 +267,16 @@ public partial class PlayerGrab : Node3D
 
         ArmLeft?.Grip(anchor - across * HandSpread + swing);
         ArmRight?.Grip(anchor + across * HandSpread - swing);
+    }
+
+    private void Mark(Vector3? at)
+    {
+        if (_marker == null) return;
+
+        bool show = ShowMarker && at.HasValue;
+        _marker.Visible = show;
+
+        if (show) _marker.GlobalPosition = at.Value;
     }
 
     private Vector3 Surface(Vector2 move)

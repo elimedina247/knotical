@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="ClipSet" format=3 uid="uid://cmcgsvxi1dfsi"]
+
+[ext_resource type="Script" uid="uid://bkjwacy62ogt7" path="res://scripts/audio/ClipSet.cs" id="1_clipset"]
+[ext_resource type="AudioStream" uid="uid://kpd4riohsovu" path="res://assets/audio/submerge/submerge.wav" id="1_jedea"]
+
+[resource]
+script = ExtResource("1_clipset")
+Clips = [ExtResource("1_jedea")]
+VolumeDb = -2.0
+VolumeJitterDb = 2.0
+PitchJitter = 0.08

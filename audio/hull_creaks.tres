@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ClipSet" format=3 uid="uid://dlpbujrngc2tp"]
+
+[ext_resource type="AudioStream" uid="uid://dwr1bvdp2b7as" path="res://assets/audio/wood_creak/wood_creak01.wav" id="1_0fhp8"]
+[ext_resource type="Script" uid="uid://bkjwacy62ogt7" path="res://scripts/audio/ClipSet.cs" id="1_clipset"]
+[ext_resource type="AudioStream" uid="uid://civ228in5twoc" path="res://assets/audio/wood_creak/wood_creak02.wav" id="2_tmkkf"]
+[ext_resource type="AudioStream" uid="uid://coak2g3o721oc" path="res://assets/audio/wood_creak/wood_creak03.wav" id="3_dcg0h"]
+[ext_resource type="AudioStream" uid="uid://coatlvbrjgj7i" path="res://assets/audio/wood_creak/wood_creak04.wav" id="4_vgpvr"]
+[ext_resource type="AudioStream" uid="uid://buulesncbl0fn" path="res://assets/audio/wood_creak/wood_creak05.wav" id="5_pp37i"]
+[ext_resource type="AudioStream" uid="uid://c1bscbmtygy42" path="res://assets/audio/wood_creak/wood_creak06.wav" id="6_0xkmo"]
+[ext_resource type="AudioStream" uid="uid://bn6lqenruti0t" path="res://assets/audio/wood_creak/wood_creak07.wav" id="7_dmj8s"]
+
+[resource]
+script = ExtResource("1_clipset")
+Clips = [ExtResource("1_0fhp8"), ExtResource("2_tmkkf"), ExtResource("3_dcg0h"), ExtResource("4_vgpvr"), ExtResource("5_pp37i"), ExtResource("6_0xkmo"), ExtResource("7_dmj8s")]
+VolumeJitterDb = 5.0
+PitchJitter = 0.18

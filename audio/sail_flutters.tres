@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="ClipSet" format=3 uid="uid://b2esnfe3hm25d"]
+
+[ext_resource type="Script" uid="uid://bkjwacy62ogt7" path="res://scripts/audio/ClipSet.cs" id="1_clipset"]
+[ext_resource type="AudioStream" uid="uid://bjstch0ip12n6" path="res://assets/audio/sail/sail_fluttter01.wav" id="1_iqvb4"]
+[ext_resource type="AudioStream" uid="uid://bnuqc3ggqb0lc" path="res://assets/audio/sail/sail_flutter02.wav" id="2_aed24"]
+[ext_resource type="AudioStream" uid="uid://c731pffxqgsu5" path="res://assets/audio/sail/sail_flutter03.wav" id="3_8p68a"]
+[ext_resource type="AudioStream" uid="uid://cnniqyhf8mant" path="res://assets/audio/sail/sail_flutter04.wav" id="4_0r88k"]
+[ext_resource type="AudioStream" uid="uid://ctfc3c7skaah" path="res://assets/audio/sail/sail_flutter05.wav" id="5_y2lur"]
+[ext_resource type="AudioStream" uid="uid://cf2m204s3gefb" path="res://assets/audio/sail/sail_flutter06.wav" id="6_s73uo"]
+[ext_resource type="AudioStream" uid="uid://u7fl3wb1b40s" path="res://assets/audio/sail/sail_flutter07.wav" id="7_n8fys"]
+
+[resource]
+script = ExtResource("1_clipset")
+Clips = [ExtResource("1_iqvb4"), ExtResource("2_aed24"), ExtResource("3_8p68a"), ExtResource("4_0r88k"), ExtResource("5_y2lur"), ExtResource("6_s73uo"), ExtResource("7_n8fys")]
+VolumeDb = 2.0
+VolumeJitterDb = 4.0
+PitchJitter = 0.14

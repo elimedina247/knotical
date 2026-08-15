@@ -111,13 +111,16 @@ public partial class Sail : MeshInstance3D, IFoil
     public float HaulRate { get; set; } = 0.12f;
 
     [Export(PropertyHint.Range, "0,200,0.5")]
-    public float DriveGain { get; set; } = 30f;
+    public float DriveGain { get; set; } = 40f;
 
     [Export(PropertyHint.Range, "0,4,0.01")]
     public float LiftCoefficient { get; set; } = 1.6f;
 
-    [Export(PropertyHint.Range, "0,4,0.01")]
-    public float DragCoefficient { get; set; } = 1.3f;
+    [Export(PropertyHint.Range, "0,6,0.01")]
+    public float DragCoefficient { get; set; } = 2.3f;
+
+    [Export(PropertyHint.Range, "0,1,0.05")]
+    public float ApparentWind { get; set; } = 1f;
 
     [Export(PropertyHint.Range, "0,1,0.005")]
     public float DragBase { get; set; } = 0.08f;
@@ -183,6 +186,8 @@ public partial class Sail : MeshInstance3D, IFoil
 
     public float Pressure => _pressure;
 
+    public float WindStrength => _windStrength;
+
     public float Exposure { get; private set; } = 1f;
 
     public float Brace => _brace;
@@ -190,6 +195,14 @@ public partial class Sail : MeshInstance3D, IFoil
     public override void _Ready()
     {
         if (!Engine.IsEditorHint()) TargetDeployment = _deployment;
+
+        foreach (string arg in OS.GetCmdlineUserArgs())
+        {
+            if (!arg.StartsWith("--deploy=")) continue;
+            if (!float.TryParse(arg["--deploy=".Length..], out float set)) continue;
+            _deployment = Mathf.Clamp(set, 0f, 1f);
+            TargetDeployment = _deployment;
+        }
 
         Boom ??= GetParentOrNull<Node3D>();
         _brace = Boom?.Rotation.Y ?? 0f;
@@ -206,7 +219,7 @@ public partial class Sail : MeshInstance3D, IFoil
         if (rig == null) return;
 
         Vector3 wind = SampleWind();
-        if (rig is RigidBody3D body) wind -= body.LinearVelocity;
+        if (rig is RigidBody3D body) wind -= body.LinearVelocity * ApparentWind;
         wind.Y = 0f;
 
         Vector3 local = rig.GlobalBasis.Inverse() * wind;
@@ -249,11 +262,8 @@ public partial class Sail : MeshInstance3D, IFoil
         if (area <= 0.0001f) return Vector3.Zero;
 
         Vector3 n = Normal;
-        n.Y = 0f;
-        if (n.LengthSquared() < 1e-6f) return Vector3.Zero;
-        n = n.Normalized();
 
-        Vector3 apparent = SampleWind() - pointVelocity;
+        Vector3 apparent = SampleWind() - pointVelocity * ApparentWind;
         apparent.Y = 0f;
 
         float speed = apparent.Length();
@@ -276,14 +286,23 @@ public partial class Sail : MeshInstance3D, IFoil
         OceanField ocean = OceanField.Instance;
         if (ocean == null) return 1f;
 
-        Vector3 head = GlobalPosition;
-        Vector3 foot = GlobalTransform * new Vector3(0f, -_drop * _deployment, 0f);
+        Transform3D place = GlobalTransform;
+        float drop = _drop * _deployment;
+        int dry = 0;
 
-        float top = Mathf.Max(head.Y, foot.Y);
-        float bottom = Mathf.Min(head.Y, foot.Y);
-        float surface = ocean.GetHeight(new Vector2(foot.X, foot.Z));
+        for (int j = 0; j < 3; j++)
+        {
+            float v = j * 0.5f;
+            float half = Mathf.Lerp(_headWidth, DeployedFootWidth, v) * 0.5f;
 
-        return Mathf.Clamp((top - surface) / Mathf.Max(top - bottom, 0.001f), 0f, 1f);
+            for (int i = -1; i <= 1; i++)
+            {
+                Vector3 at = place * new Vector3(half * i, -drop * v, 0f);
+                if (at.Y > ocean.GetHeight(new Vector2(at.X, at.Z))) dry++;
+            }
+        }
+
+        return dry / 9f;
     }
 
     public Vector3 SampleWind()
