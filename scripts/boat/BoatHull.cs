@@ -131,6 +131,11 @@ public partial class BoatHull : RigidBody3D
     [Export(PropertyHint.Range, "3,9,1")]
     public int ProbeStations { get => _probeStations; set { _probeStations = value; Rebuild(); } }
 
+    private float _probeHeightFraction;
+
+    [Export(PropertyHint.Range, "0,0.8,0.01")]
+    public float ProbeHeightFraction { get => _probeHeightFraction; set { _probeHeightFraction = value; Rebuild(); } }
+
     [Export(PropertyHint.Range, "0,4,0.05")]
     public float HeaveDamping { get; set; } = 1.5f;
 
@@ -194,6 +199,15 @@ public partial class BoatHull : RigidBody3D
     [Export(PropertyHint.Range, "5,200,1")]
     public float MaxAcceleration { get; set; } = 25f;
 
+    [Export(PropertyHint.Range, "0,4,0.05")]
+    public float SurfaceMaskMargin { get; set; } = 1.2f;
+
+    [Export(PropertyHint.Range, "0,2,0.05")]
+    public float SurfaceMaskDepth { get; set; } = 0.4f;
+
+    [Export(PropertyHint.Range, "0.05,1,0.01")]
+    public float SurfaceMaskFeather { get; set; } = 0.35f;
+
     [Export] public bool RebuildNow { get => false; set { if (value) Rebuild(); } }
 
     [Export] public bool Trace { get; set; }
@@ -220,6 +234,10 @@ public partial class BoatHull : RigidBody3D
     public SailingRig Rig => _rig;
 
     public int ProbeCount => _probeLocal.Length;
+
+    public Vector3 BowWorld => GlobalTransform * new Vector3(0f, 0f, _form.ZAt(1f));
+
+    public float BeamWidth => _form.Beam;
 
     public void GetProbe(int i, out Vector3 world, out float wet, out Vector3 force, out float span)
     {
@@ -375,16 +393,17 @@ public partial class BoatHull : RigidBody3D
             float z = _form.ZAt(t);
             float weight = Mathf.Max(_form.PlanFactor(t) * depth, 0.01f);
 
-            locals.Add(new Vector3(x, keel, z));
+            float y = keel * (1f - _probeHeightFraction);
+            locals.Add(new Vector3(x, y, z));
             weights.Add(weight);
-            locals.Add(new Vector3(-x, keel, z));
+            locals.Add(new Vector3(-x, y, z));
             weights.Add(weight);
         }
 
         foreach (float t in new[] { 0.02f, 0.98f })
         {
             float keel = _form.KeelY(t);
-            locals.Add(new Vector3(0f, keel, _form.ZAt(t)));
+            locals.Add(new Vector3(0f, keel * (1f - _probeHeightFraction), _form.ZAt(t)));
             weights.Add(Mathf.Max(_form.PlanFactor(t) * Mathf.Max(-keel, 0.2f), 0.01f) * 0.6f);
         }
 
@@ -556,13 +575,13 @@ public partial class BoatHull : RigidBody3D
         float keelBow = (xform * new Vector3(0f, _form.KeelY(1f), _form.ZAt(1f))).Y;
         float keelMid = (xform * new Vector3(0f, _form.KeelY(0.5f), _form.ZAt(0.5f))).Y;
         float keelStern = (xform * new Vector3(0f, _form.KeelY(0f), _form.ZAt(0f))).Y;
-        float sink = Mathf.Min(keelMid, Mathf.Min(keelBow, keelStern)) - 0.4f;
+        float sink = Mathf.Min(keelMid, Mathf.Min(keelBow, keelStern)) - SurfaceMaskDepth;
 
         extents = new Vector4(
-            _form.Length * 0.5f + 1.2f,
-            _form.Beam * 0.5f + 1.2f,
+            _form.Length * 0.5f + SurfaceMaskMargin,
+            _form.Beam * 0.5f + SurfaceMaskMargin,
             sink,
-            0.35f);
+            SurfaceMaskFeather);
     }
 
     public override void _IntegrateForces(PhysicsDirectBodyState3D state)
@@ -762,7 +781,8 @@ public partial class BoatHull : RigidBody3D
             $"applied={_force.Dot(fwd) / 1e6f,6:0.00} MN | " +
             $"a_want={_force.Dot(fwd) / Mass,6:0.000} a_real={measured.Dot(fwd),6:0.000} m/s2 | " +
             $"mass={Mass / 1e6f,5:0.00}M vol={SubmergedVolume,6:0} " +
-            $"tilt={Tilt,5:0}° bowg={_bowPeak / 9.81f,5:0.00} vY={velocity.Y,5:0.00} " +
+            $"tilt={Tilt,5:0}° roll={Mathf.RadToDeg(-Mathf.Asin(Mathf.Clamp(level.X.Y, -1f, 1f))),6:0.0}° " +
+            $"bowg={_bowPeak / 9.81f,5:0.00} vY={velocity.Y,5:0.00} " +
             $"trim={trim,5:0.0}° bow={clear,5:0.0}m{(clear < 0f ? " UNDER" : "")} " +
             $"steer={_steerTorque / 1e6f,6:0.00} totYaw={_torque.Dot(level.Y) / 1e6f,6:0.00}MNm");
     }

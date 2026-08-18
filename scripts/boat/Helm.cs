@@ -84,6 +84,8 @@ public partial class Helm : Node3D, IGrabbable
 
     public bool IsManned => _held;
 
+    public void ForceSteering(float value) => _forced = Mathf.Clamp(value, -1f, 1f);
+
     public override void _Ready()
     {
         Wheel ??= GetNodeOrNull<Wheel>("Mount/Wheel");

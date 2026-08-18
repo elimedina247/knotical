@@ -167,6 +167,89 @@ unnecessary here. We are borrowing: pontoon debug visuals (part 1), splash syste
   - Everything builds clean and both scenes boot headless without errors. Not yet seen
     with human eyes: splash/foam look, gizmo look, set-envelope feel.
 
+- 2026-08-17 (late): **Lively-sea pass** after Eli compared against Girardot's video.
+  Diagnosis: the boat only fully felt 150–420 m swell (2° slopes — an elevator, not a
+  wall); slamming needs steep waves near hull length. Changes: `ChopPhysicsWeight` added
+  (0.5), `MediumPhysicsWeight` 0.35→0.9, medium band shortened/steepened (20–120 m,
+  peak 40 m, cap 0.07, height 3.0), chop 0.8 m; debug boat damping dropped (heave 0.8,
+  pitch 0.3, roll 0.35) and `SlamDrag` 2.0. Measured at wind 12: tilt to 15°, trim −6.5°
+  to +7.6°, vY ±2.5 m/s, submerged volume swinging 26–36 m³ (bow exits and plunges),
+  peak bow deceleration 0.73 g, 33 splash events in 40 s. SlamDrag alone was measured to
+  NOT move bow g (0.24 at 2.0, 0.23 at 3.5) — wave shortness/steepness is the lever, the
+  drag only shapes the stop. Note: big boats share the sea; their heavy damping absorbs
+  it but boat_2/3 feel more motion than before by design.
+  Also: hull surface mask (the water depression under boats) got exports —
+  `SurfaceMaskMargin`/`Depth`/`Feather` — defaults match the old literals for boat_2/3;
+  the debug boat runs 0.5/0.15/0.6 to fix the oversized "indent" Eli saw. If it still
+  reads wrong, feather higher and depth lower is the direction.
+
+- 2026-08-17 (later): **Steeper medium band, crest-pinch fix, keel rebalance.**
+  `MediumMaxSteepnessRatio` export range widened to 0.15, tres at 0.09 with
+  MediumHeight 3.5. `Ocean.Undisplace()` — two fixed-point iterations inverting the
+  Gerstner pinch — now feeds `GetHeight` and `GetRenderedHeight`, so physics feels the
+  same sharp crests the shader draws (the long-standing documented mismatch, fixed
+  because raised steepness made it visible; normals/flow still sample the direct
+  position). Keel investigation: measured roll with wind 0 averaged −0.22° over 80 s —
+  the keel was never broken; the "permanent lean" was low roll damping (boat always
+  mid-roll) stacked on sailing heel equilibrium (HeelLever 3.0 vs KeelLever 1.2 ≈ 13°
+  steady leeward heel). Rebalanced debug boat: KeelLever 2.5, HeelLever 2.5,
+  RollDamping 0.45. Verified at wind 12: roll mean 3.4° (range −4.2° to +11.5°), trim
+  −11.3° to +8.6°, peak bow deceleration 0.80 g, 30 splashes in 80 s. Heel under sail
+  is by design; the KeelLever:HeelLever ratio is the lean-angle dial.
+
+- 2026-08-17 (evening 2): **Very large sea, ballast CoM, bow spray, boat_2 in the debug
+  scene.** Sea raised to swell 5 m / medium 5.5 m (peak 50 m so steepness caps don't
+  clamp) / chop 1 m ≈ 7.6 m significant, sets ~9 m; debug hull CoM −0.35 → −0.8 —
+  measured zero capsizes at wind 12, roll mean 3.6°, bow 0.94 g, 44 splashes/80 s.
+  Full-wave depth is 30 m = unsculpted terrain height 0 (HUD "local scale" is the
+  diagnostic; `SeaDepthField.OpenDepth` the knob). Bow spray added to SplashEmitter:
+  4 pooled continuous emitters, one per active BoatHull, gated by headway
+  (SprayStartSpeed 2 → SprayFullSpeed 7 m/s) and bow-near-water, AmountRatio-scaled,
+  velocity scales with speed, stamps faint foam at the bow (BoatHull gained
+  BowWorld/BeamWidth). Impact splashes were never broken — bow spray simply hadn't been
+  built (was a listed deferral). debug.tscn now instances boat_2 (ocean.tscn's mass and
+  damping overrides copied) instead of the small hull; A/D drives the ship's actual
+  helm via new `Helm.ForceSteering` (DebugPilot prefers a Helm over direct rudder
+  writes — Helm.Drive() overwrites Rudder.Steering every frame, so direct writes lose).
+  boat_debug.tscn still exists for small-boat testing. Note: in the 7.6 m sea boat_2's
+  probes rarely fully exit the water, so it fires few impact splashes; bow spray and
+  wake carry its presentation.
+
+- 2026-08-17 (night): **Displacement/sit/skiff arc.** boat_2 felt dead because its mass is
+  computed (WaterDensity × Displacement × hull volume ≈ 3,290 t at Displacement 1) — the
+  scene `mass=` line is a stale echo, Rebuild() overwrites it. Debug instance set to
+  Displacement 0.35 (≈1,150 t): roll went ±17°, speed doubled — load ratio is now a real
+  gameplay dimension (laden = stable/sluggish, empty = fast/lively). Light boats ride
+  comically high (Archimedes), so new `ProbeHeightFraction` export raises pontoons from
+  the keel toward the waterline, decoupling sit depth from weight (0 = old behavior, all
+  other hulls unaffected; 0.66 on the debug boat_2 = bow keel from +0.2 m to −2.4 m,
+  liveliness kept). Then `boat_skiff.tscn`: 7.5 m flat-transom planing skiff,
+  ~2.4 t (Displacement 0.4), `WaveDragGain = 0` (no hull-speed wall — the planing
+  switch), 13.6 m² sail DriveGain 26, ProbeStations 3 (less spatial averaging → drops),
+  SlopePush 0.4 (surf), MaxAcceleration 60. Measured at wind 12 in the 7.6 m sea:
+  top speed 8.65 m/s — faster than the 40 m waves — zero capsizes, bow peaks 4.4 g,
+  momentarily airborne (vol=0 in trace), 35 splashes/80 s. Residual steady lean
+  ~8.5° mean after KeelLever 2.8: remaining source is SlopePush rectification against
+  the one-directional sea + sail heel; dials are SlopePush/HeelLever/KeelLever.
+  debug.tscn now runs the skiff (camera 38/16); boat_2 and boat_debug scenes remain for
+  swapping back. Eli's new map2.tscn is in the scene — see memory: never hand-write
+  region_size into a Terrain3D scene; map2 regenerates via tools/build_map2.gd.
+
+- 2026-08-17 (late night): **Skiff converted to a motor boat.** Eli reversed the earlier
+  "wind is the only power" rule for this boat type: W is throttle now. New
+  `scripts/boat/Motor.cs` — thrust as an IFoil so it flows through SailingRig like any
+  force (non-sail, so Polar/no-go/HeelTorque never touch it); mounted low at the stern
+  (slight bow-up trim under power) with prop ventilation: thrust scales with immersion
+  and dies when the stern launches clear. DebugPilot gained W-throttle (ThrottleRate
+  ramp) plus `--throttle=`/`--steer=` headless args. Sail/mast/yard removed from
+  boat_skiff.tscn, replaced with box-primitive center console, windshield, seat, and
+  outboard. Measured at full throttle, wind 8: top 9.62 m/s, zero capsizes, roll mean
+  0.8° (the steady lean was mostly sail heel — gone), 35 splashes/80 s. Headless runs
+  end beached on map2 ~200 m from spawn (vol=0, trim +9.5°, bow +1.6 m above water,
+  ~9 g grounding spike) — expected with no driver; note a beached boat cannot power off
+  (prop dry ⇒ Immersion 0 ⇒ no thrust). If spawn area is hemmed in, move the BoatSkiff
+  node in debug.tscn.
+
 ## Phase order and why
 
 1. Three-band ocean (small, self-contained, unlocks everything else)

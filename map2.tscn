@@ -1,0 +1,88 @@
+[gd_scene load_steps=13 format=3]
+
+[ext_resource type="Shader" uid="uid://bjj1wskqokwmf" path="res://shaders/seabed.gdshader" id="1_seabed"]
+[ext_resource type="Texture2D" uid="uid://dai3b08233p4h" path="res://assets/textures/sand/Ground054_2K-JPG_Color.jpg" id="2_sand"]
+[ext_resource type="Texture2D" uid="uid://j6ltmftj6fpn" path="res://assets/textures/rock/Ground068_2K-JPG_Color.jpg" id="3_rock"]
+
+[sub_resource type="Gradient" id="Gradient_m2"]
+offsets = PackedFloat32Array(0.2, 1)
+colors = PackedColorArray(1, 1, 1, 1, 0, 0, 0, 1)
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_m2"]
+noise_type = 2
+frequency = 0.03
+cellular_jitter = 3.0
+cellular_return_type = 0
+domain_warp_enabled = true
+domain_warp_type = 1
+domain_warp_amplitude = 50.0
+domain_warp_fractal_type = 2
+domain_warp_fractal_lacunarity = 1.5
+domain_warp_fractal_gain = 1.0
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_m2"]
+noise = SubResource("FastNoiseLite_m2")
+color_ramp = SubResource("Gradient_m2")
+seamless = true
+
+[sub_resource type="Terrain3DMaterial" id="Terrain3DMaterial_m2"]
+_shader_parameters = {
+&"bias_distance": null,
+&"blend_sharpness": null,
+&"depth_blur": null,
+&"enable_macro_variation": null,
+&"enable_projection": null,
+&"flat_terrain_normals": null,
+&"macro_variation1": null,
+&"macro_variation2": null,
+&"macro_variation_slope": null,
+&"mipmap_bias": null,
+&"noise1_angle": null,
+&"noise1_offset": null,
+&"noise1_scale": null,
+&"noise2_scale": null,
+&"noise_texture": SubResource("NoiseTexture2D_m2"),
+&"projection_threshold": null
+}
+shader_override = ExtResource("1_seabed")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_m2"]
+transparency = 4
+cull_mode = 2
+vertex_color_use_as_albedo = true
+backlight_enabled = true
+backlight = Color(0.5, 0.5, 0.5, 1)
+distance_fade_mode = 1
+distance_fade_min_distance = 128.0
+distance_fade_max_distance = 96.0
+
+[sub_resource type="Terrain3DMeshAsset" id="Terrain3DMeshAsset_m2"]
+generated_type = 1
+height_offset = 0.5
+material_override = SubResource("StandardMaterial3D_m2")
+last_lod = 0
+last_shadow_lod = 0
+lod0_range = 128.0
+
+[sub_resource type="Terrain3DTextureAsset" id="Terrain3DTextureAsset_m2sand"]
+name = "Ground054_2K-JPG_Color"
+albedo_texture = ExtResource("2_sand")
+
+[sub_resource type="Terrain3DTextureAsset" id="Terrain3DTextureAsset_m2rock"]
+name = "Ground068_2K-JPG_Color"
+id = 1
+albedo_texture = ExtResource("3_rock")
+
+[sub_resource type="Terrain3DAssets" id="Terrain3DAssets_m2"]
+mesh_list = Array[Terrain3DMeshAsset]([SubResource("Terrain3DMeshAsset_m2")])
+texture_list = Array[Terrain3DTextureAsset]([SubResource("Terrain3DTextureAsset_m2sand"), SubResource("Terrain3DTextureAsset_m2rock")])
+
+[node name="map2" type="Node3D"]
+
+[node name="Terrain3D" type="Terrain3D" parent="."]
+data_directory = "res://map2_data"
+vertex_spacing = 2.0
+material = SubResource("Terrain3DMaterial_m2")
+assets = SubResource("Terrain3DAssets_m2")
+top_level = true
+metadata/_edit_lock_ = true

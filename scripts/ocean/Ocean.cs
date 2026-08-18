@@ -144,12 +144,15 @@ public partial class Ocean : Node
 		Settings.BuildSkeleton(out _waves, out _phases);
 
 		int swell = Mathf.Min(Settings.ClampedSwellCount, _waves.Length);
+		int medium = Mathf.Min(swell + Settings.ClampedMediumCount, _waves.Length);
 		_physicsCount = Mathf.Min(Settings.PhysicsWaveCount, _waves.Length);
 		_physicsWeights = new float[_physicsCount];
 
 		for (int i = 0; i < _physicsCount; i++)
 		{
-			_physicsWeights[i] = i < swell ? Settings.SwellPhysicsWeight : Settings.MediumPhysicsWeight;
+			_physicsWeights[i] = i < swell ? Settings.SwellPhysicsWeight
+				: i < medium ? Settings.MediumPhysicsWeight
+				: Settings.ChopPhysicsWeight;
 		}
 
 		SignificantHeight = Settings.CombinedHeight;
@@ -215,14 +218,14 @@ public partial class Ocean : Node
 	/// <summary>
 	/// Surface height felt by physics: swell and medium bands at their physics weights.
 	///
-	/// Note this samples the undisplaced height field — it ignores the Gerstner
-	/// horizontal pinch the shader applies, so in choppy water the value is off by
-	/// roughly the displacement magnitude. That error is well under the size of a hull
-	/// and buoyancy probes average it out, so it is not worth inverting yet. Revisit if
-	/// Steepness ever goes high enough that boats visibly float above the crests.
+	/// Samples at the pinch-inverted position, so the sharp Gerstner crests the shader
+	/// draws are also the crests hulls feel. Two fixed-point iterations; at legal
+	/// steepness the remaining error is centimetres.
 	/// </summary>
 	public float GetHeight(Vector2 worldXZ)
 	{
+		float sea = SeaScale(worldXZ);
+		Vector2 p = Undisplace(worldXZ, sea, _physicsCount, _physicsWeights);
 		float y = 0f;
 		float t = (float)Time;
 
@@ -233,10 +236,37 @@ public partial class Ocean : Node
 			float k = Mathf.Tau / w.W;
 			float omega = Mathf.Sqrt(Gravity * k);
 
-			y += w.Z * _physicsWeights[i] * Mathf.Sin(k * dir.Dot(worldXZ) - omega * t + _phases[i]);
+			y += w.Z * _physicsWeights[i] * Mathf.Sin(k * dir.Dot(p) - omega * t + _phases[i]);
 		}
 
-		return SeaLevel + y * SeaScale(worldXZ);
+		return SeaLevel + y * sea;
+	}
+
+	private Vector2 Undisplace(Vector2 worldXZ, float sea, int count, float[] weights)
+	{
+		float q = Settings.Steepness / Mathf.Max(SteepnessNormaliser, 0.0001f);
+		float t = (float)Time;
+		Vector2 p = worldXZ;
+
+		for (int iter = 0; iter < 2; iter++)
+		{
+			Vector2 pinch = Vector2.Zero;
+
+			for (int i = 0; i < count; i++)
+			{
+				Vector4 w = _waves[i];
+				var dir = new Vector2(w.X, w.Y);
+				float amp = w.Z * (weights != null ? weights[i] : 1f) * sea;
+				float k = Mathf.Tau / w.W;
+				float omega = Mathf.Sqrt(Gravity * k);
+
+				pinch += dir * (q * amp * Mathf.Cos(k * dir.Dot(p) - omega * t + _phases[i]));
+			}
+
+			p = worldXZ - pinch;
+		}
+
+		return p;
 	}
 
 	public float GetHeight(Vector3 worldPos) => GetHeight(new Vector2(worldPos.X, worldPos.Z));
@@ -247,6 +277,8 @@ public partial class Ocean : Node
 	/// </summary>
 	public float GetRenderedHeight(Vector2 worldXZ)
 	{
+		float sea = SeaScale(worldXZ);
+		Vector2 p = Undisplace(worldXZ, sea, _waves.Length, null);
 		float y = 0f;
 		float t = (float)Time;
 
@@ -257,10 +289,10 @@ public partial class Ocean : Node
 			float k = Mathf.Tau / w.W;
 			float omega = Mathf.Sqrt(Gravity * k);
 
-			y += w.Z * Mathf.Sin(k * dir.Dot(worldXZ) - omega * t + _phases[i]);
+			y += w.Z * Mathf.Sin(k * dir.Dot(p) - omega * t + _phases[i]);
 		}
 
-		return SeaLevel + y * SeaScale(worldXZ);
+		return SeaLevel + y * sea;
 	}
 
 	public float GetRenderedHeight(Vector3 worldPos) => GetRenderedHeight(new Vector2(worldPos.X, worldPos.Z));

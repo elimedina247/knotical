@@ -1,21 +1,23 @@
 [gd_scene format=3 uid="uid://cx6vlwtdgkpxm"]
 
 [ext_resource type="Script" uid="uid://dvl3k7wgixvcx" path="res://scripts/ocean/OceanSurface.cs" id="1_surface"]
-[ext_resource type="PackedScene" uid="uid://xx8i2fj8gtmd" path="res://map.tscn" id="2_map"]
 [ext_resource type="Script" uid="uid://lxy0aorokf63" path="res://scripts/ocean/SeaDepthField.cs" id="3_seadepth"]
 [ext_resource type="Script" uid="uid://lkd4cyvlw54e" path="res://scripts/sky/SkyController.cs" id="4_skyctl"]
 [ext_resource type="Shader" uid="uid://cwls1kmf1fiyw" path="res://shaders/sky.gdshader" id="5_skyshader"]
-[ext_resource type="PackedScene" path="res://boat_debug.tscn" id="6_boat"]
+[ext_resource type="PackedScene" uid="uid://5buvbskfdg7" path="res://boat_2.tscn" id="6_boat2"]
 [ext_resource type="Script" uid="uid://c3dq4aen6k1cf" path="res://scripts/debug/EagleCamera.cs" id="7_eagle"]
 [ext_resource type="Script" uid="uid://cyemm0pt8ya88" path="res://scripts/debug/DebugWindHud.cs" id="8_windhud"]
 [ext_resource type="Script" uid="uid://d1m8n7tkenvog" path="res://scripts/ui/WindCompass.cs" id="9_compass"]
-[ext_resource type="Script" path="res://scripts/debug/DebugNoon.cs" id="10_noon"]
-[ext_resource type="Resource" path="res://ocean_settings.tres" id="11_seasettings"]
-[ext_resource type="Script" path="res://scripts/debug/BuoyancyGizmos.cs" id="12_gizmos"]
+[ext_resource type="Script" uid="uid://c1x8afgu1pksx" path="res://scripts/debug/DebugNoon.cs" id="10_noon"]
+[ext_resource type="Resource" uid="uid://h0eh8586p1kp" path="res://ocean_settings.tres" id="11_seasettings"]
+[ext_resource type="Script" uid="uid://cnmwsm8ediaw3" path="res://scripts/debug/BuoyancyGizmos.cs" id="12_gizmos"]
 [ext_resource type="PackedScene" path="res://cargo_crate.tscn" id="13_crate"]
 [ext_resource type="PackedScene" path="res://cargo_crate_large.tscn" id="14_crately"]
-[ext_resource type="Script" path="res://scripts/vfx/SplashEmitter.cs" id="15_splash"]
-[ext_resource type="Script" path="res://scripts/vfx/FoamCapture.cs" id="16_foam"]
+[ext_resource type="Script" uid="uid://bwi13kd85b2gh" path="res://scripts/vfx/SplashEmitter.cs" id="15_splash"]
+[ext_resource type="Script" uid="uid://o36a7vpnmo74" path="res://scripts/vfx/FoamCapture.cs" id="16_foam"]
+[ext_resource type="PackedScene" path="res://map2.tscn" id="17_120lh"]
+[ext_resource type="Script" uid="uid://ccboww0m4gkld" path="res://scripts/debug/DebugPilot.cs" id="17_pilot"]
+[ext_resource type="PackedScene" path="res://boat_skiff.tscn" id="18_skiff"]
 
 [sub_resource type="ShaderMaterial" id="SkyShaderMaterial_1"]
 shader = ExtResource("5_skyshader")
@@ -52,8 +54,6 @@ tonemap_white = 3.0
 script = ExtResource("1_surface")
 Settings = ExtResource("11_seasettings")
 
-[node name="Map" parent="." unique_id=509689687 instance=ExtResource("2_map")]
-
 [node name="SeaDepthField" type="Node" parent="." unique_id=806568349]
 script = ExtResource("3_seadepth")
 
@@ -67,7 +67,6 @@ environment = SubResource("Environment_1")
 
 [node name="DebugNoon" type="Node" parent="." unique_id=700000003]
 script = ExtResource("10_noon")
-TimeOfDay = 0.5
 
 [node name="SkyController" type="Node" parent="." unique_id=1135905624]
 script = ExtResource("4_skyctl")
@@ -78,22 +77,8 @@ script = ExtResource("8_windhud")
 [node name="WindCompass" type="CanvasLayer" parent="." unique_id=700000002]
 script = ExtResource("9_compass")
 
-[node name="BoatDebug" parent="." unique_id=1626161633 instance=ExtResource("6_boat")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 121, 31, 0)
-mass = 37110.37
-gravity_scale = 0.0
-center_of_mass_mode = 1
-center_of_mass = Vector3(0, -0.35, 0)
-can_sleep = false
-linear_damp_mode = 1
-angular_damp_mode = 1
-SheerPower = 2.4
-RockerPower = 2.6
-BowSharpness = 2.2
-SternSharpness = 3.0
-TransomRake = 0.6
-StemPower = 3.0
-BilgeFullness = 0.42
+[node name="BoatSkiff" parent="." unique_id=1626161633 instance=ExtResource("18_skiff")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 121, 30.6, 0)
 
 [node name="SplashEmitter" type="Node3D" parent="." unique_id=700000007]
 script = ExtResource("15_splash")
@@ -116,3 +101,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 100, 33, -12)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 86, 22)
 far = 12000.0
 script = ExtResource("7_eagle")
+Height = 38.0
+Astern = 16.0
+
+[node name="map2" parent="." unique_id=1942486469 instance=ExtResource("17_120lh")]

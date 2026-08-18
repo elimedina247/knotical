@@ -1,37 +1,22 @@
-[gd_resource type="Resource" script_class="OceanSettings" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="OceanSettings" format=3 uid="uid://h0eh8586p1kp"]
 
 [ext_resource type="Script" uid="uid://7ccpp1y4wsiu" path="res://scripts/ocean/OceanSettings.cs" id="1_settings"]
 
 [resource]
 script = ExtResource("1_settings")
-SwellCount = 3
-SwellMinWavelength = 150.0
-SwellMaxWavelength = 420.0
-SwellDirectionDeg = 35.0
-SwellFanDeg = 18.0
-SwellHeight = 3.0
-SwellPeakWavelength = 260.0
+SwellHeight = 5.0
 SwellMaxSteepnessRatio = 0.04
 SwellSetDepth = 0.45
-MediumCount = 6
-MediumMinWavelength = 40.0
-MediumMaxWavelength = 260.0
-MediumDirectionDeg = 35.0
-MediumFanDeg = 24.0
-MediumHeight = 2.5
-MediumPeakWavelength = 80.0
-MediumMaxSteepnessRatio = 0.05
-ChopCount = 10
-ChopMinWavelength = 4.0
-ChopMaxWavelength = 22.0
-ChopDirectionDeg = 35.0
-ChopSpreadDeg = 55.0
-ChopHeight = 0.4
+MediumMinWavelength = 20.0
+MediumMaxWavelength = 140.0
+MediumHeight = 5.5
+MediumPeakWavelength = 50.0
+MediumMaxSteepnessRatio = 0.09
+ChopMaxWavelength = 26.0
+ChopHeight = 1.0
 ChopMaxSteepnessRatio = 0.06
 SpectrumWidth = 0.32
-DirectionalExponent = 2.0
 SpreadFloor = 0.35
 Steepness = 0.7
-SwellPhysicsWeight = 1.0
-MediumPhysicsWeight = 0.35
-MaxSeaScale = 2.0
+MediumPhysicsWeight = 0.9
+ChopPhysicsWeight = 0.5

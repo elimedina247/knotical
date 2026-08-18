@@ -60,7 +60,7 @@ public partial class OceanSettings : Resource
     [Export(PropertyHint.Range, "20,600,1")]
     public float MediumPeakWavelength { get; set; } = 80f;
 
-    [Export(PropertyHint.Range, "0.01,0.07,0.001")]
+    [Export(PropertyHint.Range, "0.01,0.15,0.001")]
     public float MediumMaxSteepnessRatio { get; set; } = 0.05f;
 
     [Export(PropertyHint.Range, "0,16,1")]
@@ -102,6 +102,9 @@ public partial class OceanSettings : Resource
     [Export(PropertyHint.Range, "0,1,0.01")]
     public float MediumPhysicsWeight { get; set; } = 0.35f;
 
+    [Export(PropertyHint.Range, "0,1,0.01")]
+    public float ChopPhysicsWeight { get; set; }
+
     [Export(PropertyHint.Range, "1,4,0.05")]
     public float MaxSeaScale { get; set; } = 2f;
 
@@ -111,7 +114,8 @@ public partial class OceanSettings : Resource
 
     public int ClampedChopCount => Mathf.Clamp(ChopCount, 0, MaxWaves - ClampedSwellCount - ClampedMediumCount);
 
-    public int PhysicsWaveCount => ClampedSwellCount + ClampedMediumCount;
+    public int PhysicsWaveCount =>
+        ClampedSwellCount + ClampedMediumCount + (ChopPhysicsWeight > 0f ? ClampedChopCount : 0);
 
     public float CombinedHeight =>
         Mathf.Sqrt(SwellHeight * SwellHeight + MediumHeight * MediumHeight + ChopHeight * ChopHeight);
