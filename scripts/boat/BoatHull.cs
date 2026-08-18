@@ -14,12 +14,15 @@ public partial class BoatHull : RigidBody3D
     public static readonly List<BoatHull> Active = new();
 
     private readonly HullForm _form = new();
-    private readonly List<IFoil> _foils = new();
+    private SailingRig _rig;
     private Vector3[] _probeLocal = System.Array.Empty<Vector3>();
     private float[] _probeVolume = System.Array.Empty<float>();
     private float[] _probeSpan = System.Array.Empty<float>();
     private float[] _probeReserve = System.Array.Empty<float>();
     private float[] _probeArea = System.Array.Empty<float>();
+    private Vector3[] _probeWorld = System.Array.Empty<Vector3>();
+    private float[] _probeWet = System.Array.Empty<float>();
+    private Vector3[] _probeForce = System.Array.Empty<Vector3>();
     private float _lateralArea;
     private float _frontalArea;
     private OceanField _ocean;
@@ -212,7 +215,19 @@ public partial class BoatHull : RigidBody3D
 
     public Vector3 HullForce { get; private set; }
 
-    public int FoilCount => _foils.Count;
+    public int FoilCount => _rig?.FoilCount ?? 0;
+
+    public SailingRig Rig => _rig;
+
+    public int ProbeCount => _probeLocal.Length;
+
+    public void GetProbe(int i, out Vector3 world, out float wet, out Vector3 force, out float span)
+    {
+        world = _probeWorld[i];
+        wet = _probeWet[i];
+        force = _probeForce[i];
+        span = _probeSpan[i];
+    }
 
     [Signal] public delegate void FlippedEventHandler(bool flipped);
 
@@ -290,6 +305,17 @@ public partial class BoatHull : RigidBody3D
                  $"probes={_probeLocal.Length}");
 
         Rebuild();
+
+        if (!Engine.IsEditorHint())
+        {
+            _rig = GetNodeOrNull<SailingRig>("SailingRig");
+            if (_rig == null)
+            {
+                _rig = new SailingRig { Name = "SailingRig" };
+                AddChild(_rig);
+            }
+        }
+
         RefreshRig();
 
         if (_startRoll != 0f) Rotation = new Vector3(Rotation.X, Rotation.Y, _startRoll);
@@ -316,20 +342,7 @@ public partial class BoatHull : RigidBody3D
                  $"(keel at bow {_form.KeelY(1f):0.00} m, amidships {_form.KeelY(0.5f):0.00} m)");
     }
 
-    public void RefreshRig()
-    {
-        _foils.Clear();
-        CollectFoils(this);
-    }
-
-    private void CollectFoils(Node node)
-    {
-        foreach (Node child in node.GetChildren())
-        {
-            if (child is IFoil foil) _foils.Add(foil);
-            CollectFoils(child);
-        }
-    }
+    public void RefreshRig() => _rig?.Refresh();
 
     private void Rebuild()
     {
@@ -385,6 +398,9 @@ public partial class BoatHull : RigidBody3D
         _probeSpan = new float[count];
         _probeReserve = new float[count];
         _probeArea = new float[count];
+        _probeWorld = new Vector3[count];
+        _probeWet = new float[count];
+        _probeForce = new Vector3[count];
 
         for (int i = 0; i < count; i++)
         {
@@ -572,61 +588,18 @@ public partial class BoatHull : RigidBody3D
         }
 
         HullForce = _drag;
+
         Vector3 rig = Vector3.Zero;
-        Vector3 canvas = Vector3.Zero;
-
-        Vector3 keelwise = -level.Z;
-
-        for (int i = 0; i < _foils.Count; i++)
+        if (_rig != null)
         {
-            if (_foils[i] is not Node3D node || !IsInstanceValid(node)) continue;
-
-            Vector3 arm = _foils[i].GlobalCentreOfEffort - _com;
-            Vector3 pointVelocity = _foils[i] is Rudder
-                ? keelwise * _linear.Dot(keelwise) + _angular.Cross(arm)
-                : _linear + _angular.Cross(arm);
-            Vector3 f = _foils[i].ComputeForce(pointVelocity);
-
-            if (_foils[i] is Sail)
-            {
-                canvas += f;
-                continue;
-            }
-
-            Vector3 twist = arm.Cross(f);
-
-            if (_foils[i] is Rudder)
-            {
-                twist += level.Y * (twist.Dot(level.Y) * (RudderAuthority - 1f));
-                _steerTorque = twist.Dot(level.Y);
-            }
-
-            rig += f;
-            _force += f;
-            _torque += twist;
+            _rig.Accumulate(level, _com, _linear, _angular, ref _force, ref _torque,
+                out rig, out _steerTorque);
         }
-
-        canvas.Y = 0f;
-
-        var ahead = new Vector3(-level.Z.X, 0f, -level.Z.Z);
-        if (ahead.LengthSquared() > 0.0001f)
-        {
-            ahead = ahead.Normalized();
-            float drive = canvas.Dot(ahead);
-            Vector3 side = canvas - ahead * drive;
-
-            canvas = ahead * (drive > 0f ? drive * Polar(level) : drive) + side;
-            _torque += HeelTorque(level, side);
-        }
-        else
-        {
-            _torque += HeelTorque(level, canvas);
-        }
-
-        rig += canvas;
-        _force += canvas;
 
         RigForce = rig;
+
+        var ahead = new Vector3(-level.Z.X, 0f, -level.Z.Z);
+        if (ahead.LengthSquared() > 0.0001f) ahead = ahead.Normalized();
 
         if (WaveDragGain > 0f && ahead.LengthSquared() > 0.0001f)
         {
@@ -673,16 +646,28 @@ public partial class BoatHull : RigidBody3D
     private void Probe(int i, Transform3D xform, Basis level)
     {
         Vector3 p = xform * _probeLocal[i];
+        float wasWet = _probeWet[i];
+        _probeWorld[i] = p;
+        _probeWet[i] = 0f;
+        _probeForce[i] = Vector3.Zero;
+
         var flat = new Vector2(p.X, p.Z);
         float depth = _ocean.GetHeight(flat) - p.Y;
         float s = Mathf.Clamp(depth / _probeSpan[i], 0f, _probeReserve[i]);
         if (s <= 0f) return;
 
         float wet = Mathf.Min(s, 1f);
+        _probeWet[i] = wet;
         SubmergedVolume += _probeVolume[i] * wet;
 
         Vector3 arm = p - _com;
         Vector3 rel = _linear + _angular.Cross(arm) - _ocean.GetFlow(p);
+
+        if (wasWet <= 0f && rel.Y < -1.5f)
+        {
+            Knotical.Vfx.SplashEmitter.Request(
+                new Vector3(p.X, depth + p.Y, p.Z), -rel.Y, Mathf.Sqrt(_probeArea[i]));
+        }
 
         Vector3 lift = SlopePush > 0f
             ? Vector3.Up.Lerp(_ocean.GetNormal(flat), SlopePush).Normalized()
@@ -707,49 +692,9 @@ public partial class BoatHull : RigidBody3D
 
         _drag += drag;
         f += drag;
+        _probeForce[i] = f;
         _force += f;
         _torque += arm.Cross(f);
-    }
-
-    private float Polar(Basis basis)
-    {
-        Wind wind = Wind.Instance;
-        if (wind == null) return 1f;
-
-        Vector2 breeze = wind.Velocity;
-        if (breeze.LengthSquared() < 0.01f) return 1f;
-
-        Vector3 fwd = -basis.Z;
-        var heading = new Vector2(fwd.X, fwd.Z);
-        if (heading.LengthSquared() < 0.0001f) return 1f;
-
-        float offWind = Mathf.RadToDeg(Mathf.Acos(
-            Mathf.Clamp(heading.Normalized().Dot(-breeze.Normalized()), -1f, 1f)));
-
-        float shape = offWind <= 90f
-            ? Mathf.Lerp(CloseHauledDrive, ReachDrive,
-                Mathf.SmoothStep(0f, 1f, (offWind - DriveNoGoDeg) / Mathf.Max(90f - DriveNoGoDeg, 1f)))
-            : Mathf.Lerp(ReachDrive, 1f, Mathf.SmoothStep(0f, 1f, (offWind - 90f) / 90f));
-
-        float gate = Mathf.SmoothStep(0f, 1f, (offWind - (DriveNoGoDeg - 6f)) / 12f);
-
-        return Mathf.Lerp(NoGoDrive, shape, gate);
-    }
-
-    private Vector3 HeelTorque(Basis basis, Vector3 canvas)
-    {
-        if (HeelLever <= 0f) return Vector3.Zero;
-
-        float lean = canvas.Dot(basis.X);
-        Vector3 side = basis.X * lean;
-        if (side.LengthSquared() < 1f) return Vector3.Zero;
-
-        float roll = -Mathf.Asin(Mathf.Clamp(basis.X.Y, -1f, 1f));
-        float toward = roll * Mathf.Sign(lean);
-        float progress = Mathf.Clamp(toward / Mathf.DegToRad(MaxHeelDegrees), 0f, 1f);
-        float fade = 1f - progress * progress * progress * progress;
-
-        return (basis.Y * (HeelLever * fade)).Cross(side);
     }
 
     private void Capsize(Basis basis)
@@ -812,7 +757,7 @@ public partial class BoatHull : RigidBody3D
         float clear = _ocean != null ? stem.Y - _ocean.GetHeight(new Vector2(stem.X, stem.Z)) : 0f;
 
         GD.Print(
-            $"{Name} t={_clock,6:0.0} spd={speed,5:0.00} lat={lateral,5:0.00} off={offWind,4:0}° polar={Polar(level),4:0.00} yawrate={spin.Y,6:0.000} " +
+            $"{Name} t={_clock,6:0.0} spd={speed,5:0.00} lat={lateral,5:0.00} off={offWind,4:0}° polar={(_rig?.Polar(level) ?? 1f),4:0.00} yawrate={spin.Y,6:0.000} " +
             $"rig={rig.Dot(fwd) / 1e6f,6:0.00} drag={_drag.Dot(fwd) / 1e6f,6:0.00} " +
             $"applied={_force.Dot(fwd) / 1e6f,6:0.00} MN | " +
             $"a_want={_force.Dot(fwd) / Mass,6:0.000} a_real={measured.Dot(fwd),6:0.000} m/s2 | " +

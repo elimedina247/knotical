@@ -73,6 +73,100 @@ unnecessary here. We are borrowing: pontoon debug visuals (part 1), splash syste
   need an explicit `Rebuild()`. `--seacap=X` now clamps the three band heights.
   Phase 2 shrinks to just the slow set envelope; its wind-independence bullets are done.
 
+- 2026-08-17: **Sea level moved to world Y = 30** (`Ocean.SeaLevel`). Terrain3D pins its
+  node to the world origin and its heightmap starts at 0, so water had to rise to meet the
+  terrain instead. Sculpting now reads as height above the sea floor: 0 = deep floor,
+  ~25 = shallow, 30 = waterline, >30 = dry land. Both height queries and `GetFlow`'s depth
+  fade are offset; `OceanSurface` places its grids at `SeaLevel`. The ocean shader needed
+  no change — it uses `world_vertex_coords`, so the grid's own position carries the level.
+  Map overlay is a relative colour scale and is likewise untouched. `ocean.tscn`: seabed
+  plane deleted, every placed object raised +30. `SeabedSurface.cs` and `seabed.gdshader`
+  are now unused by `ocean.tscn` but still referenced by the new `map.tscn`.
+  Map authoring is happening in `map.tscn` (Terrain3D, data in `res://data_directory`).
+
+- 2026-08-17: **Terrain map wired in, calm water now comes from the seabed.** `map.tscn`
+  (Terrain3D, ~28 sculpted regions in `res://data_directory`) is instanced into
+  `ocean.tscn`; the three placeholder island cylinders are deleted. New
+  `scripts/ocean/SeaDepthField.cs` bakes terrain height into the sea-state multiplier at
+  load: it walks a grid (512² by default over ±6000 m), asks Terrain3D for height via
+  `Call("get_height")` — GDExtension, so no typed binding — converts to depth below
+  `Ocean.SeaLevel`, and stores the *finished multiplier* (not raw depth) into both a CPU
+  float array and an `Rf` ImageTexture. Storing the multiplier is what keeps CPU and GPU
+  identical; both sample it bilinearly, and the CPU path replicates GPU `texture()`
+  sampling exactly. `Ocean.SeaScale` now starts from that field, with `SeaZone` nodes
+  layered on top as authored overrides. `OceanSettings.ShallowCalm`/`ShallowReach` and
+  Ocean's island-cylinder gathering are gone. Tunables live on the SeaDepthField node:
+  `CalmDepth` (3 m, fully calm), `OpenDepth` (30 m, fully open), `ShallowCalm` (0.15).
+  Missing terrain degrades gracefully to a uniform sea. Not yet run — the bake prints its
+  size and duration, which is the number to check first.
+  Known loose end: `MapOverlay` still hunts for `Island*` cylinders to draw and now finds
+  none, so the minimap has no island markers; its wave colours do already reflect the new
+  calm field. Drawing the terrain there is a future nicety.
+
+- 2026-08-17: **Debug scene added** — `debug.tscn`: ocean, map, one plain boat, sun/sky,
+  nothing else (no character, HUDs, cargo, wind streaks). `boat_debug.tscn` is a 14 m
+  parametric hull — `BoatHull` for physics plus `ClinkerHull` for the visible planking,
+  both fed the same dimensions, so it is "sculpted" from numbers rather than modelled.
+  New `scripts/debug/DebugPilot.cs`: A/D swing the rudder, and nothing else — by Eli's
+  rule the player steers and only the wind drives, so a keyboard throttle was written and
+  then removed. The boat therefore carries a single square sail on a mast and yard
+  (`Spar` + `Sail`, AutoTrim on), which also means BoatHull's polar drive curve and heel
+  torque are exercised. New `scripts/debug/EagleCamera.cs` follows the boat from
+  above and astern, mouse wheel zooms, position smoothed but aim not (smoothing the aim
+  makes the horizon swim). Hold right mouse to orbit (mouse captured while held), wheel
+  zooms, middle click returns to the resting framing; the rig is polar internally, with
+  Height/Astern read once on ready as the rest pose, and the swing is held relative to
+  the boat's heading so it does not drift back. `DebugWindHud` and `WindCompass` are in the scene too, so wind
+  control matches ocean.tscn (Up/Down speed, Left/Right veer, T fast-forward, 0 reset)
+  and the compass shows the wind bearing. New `scripts/debug/DebugNoon.cs` pins the sun
+  at midday: it forces `DayCycle` time every frame rather than pausing once, because
+  DebugWindHud rewrites the day's time scale every frame for its Y key — forcing the time
+  outranks that without the two having to coordinate. Its `TimeOfDay` runs
+  sunrise-to-sunset, so 0.5 is noon at any day length. Run with F6 — `project.godot` main
+  scene is unchanged. Unverified: rudder sign (A should turn left; derived on paper, not
+  measured), and whether the 37 t hull under 28 m² of sail feels too sluggish.
+
+- 2026-08-17 (evening, autonomous run): **Phases 2–6 implemented, built, and
+  headless-verified.** Details:
+  - *Phase 2 — set envelope.* `Ocean.Breathe()` re-solves amplitudes every frame with the
+    swell height scaled by a sum of three incommensurable oscillators (91/212/337 s).
+    Modelled over an hour: swell breathes 0.56×–1.43×, above 1.35× only 2.8% of the time —
+    big sets are events, not the norm. `SwellSetDepth` (0.45) on OceanSettings; `set` shown
+    on the wind HUD. Because amplitudes re-solve per frame, band-height edits are live
+    again; only skeleton edits need `RebuildNow`. Retuned toward swell-dominant:
+    swell 3.0 m / medium 2.5 m in `ocean_settings.tres` (now assigned in both scenes).
+  - *Phase 3 — Buoyancy component + gizmos + floating cargo.* `scripts/boat/Buoyancy.cs`
+    floats any RigidBody3D via Marker3D pontoons (leaves gravity to the body, so it
+    composes with DeckCargo). Both crates float now (4 bottom-corner pontoons each);
+    measured with `float_probe.tscn` + `FloatProbe.cs`: small crate rides at the
+    waterline, large ~0.6 m deep, both stable and wave-rocked. `BuoyancyGizmos.cs` draws
+    every pontoon in the scene (BoatHull probes included, via new GetProbe telemetry)
+    as wireframe spheres colored by submersion with yellow force lines plus a HUD body
+    list — toggle B, on by default in debug.tscn, off in ocean.tscn.
+  - *Phase 4 — SailingRig extraction.* Foil loop, Polar, HeelTorque, rudder authority,
+    steer telemetry moved to `scripts/boat/SailingRig.cs`; hull auto-creates the child at
+    runtime (never in editor). Tuning exports stayed on BoatHull so scenes keep values;
+    moving them is future cosmetics. Verified: run-to-run traces agree to printed
+    precision (wall-clock wave time prevents byte-exact diffs), and post-refactor speed
+    and polar columns match baseline exactly.
+  - *Phases 5+6 — splashes and foam.* Probe dry→wet transitions with entry speed
+    > 1.5 m/s call `SplashEmitter.Request` (both BoatHull and Buoyancy report).
+    `scripts/vfx/SplashEmitter.cs`: pooled one-shot GPU particle bursts, billboard
+    droplets, sized by impact; `Trace` export prints events (on in debug.tscn — crate
+    drops printed 7–8 m/s entries, then softer re-bounces). Each splash stamps
+    `scripts/vfx/FoamCapture.cs`: a 2048² world-fixed SubViewport canvas (~6 m/texel,
+    whole 12 km — fixed mapping is what lets the target persist without copy-on-recentre),
+    faded by a translucent black wash on a frame-rate-independent clock (FoamLife 9 s),
+    sampled by ocean.gdshader into the existing fold/foam compositing
+    (`foam_capture*` uniforms, pushed by OceanSurface). Both scenes have both nodes.
+  - *Deviations from the plan, deliberate:* splash droplets use a built-in
+    ParticleProcessMaterial and do NOT yet die against the analytic wave surface (fine
+    from the eagle camera; upgrade path unchanged). Bow spray not yet added. Foam is
+    world-fixed with no wind drift. BoatWake still separate from the capture texture.
+    All good candidates for the next session, ideally with eyes on the screen.
+  - Everything builds clean and both scenes boot headless without errors. Not yet seen
+    with human eyes: splash/foam look, gizmo look, set-envelope feel.
+
 ## Phase order and why
 
 1. Three-band ocean (small, self-contained, unlocks everything else)

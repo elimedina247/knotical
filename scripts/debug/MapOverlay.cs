@@ -218,6 +218,17 @@ public partial class MapOverlay : CanvasLayer
             _material.SetShaderParameter("sea_falloffs", _packedSeaFalloffs);
             _material.SetShaderParameter("sea_source_count", ocean.SeaSourceCount);
             _material.SetShaderParameter("sea_scale_max", ocean.Settings.MaxSeaScale);
+
+            Knotical.Ocean.SeaDepthField depth = ocean.DepthField;
+            bool baked = depth != null && depth.Baked;
+
+            _material.SetShaderParameter("sea_depth_enabled", baked ? 1f : 0f);
+
+            if (baked)
+            {
+                _material.SetShaderParameter("sea_depth_map", depth.Texture);
+                _material.SetShaderParameter("sea_depth_extent", depth.HalfExtent);
+            }
             _material.SetShaderParameter("wave_time", (float)ocean.Time);
             _material.SetShaderParameter("significant_height", ocean.SignificantHeight);
         }

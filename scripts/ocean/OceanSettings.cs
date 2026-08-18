@@ -36,6 +36,9 @@ public partial class OceanSettings : Resource
     [Export(PropertyHint.Range, "0.01,0.07,0.001")]
     public float SwellMaxSteepnessRatio { get; set; } = 0.04f;
 
+    [Export(PropertyHint.Range, "0,1,0.01")]
+    public float SwellSetDepth { get; set; } = 0.45f;
+
     [Export(PropertyHint.Range, "0,8,1")]
     public int MediumCount { get; set; } = 6;
 
@@ -99,12 +102,6 @@ public partial class OceanSettings : Resource
     [Export(PropertyHint.Range, "0,1,0.01")]
     public float MediumPhysicsWeight { get; set; } = 0.35f;
 
-    [Export(PropertyHint.Range, "0,1,0.01")]
-    public float ShallowCalm { get; set; } = 0.15f;
-
-    [Export(PropertyHint.Range, "0.5,8,0.1")]
-    public float ShallowReach { get; set; } = 2.5f;
-
     [Export(PropertyHint.Range, "1,4,0.05")]
     public float MaxSeaScale { get; set; } = 2f;
 
@@ -154,7 +151,7 @@ public partial class OceanSettings : Resource
         }
     }
 
-    public float SolveAmplitudes(Vector4[] waves)
+    public float SolveAmplitudes(Vector4[] waves, float swellScale = 1f)
     {
         Span<float> weights = stackalloc float[MaxWaves];
 
@@ -162,7 +159,7 @@ public partial class OceanSettings : Resource
         int medium = Mathf.Min(ClampedMediumCount, waves.Length - swell);
         int chop = Mathf.Min(ClampedChopCount, waves.Length - swell - medium);
 
-        float kaSum = SolveBand(waves, weights, 0, swell, SwellPeakWavelength, SwellDirectionDeg, SwellHeight, SwellMaxSteepnessRatio);
+        float kaSum = SolveBand(waves, weights, 0, swell, SwellPeakWavelength, SwellDirectionDeg, SwellHeight * swellScale, SwellMaxSteepnessRatio);
         kaSum += SolveBand(waves, weights, swell, medium, MediumPeakWavelength, MediumDirectionDeg, MediumHeight, MediumMaxSteepnessRatio);
         kaSum += SolveChop(waves, weights, swell + medium, chop);
 

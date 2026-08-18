@@ -37,6 +37,13 @@ public partial class OceanSurface : Node3D
 
 	[Export] public Knotical.Style.GamePalette Palette { get; set; }
 
+	/// <summary>
+	/// Re-applies <see cref="Settings"/> while the game is running. Band heights re-solve
+	/// every frame, but the skeleton — counts, wavelengths, directions — only rebuilds
+	/// through here.
+	/// </summary>
+	[Export] public bool RebuildNow { get => false; set { if (value) Ocean.Instance?.SetSettings(Settings); } }
+
 	private readonly System.Collections.Generic.List<MeshInstance3D> _levels = new();
 	private ShaderMaterial _material;
 	private Camera3D _camera;
@@ -116,7 +123,7 @@ public partial class OceanSurface : Node3D
 			float x = Mathf.Floor(eye.X / cell) * cell;
 			float z = Mathf.Floor(eye.Z / cell) * cell;
 
-			_levels[i].GlobalPosition = new Vector3(x, -0.05f * i, z);
+			_levels[i].GlobalPosition = new Vector3(x, Ocean.SeaLevel - 0.05f * i, z);
 		}
 
 		_material.SetShaderParameter("wave_time", (float)(Ocean.Instance?.Time ?? 0.0));
@@ -149,6 +156,25 @@ public partial class OceanSurface : Node3D
 		_material.SetShaderParameter("sea_falloffs", _packedSeaFalloffs);
 		_material.SetShaderParameter("sea_source_count", ocean.SeaSourceCount);
 		_material.SetShaderParameter("sea_scale_max", ocean.Settings.MaxSeaScale);
+
+		SeaDepthField depth = ocean.DepthField;
+		bool baked = depth != null && depth.Baked;
+
+		_material.SetShaderParameter("sea_depth_enabled", baked ? 1f : 0f);
+
+		if (baked)
+		{
+			_material.SetShaderParameter("sea_depth_map", depth.Texture);
+			_material.SetShaderParameter("sea_depth_extent", depth.HalfExtent);
+		}
+
+		Knotical.Vfx.FoamCapture foam = Knotical.Vfx.FoamCapture.Instance;
+		if (foam?.Texture != null)
+		{
+			_material.SetShaderParameter("foam_capture", foam.Texture);
+			_material.SetShaderParameter("foam_capture_extent", foam.HalfExtent);
+			_material.SetShaderParameter("foam_capture_strength", foam.Strength);
+		}
 	}
 
 	private void PushHullMasks()

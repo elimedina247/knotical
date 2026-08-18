@@ -1,0 +1,100 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://c66i6vb2kbnlb" path="res://scripts/boat/BoatHull.cs" id="1_hull"]
+[ext_resource type="Script" path="res://scripts/boat/ClinkerHull.cs" id="2_skin"]
+[ext_resource type="Script" uid="uid://bcp5isn50n0ay" path="res://scripts/boat/Rudder.cs" id="3_rudder"]
+[ext_resource type="Script" path="res://scripts/debug/DebugPilot.cs" id="4_pilot"]
+[ext_resource type="Script" uid="uid://1uye686m6ey0" path="res://scripts/boat/Spar.cs" id="5_spar"]
+[ext_resource type="Script" uid="uid://dkcoyofow57ln" path="res://scripts/boat/Sail.cs" id="6_sail"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_planks"]
+albedo_color = Color(0.478, 0.353, 0.235, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_deck"]
+albedo_color = Color(0.647, 0.545, 0.408, 1)
+roughness = 0.8
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_spar"]
+albedo_color = Color(0.396, 0.29, 0.196, 1)
+roughness = 0.9
+
+[node name="BoatDebug" type="RigidBody3D"]
+script = ExtResource("1_hull")
+HullLength = 14.0
+Beam = 4.5
+Draft = 1.3
+Freeboard = 1.1
+BowSheerRise = 0.55
+SternSheerRise = 0.45
+Rocker = 0.35
+TransomWidth = 0.62
+DeckHeight = 1.2
+BulwarkThickness = 0.15
+CenterOfMassHeight = -0.35
+CenterOfMassLength = 0.0
+ProbeStations = 5
+RollDamping = 0.6
+PitchDamping = 0.65
+YawDamping = 0.9
+KeelLever = 1.2
+HeelLever = 3.0
+MaxHeelDegrees = 18.0
+RudderAuthority = 3.0
+
+[node name="Skin" type="MeshInstance3D" parent="."]
+script = ExtResource("2_skin")
+Length = 14.0
+Beam = 4.5
+Draft = 1.3
+Freeboard = 1.1
+DeckHeight = 1.2
+BowSheerRise = 0.55
+SternSheerRise = 0.45
+Rocker = 0.35
+TransomWidth = 0.62
+Thickness = 0.1
+StrakeProud = 0.06
+StrakeCount = 12
+Stations = 40
+HullMaterial = SubResource("StandardMaterial3D_planks")
+DeckMaterial = SubResource("StandardMaterial3D_deck")
+
+[node name="Mast" type="MeshInstance3D" parent="."]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, 5.6, -1)
+material_override = SubResource("StandardMaterial3D_spar")
+script = ExtResource("5_spar")
+HalfLength = 4.6
+EndRadius = 0.09
+MidRadius = 0.16
+
+[node name="Yard" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 9.6, -1)
+material_override = SubResource("StandardMaterial3D_spar")
+script = ExtResource("5_spar")
+HalfLength = 3.0
+EndRadius = 0.07
+MidRadius = 0.12
+
+[node name="Sail" type="MeshInstance3D" parent="Yard"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, -0.18, 0)
+script = ExtResource("6_sail")
+HeadWidth = 5.4
+FootWidth = 5.8
+Drop = 5.0
+PanelsAcross = 16
+PanelsDown = 14
+Seams = 7
+
+[node name="Rudder" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 6.8)
+script = ExtResource("3_rudder")
+Span = 1.6
+HeadChord = 0.9
+FootChord = 1.1
+Thickness = 0.12
+Rake = 0.15
+MaxAngleDegrees = 30.0
+
+[node name="Pilot" type="Node" parent="."]
+script = ExtResource("4_pilot")

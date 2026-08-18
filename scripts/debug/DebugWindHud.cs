@@ -134,7 +134,7 @@ public partial class DebugWindHud : CanvasLayer
             $"Force {wind.BeaufortForce} — {wind.BeaufortName}\n" +
             $"       {headingDeg,5:0}°  {Compass(headingDeg)}\n" +
             $"\n" +
-            $"SEA    H  {ocean.SignificantHeight,5:0.00} m   local scale {localScale,4:0.00}\n" +
+            $"SEA    H  {ocean.SignificantHeight,5:0.00} m   local scale {localScale,4:0.00}   set {ocean.SetEnvelope,4:0.00}\n" +
             $"       peak {ocean.PeakWavelength,5:0} m   steepness sum {ocean.SteepnessNormaliser,5:0.00}\n" +
             $"\n" +
             clock +

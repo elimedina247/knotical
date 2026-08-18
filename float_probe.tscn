@@ -1,0 +1,16 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://cargo_crate.tscn" id="1_crate"]
+[ext_resource type="PackedScene" path="res://cargo_crate_large.tscn" id="2_large"]
+[ext_resource type="Script" path="res://scripts/debug/FloatProbe.cs" id="3_probe"]
+
+[node name="FloatTest" type="Node3D"]
+
+[node name="CargoCrate" parent="." instance=ExtResource("1_crate")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 36, 0)
+
+[node name="CargoCrateLarge" parent="." instance=ExtResource("2_large")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 36, 0)
+
+[node name="FloatProbe" type="Node" parent="."]
+script = ExtResource("3_probe")

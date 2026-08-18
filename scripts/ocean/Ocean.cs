@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Godot;
 
 namespace Knotical.Ocean;
@@ -19,6 +18,13 @@ public partial class Ocean : Node
 {
 	/// <summary>Half-extent of the playable world in metres. Coordinates run -6000..+6000.</summary>
 	public const float WorldHalfExtent = 6000f;
+
+	/// <summary>
+	/// World Y of still water. Non-zero so terrain heightmaps, which start at zero and
+	/// cannot be moved off the origin, read as the deep sea floor: sculpting up from 0
+	/// climbs toward the surface, and land is anything above this.
+	/// </summary>
+	public const float SeaLevel = 30f;
 
 	/// <summary>Array size for the sea-scale field uniforms. Must match ocean.gdshader.</summary>
 	public const int MaxSeaSources = 16;
@@ -54,8 +60,7 @@ public partial class Ocean : Node
 
 	private readonly Vector4[] _seaSources = new Vector4[MaxSeaSources];
 	private readonly float[] _seaFalloffs = new float[MaxSeaSources];
-	private readonly List<(Vector2 Pos, float Radius)> _islands = new();
-	private bool _islandsGathered;
+	private SeaDepthField _depth;
 
 	/// <summary>xy = direction, z = amplitude, w = wavelength. Read by OceanSurface.</summary>
 	/// <remarks>
@@ -80,6 +85,21 @@ public partial class Ocean : Node
 
 	public int SeaSourceCount { get; private set; }
 
+	/// <summary>Seabed-derived calm field, or null when no terrain is baked.</summary>
+	public SeaDepthField DepthField => _depth;
+
+	/// <summary>
+	/// Live swell multiplier from the set envelope, roughly 1±SwellSetDepth. Slow
+	/// incommensurable oscillators, so bigger sets arrive occasionally and never on a
+	/// visible cycle. Pure function of <see cref="Time"/>, like everything else here.
+	/// </summary>
+	public float SetEnvelope { get; private set; } = 1f;
+
+	private static readonly float[] SetPeriods = { 91f, 212f, 337f };
+	private static readonly float[] SetWeights = { 1f, 0.6f, 0.35f };
+
+	private const double PlasticConjugate = 0.7548776662466927;
+
 	public override void _EnterTree()
 	{
 		Instance = this;
@@ -95,10 +115,28 @@ public partial class Ocean : Node
 	public override void _Process(double delta)
 	{
 		Time += delta;
-
-		if (!_islandsGathered) GatherIslands();
 		RefreshSeaSources();
+		Breathe();
 	}
+
+	private void Breathe()
+	{
+		float t = (float)Time;
+		float sum = 0f;
+		float total = 0f;
+
+		for (int i = 0; i < SetPeriods.Length; i++)
+		{
+			float phase = (float)(Mathf.Tau * Frac((i + 1) * PlasticConjugate));
+			sum += SetWeights[i] * Mathf.Sin(Mathf.Tau * t / SetPeriods[i] + phase);
+			total += SetWeights[i];
+		}
+
+		SetEnvelope = Mathf.Max(0.1f, 1f + Settings.SwellSetDepth * sum / total);
+		SteepnessNormaliser = Settings.SolveAmplitudes(_waves, SetEnvelope);
+	}
+
+	private static double Frac(double v) => v - System.Math.Floor(v);
 
 	/// <summary>Rebuilds the wave skeleton and amplitudes after editing <see cref="Settings"/>.</summary>
 	public void Rebuild()
@@ -133,45 +171,11 @@ public partial class Ocean : Node
 	/// <summary>Overrides wave time. Used by clients to adopt the host's clock.</summary>
 	public void SetTime(double time) => Time = time;
 
-	public void RefreshIslands()
-	{
-		_islandsGathered = false;
-	}
-
-	private void GatherIslands()
-	{
-		Node scene = GetTree()?.CurrentScene;
-		if (scene == null) return;
-
-		_islandsGathered = true;
-		_islands.Clear();
-		CollectIslands(scene);
-	}
-
-	private void CollectIslands(Node node)
-	{
-		if (node is MeshInstance3D mesh && node.Name.ToString().Contains("Island")
-			&& mesh.Mesh is CylinderMesh cylinder)
-		{
-			Vector3 pos = mesh.GlobalPosition;
-			_islands.Add((new Vector2(pos.X, pos.Z), cylinder.TopRadius));
-		}
-
-		foreach (Node child in node.GetChildren()) CollectIslands(child);
-	}
+	public void SetDepthField(SeaDepthField field) => _depth = field;
 
 	private void RefreshSeaSources()
 	{
 		int count = 0;
-
-		foreach ((Vector2 pos, float radius) in _islands)
-		{
-			if (count >= MaxSeaSources) break;
-
-			_seaSources[count] = new Vector4(pos.X, pos.Y, radius * 1.1f, Settings.ShallowCalm);
-			_seaFalloffs[count] = radius * Settings.ShallowReach;
-			count++;
-		}
 
 		foreach (SeaZone zone in SeaZone.Active)
 		{
@@ -188,13 +192,14 @@ public partial class Ocean : Node
 	}
 
 	/// <summary>
-	/// Local sea-state multiplier at a world XZ position. 1 in open water, pulled toward
-	/// each source's intensity inside its influence: near 0 over island shallows, above 1
-	/// inside rough zones. Mirrored by sea_scale() in ocean.gdshader.
+	/// Local sea-state multiplier at a world XZ position. The seabed sets the baseline —
+	/// 1 in open water, falling toward calm over shallows — and SeaZone nodes override it
+	/// locally, above 1 for deliberately rough water. Mirrored by sea_scale() in
+	/// ocean.gdshader and map_overlay.gdshader.
 	/// </summary>
 	public float SeaScale(Vector2 worldXZ)
 	{
-		float s = 1f;
+		float s = _depth != null ? _depth.Sample(worldXZ) : 1f;
 
 		for (int i = 0; i < SeaSourceCount; i++)
 		{
@@ -231,7 +236,7 @@ public partial class Ocean : Node
 			y += w.Z * _physicsWeights[i] * Mathf.Sin(k * dir.Dot(worldXZ) - omega * t + _phases[i]);
 		}
 
-		return y * SeaScale(worldXZ);
+		return SeaLevel + y * SeaScale(worldXZ);
 	}
 
 	public float GetHeight(Vector3 worldPos) => GetHeight(new Vector2(worldPos.X, worldPos.Z));
@@ -255,7 +260,7 @@ public partial class Ocean : Node
 			y += w.Z * Mathf.Sin(k * dir.Dot(worldXZ) - omega * t + _phases[i]);
 		}
 
-		return y * SeaScale(worldXZ);
+		return SeaLevel + y * SeaScale(worldXZ);
 	}
 
 	public float GetRenderedHeight(Vector3 worldPos) => GetRenderedHeight(new Vector2(worldPos.X, worldPos.Z));
@@ -368,7 +373,7 @@ public partial class Ocean : Node
 			float k = Mathf.Tau / w.W;
 			float omega = Mathf.Sqrt(Gravity * k);
 			float phase = k * dir.Dot(flat) - omega * t + _phases[i];
-			float amplitude = w.Z * _physicsWeights[i] * omega * Mathf.Exp(k * Mathf.Min(worldPos.Y, 0f));
+			float amplitude = w.Z * _physicsWeights[i] * omega * Mathf.Exp(k * Mathf.Min(worldPos.Y - SeaLevel, 0f));
 			float swing = Mathf.Sin(phase);
 
 			flow.X += dir.X * amplitude * swing;

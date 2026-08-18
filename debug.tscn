@@ -1,0 +1,118 @@
+[gd_scene format=3 uid="uid://cx6vlwtdgkpxm"]
+
+[ext_resource type="Script" uid="uid://dvl3k7wgixvcx" path="res://scripts/ocean/OceanSurface.cs" id="1_surface"]
+[ext_resource type="PackedScene" uid="uid://xx8i2fj8gtmd" path="res://map.tscn" id="2_map"]
+[ext_resource type="Script" uid="uid://lxy0aorokf63" path="res://scripts/ocean/SeaDepthField.cs" id="3_seadepth"]
+[ext_resource type="Script" uid="uid://lkd4cyvlw54e" path="res://scripts/sky/SkyController.cs" id="4_skyctl"]
+[ext_resource type="Shader" uid="uid://cwls1kmf1fiyw" path="res://shaders/sky.gdshader" id="5_skyshader"]
+[ext_resource type="PackedScene" path="res://boat_debug.tscn" id="6_boat"]
+[ext_resource type="Script" uid="uid://c3dq4aen6k1cf" path="res://scripts/debug/EagleCamera.cs" id="7_eagle"]
+[ext_resource type="Script" uid="uid://cyemm0pt8ya88" path="res://scripts/debug/DebugWindHud.cs" id="8_windhud"]
+[ext_resource type="Script" uid="uid://d1m8n7tkenvog" path="res://scripts/ui/WindCompass.cs" id="9_compass"]
+[ext_resource type="Script" path="res://scripts/debug/DebugNoon.cs" id="10_noon"]
+[ext_resource type="Resource" path="res://ocean_settings.tres" id="11_seasettings"]
+[ext_resource type="Script" path="res://scripts/debug/BuoyancyGizmos.cs" id="12_gizmos"]
+[ext_resource type="PackedScene" path="res://cargo_crate.tscn" id="13_crate"]
+[ext_resource type="PackedScene" path="res://cargo_crate_large.tscn" id="14_crately"]
+[ext_resource type="Script" path="res://scripts/vfx/SplashEmitter.cs" id="15_splash"]
+[ext_resource type="Script" path="res://scripts/vfx/FoamCapture.cs" id="16_foam"]
+
+[sub_resource type="ShaderMaterial" id="SkyShaderMaterial_1"]
+shader = ExtResource("5_skyshader")
+shader_parameter/sun_direction = Vector3(1, 0, 0)
+shader_parameter/moon_direction = Vector3(-1, 0, 0)
+shader_parameter/cloud_offset = Vector2(0, 0)
+shader_parameter/day_zenith = Color(0.25, 0.52, 0.82, 1)
+shader_parameter/day_horizon = Color(0.74, 0.89, 0.95, 1)
+shader_parameter/dusk_zenith = Color(0.23, 0.18, 0.42, 1)
+shader_parameter/dusk_horizon = Color(0.98, 0.55, 0.28, 1)
+shader_parameter/night_zenith = Color(0.004, 0.007, 0.018, 1)
+shader_parameter/night_horizon = Color(0.012, 0.02, 0.04, 1)
+shader_parameter/sun_disc_color = Color(1, 0.93, 0.72, 1)
+shader_parameter/moon_disc_color = Color(0.82, 0.87, 0.95, 1)
+shader_parameter/sun_size = 0.045
+shader_parameter/moon_size = 0.035
+shader_parameter/cloud_coverage = 0.42
+shader_parameter/cloud_scale = 1.4
+
+[sub_resource type="Sky" id="Sky_1"]
+sky_material = SubResource("SkyShaderMaterial_1")
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 2
+sky = SubResource("Sky_1")
+ambient_light_source = 3
+reflected_light_source = 2
+tonemap_mode = 2
+tonemap_white = 3.0
+
+[node name="Debug" type="Node3D" unique_id=559908110]
+
+[node name="OceanSurface" type="Node3D" parent="." unique_id=1098856226]
+script = ExtResource("1_surface")
+Settings = ExtResource("11_seasettings")
+
+[node name="Map" parent="." unique_id=509689687 instance=ExtResource("2_map")]
+
+[node name="SeaDepthField" type="Node" parent="." unique_id=806568349]
+script = ExtResource("3_seadepth")
+
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=745021398]
+transform = Transform3D(1, 0, 0, 0, 0.642788, -0.766044, 0, 0.766044, 0.642788, 0, 60, 0)
+light_energy = 1.2
+shadow_enabled = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=196943699]
+environment = SubResource("Environment_1")
+
+[node name="DebugNoon" type="Node" parent="." unique_id=700000003]
+script = ExtResource("10_noon")
+TimeOfDay = 0.5
+
+[node name="SkyController" type="Node" parent="." unique_id=1135905624]
+script = ExtResource("4_skyctl")
+
+[node name="DebugWindHud" type="CanvasLayer" parent="." unique_id=700000001]
+script = ExtResource("8_windhud")
+
+[node name="WindCompass" type="CanvasLayer" parent="." unique_id=700000002]
+script = ExtResource("9_compass")
+
+[node name="BoatDebug" parent="." unique_id=1626161633 instance=ExtResource("6_boat")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 121, 31, 0)
+mass = 37110.37
+gravity_scale = 0.0
+center_of_mass_mode = 1
+center_of_mass = Vector3(0, -0.35, 0)
+can_sleep = false
+linear_damp_mode = 1
+angular_damp_mode = 1
+SheerPower = 2.4
+RockerPower = 2.6
+BowSharpness = 2.2
+SternSharpness = 3.0
+TransomRake = 0.6
+StemPower = 3.0
+BilgeFullness = 0.42
+
+[node name="SplashEmitter" type="Node3D" parent="." unique_id=700000007]
+script = ExtResource("15_splash")
+Trace = true
+
+[node name="FoamCapture" type="Node" parent="." unique_id=700000008]
+script = ExtResource("16_foam")
+
+[node name="BuoyancyGizmos" type="Node3D" parent="." unique_id=700000004]
+script = ExtResource("12_gizmos")
+StartVisible = true
+
+[node name="CargoCrate" parent="." unique_id=700000005 instance=ExtResource("13_crate")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 112, 33, 8)
+
+[node name="CargoCrateLarge" parent="." unique_id=700000006 instance=ExtResource("14_crately")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 100, 33, -12)
+
+[node name="EagleCamera" type="Camera3D" parent="." unique_id=190562316]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 86, 22)
+far = 12000.0
+script = ExtResource("7_eagle")

@@ -18,6 +18,10 @@ uniform float sea_falloffs[16];
 uniform int sea_source_count = 0;
 uniform float sea_scale_max = 2.0;
 
+uniform sampler2D sea_depth_map : filter_linear, repeat_disable, hint_default_white;
+uniform float sea_depth_extent = 6000.0;
+uniform float sea_depth_enabled = 0.0;
+
 uniform vec2 wind_dir = vec2(1.0, 0.0);
 uniform float wind_speed = 0.0;
 uniform vec2 wind_drift = vec2(0.0);
@@ -56,6 +60,10 @@ float fbm(vec2 p) {
 
 float sea_scale(vec2 p) {
     float s = 1.0;
+    if (sea_depth_enabled > 0.5) {
+        vec2 uv = clamp(p / (sea_depth_extent * 2.0) + 0.5, vec2(0.0), vec2(1.0));
+        s = texture(sea_depth_map, uv).r;
+    }
     for (int i = 0; i < sea_source_count; i++) {
         vec4 src = sea_sources[i];
         float w = 1.0 - smoothstep(src.z, src.z + max(sea_falloffs[i], 0.01), distance(p, src.xy));

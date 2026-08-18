@@ -30,6 +30,10 @@ uniform float sea_falloffs[16];
 uniform int sea_source_count = 0;
 uniform float sea_scale_max = 2.0;
 
+uniform sampler2D sea_depth_map : filter_linear, repeat_disable, hint_default_white;
+uniform float sea_depth_extent = 6000.0;
+uniform float sea_depth_enabled = 0.0;
+
 instance uniform float inner_extent = 0.0;
 
 uniform float camera_submerged = 0.0;
@@ -79,6 +83,10 @@ uniform vec4 hull_masks_a[4];
 uniform vec4 hull_masks_b[4];
 uniform int hull_mask_count = 0;
 
+uniform sampler2D foam_capture : filter_linear, repeat_disable, hint_default_black;
+uniform float foam_capture_extent = 6000.0;
+uniform float foam_capture_strength = 0.55;
+
 uniform float fresnel_power : hint_range(0.5, 8.0) = 4.0;
 uniform float fresnel_max : hint_range(0.0, 1.0) = 0.38;
 
@@ -123,6 +131,10 @@ float fbm(vec2 p) {
 
 float sea_scale(vec2 p) {
     float s = 1.0;
+    if (sea_depth_enabled > 0.5) {
+        vec2 uv = clamp(p / (sea_depth_extent * 2.0) + 0.5, vec2(0.0), vec2(1.0));
+        s = texture(sea_depth_map, uv).r;
+    }
     for (int i = 0; i < sea_source_count; i++) {
         vec4 src = sea_sources[i];
         float w = 1.0 - smoothstep(src.z, src.z + max(sea_falloffs[i], 0.01), distance(p, src.xy));
@@ -328,6 +340,9 @@ void fragment() {
 
     fold = max(fold, wake * wake_strength);
     fold = max(fold, v_hull_ring * 0.85);
+
+    vec2 cap_uv = clamp(v_world_pos.xz / (foam_capture_extent * 2.0) + 0.5, vec2(0.0), vec2(1.0));
+    fold = max(fold, texture(foam_capture, cap_uv).r * foam_capture_strength);
 
     float radius_scale = mix(mix(1.35, 0.65, surface_foam_amount), 0.25, fold);
     float lace = foam_layer(fp + drift + foam_swirl(fp, wave_time), radius_scale, foam_edge);
