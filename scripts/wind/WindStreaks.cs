@@ -175,7 +175,7 @@ public partial class WindStreaks : MultiMeshInstance3D
 
 			if (ocean != null)
 			{
-				float sea = ocean.GetHeight(new Vector2(_positions[i].X, _positions[i].Z));
+				float sea = ocean.GetRenderedHeight(new Vector2(_positions[i].X, _positions[i].Z));
 				_positions[i].Y = Mathf.Max(_positions[i].Y, sea + MinAboveWater);
 			}
 

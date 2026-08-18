@@ -48,6 +48,16 @@ public partial class OceanSurface : Node3D
 	private readonly Godot.Collections.Array _packedWaves = new();
 	private readonly Godot.Collections.Array _packedPhases = new();
 
+	private const int MaxWakeBows = 4;
+	private const int MaxHullMasks = 4;
+
+	private readonly Godot.Collections.Array _packedWakePoints = new();
+	private readonly Godot.Collections.Array _packedWakeBows = new();
+	private readonly Godot.Collections.Array _packedMaskFrames = new();
+	private readonly Godot.Collections.Array _packedMaskExtents = new();
+	private readonly Godot.Collections.Array _packedSeaSources = new();
+	private readonly Godot.Collections.Array _packedSeaFalloffs = new();
+
 	public override void _Ready()
 	{
 		Ocean.Instance?.SetSettings(Settings);
@@ -62,6 +72,12 @@ public partial class OceanSurface : Node3D
 		// unused tail zeroed rather than a short array.
 		_packedWaves.Resize(OceanSettings.MaxWaves);
 		_packedPhases.Resize(OceanSettings.MaxWaves);
+		_packedWakePoints.Resize(Knotical.Boat.BoatWake.MaxTrailPoints);
+		_packedWakeBows.Resize(MaxWakeBows);
+		_packedMaskFrames.Resize(MaxHullMasks);
+		_packedMaskExtents.Resize(MaxHullMasks);
+		_packedSeaSources.Resize(Ocean.MaxSeaSources);
+		_packedSeaFalloffs.Resize(Ocean.MaxSeaSources);
 
 		for (int i = 0; i < LevelExtents.Length; i++)
 		{
@@ -83,10 +99,9 @@ public partial class OceanSurface : Node3D
 
 	public override void _Process(double delta)
 	{
-		// Amplitudes are re-solved from the wind every frame, so this is no longer a
-		// one-shot. Ocean is an autoload and so normally ready first, but PushWaveUniforms
-		// retries the skeleton rather than silently rendering a flat plane if scene order
-		// ever changes.
+		// Ocean is an autoload and so normally ready first, but PushWaveUniforms retries
+		// the skeleton rather than silently rendering a flat plane if scene order ever
+		// changes.
 		PushWaveUniforms();
 
 		_camera ??= GetViewport().GetCamera3D();
@@ -107,12 +122,105 @@ public partial class OceanSurface : Node3D
 		_material.SetShaderParameter("wave_time", (float)(Ocean.Instance?.Time ?? 0.0));
 
 		float submerged = 0f;
-		if (Ocean.Instance != null && eye.Y < Ocean.Instance.GetHeight(new Vector2(eye.X, eye.Z)))
+		if (Ocean.Instance != null && eye.Y < Ocean.Instance.GetRenderedHeight(new Vector2(eye.X, eye.Z)))
 		{
 			submerged = 1f;
 		}
 
 		_material.SetShaderParameter("camera_submerged", submerged);
+
+		PushWakeUniforms();
+		PushHullMasks();
+		PushSeaSources();
+	}
+
+	private void PushSeaSources()
+	{
+		Ocean ocean = Ocean.Instance;
+		if (ocean == null) return;
+
+		for (int i = 0; i < Ocean.MaxSeaSources; i++)
+		{
+			_packedSeaSources[i] = i < ocean.SeaSourceCount ? ocean.SeaSources[i] : Vector4.Zero;
+			_packedSeaFalloffs[i] = i < ocean.SeaSourceCount ? ocean.SeaFalloffs[i] : 0f;
+		}
+
+		_material.SetShaderParameter("sea_sources", _packedSeaSources);
+		_material.SetShaderParameter("sea_falloffs", _packedSeaFalloffs);
+		_material.SetShaderParameter("sea_source_count", ocean.SeaSourceCount);
+		_material.SetShaderParameter("sea_scale_max", ocean.Settings.MaxSeaScale);
+	}
+
+	private void PushHullMasks()
+	{
+		int count = 0;
+
+		foreach (Knotical.Boat.BoatHull hull in Knotical.Boat.BoatHull.Active)
+		{
+			if (count >= MaxHullMasks) break;
+			if (!IsInstanceValid(hull) || !hull.IsInsideTree()) continue;
+
+			hull.GetSurfaceMask(out Vector4 frame, out Vector4 extents);
+			_packedMaskFrames[count] = frame;
+			_packedMaskExtents[count] = extents;
+			count++;
+		}
+
+		int maskCount = count;
+		for (; count < MaxHullMasks; count++)
+		{
+			_packedMaskFrames[count] = Vector4.Zero;
+			_packedMaskExtents[count] = Vector4.Zero;
+		}
+
+		_material.SetShaderParameter("hull_masks_a", _packedMaskFrames);
+		_material.SetShaderParameter("hull_masks_b", _packedMaskExtents);
+		_material.SetShaderParameter("hull_mask_count", maskCount);
+	}
+
+	private void PushWakeUniforms()
+	{
+		int points = 0;
+		int bows = 0;
+		float width = 12f;
+		float hullLength = 30f;
+		float life = 22f;
+		float spread = 0.5f;
+		float strength = 0.9f;
+
+		foreach (Knotical.Boat.BoatWake wake in Knotical.Boat.BoatWake.Active)
+		{
+			if (bows >= MaxWakeBows) break;
+
+			_packedWakeBows[bows++] = wake.Bow;
+			width = wake.TrailWidth;
+			hullLength = wake.HullLength;
+			life = wake.TrailLife;
+			spread = wake.SpreadRate;
+			strength = wake.Strength;
+
+			System.Collections.Generic.IReadOnlyList<Vector4> trail = wake.TrailPoints;
+			for (int i = trail.Count - 1; i >= 0 && points < Knotical.Boat.BoatWake.MaxTrailPoints; i--)
+			{
+				_packedWakePoints[points++] = trail[i];
+			}
+		}
+
+		int pointCount = points;
+		for (; points < Knotical.Boat.BoatWake.MaxTrailPoints; points++) _packedWakePoints[points] = Vector4.Zero;
+
+		int bowCount = bows;
+		for (; bows < MaxWakeBows; bows++) _packedWakeBows[bows] = Vector4.Zero;
+
+		_material.SetShaderParameter("wake_points", _packedWakePoints);
+		_material.SetShaderParameter("wake_point_count", pointCount);
+		_material.SetShaderParameter("wake_bows", _packedWakeBows);
+		_material.SetShaderParameter("wake_bow_count", bowCount);
+		_material.SetShaderParameter("wake_width", width);
+		_material.SetShaderParameter("wake_hull_length", hullLength);
+		_material.SetShaderParameter("wake_life", life);
+		_material.SetShaderParameter("wake_spread", spread);
+		_material.SetShaderParameter("wake_strength", strength);
 	}
 
 	/// <summary>

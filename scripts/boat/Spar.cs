@@ -11,6 +11,8 @@ public partial class Spar : MeshInstance3D
     private float _endRadius = 0.18f;
     private float _midRadius = 0.42f;
     private int _sides = 8;
+    private CollisionShape3D _shape;
+    private CollisionObject3D _hull;
 
     [Export(PropertyHint.Range, "0.5,40,0.05")]
     public float HalfLength { get => _halfLength; set { _halfLength = value; Rebuild(); } }
@@ -123,41 +125,56 @@ public partial class Spar : MeshInstance3D
         }
     }
 
+    public override void _PhysicsProcess(double delta)
+    {
+        if (Engine.IsEditorHint()) return;
+        Sync();
+    }
+
     private void BuildCollision(params Vector3[][] rings)
     {
-        CollisionObject3D body = FindBody();
-        if (body == null) return;
+        if (Engine.IsEditorHint()) return;
 
         var points = new List<Vector3>();
         foreach (Vector3[] ring in rings) points.AddRange(ring);
 
-        var shape = new CollisionShape3D
-        {
-            Name = $"{Name}Shape",
-            Transform = body.GlobalTransform.AffineInverse() * GlobalTransform,
-            Shape = new ConvexPolygonShape3D { Points = points.ToArray() }
-        };
-
-        Callable.From(() => Attach(body, shape)).CallDeferred();
+        var shape = new ConvexPolygonShape3D { Points = points.ToArray() };
+        Callable.From(() => Attach(shape)).CallDeferred();
     }
 
-    private static void Attach(CollisionObject3D body, CollisionShape3D shape)
+    private void Attach(ConvexPolygonShape3D shape)
     {
-        if (!IsInstanceValid(body))
+        if (!IsInsideTree()) return;
+
+        if (_hull == null || !IsInstanceValid(_hull)) _hull = FindBody();
+        if (_hull == null) return;
+
+        if (_shape == null || !IsInstanceValid(_shape))
         {
-            shape.QueueFree();
-            return;
+            string name = $"{Name}Shape";
+            Node stale = _hull.GetNodeOrNull(name);
+
+            if (stale != null)
+            {
+                _hull.RemoveChild(stale);
+                stale.QueueFree();
+            }
+
+            _shape = new CollisionShape3D { Name = name };
+            _hull.AddChild(_shape);
         }
 
-        Node existing = body.GetNodeOrNull(shape.Name.ToString());
+        _shape.Shape = shape;
+        Sync();
+    }
 
-        if (existing != null)
-        {
-            body.RemoveChild(existing);
-            existing.QueueFree();
-        }
+    private void Sync()
+    {
+        if (_shape == null || !IsInstanceValid(_shape)) return;
+        if (_hull == null || !IsInstanceValid(_hull)) return;
 
-        body.AddChild(shape);
+        Transform3D local = _hull.GlobalTransform.AffineInverse() * GlobalTransform;
+        if (!_shape.Transform.IsEqualApprox(local)) _shape.Transform = local;
     }
 
     private CollisionObject3D FindBody()

@@ -1,23 +1,27 @@
+using System.Collections.Generic;
 using Godot;
-using Knotical.Weather;
 
 namespace Knotical.Ocean;
 
 /// <summary>
 /// The single source of truth for the sea surface.
 ///
-/// The wave field is a pure function of world position, time, and sea state, which is why
-/// it needs almost no networking: sync <see cref="Time"/> and the two sea-state scalars,
-/// and every client renders and simulates an identical ocean. This class owns that
-/// function on the CPU; ocean.gdshader runs the same maths on the GPU. If you change one,
-/// change the other.
+/// The wave field is a pure function of world position, time, and authored settings,
+/// which is why it needs almost no networking: sync <see cref="Time"/> and every client
+/// renders and simulates an identical ocean. Wind never touches the waves — calm and
+/// rough regions are authored, derived from island shallows and <see cref="SeaZone"/>
+/// nodes. This class owns that function on the CPU; ocean.gdshader runs the same maths
+/// on the GPU. If you change one, change the other.
 ///
-/// Register as an autoload named "Ocean", after "Wind".
+/// Register as an autoload named "Ocean".
 /// </summary>
 public partial class Ocean : Node
 {
 	/// <summary>Half-extent of the playable world in metres. Coordinates run -6000..+6000.</summary>
 	public const float WorldHalfExtent = 6000f;
+
+	/// <summary>Array size for the sea-scale field uniforms. Must match ocean.gdshader.</summary>
+	public const int MaxSeaSources = 16;
 
 	private const float Gravity = 9.81f;
 
@@ -31,13 +35,10 @@ public partial class Ocean : Node
 	/// </summary>
 	public double Time { get; private set; }
 
-	/// <summary>
-	/// Current significant wave height in metres. Chases the wind rather than tracking it:
-	/// see <see cref="OceanSettings.DevelopmentLagSeconds"/>.
-	/// </summary>
+	/// <summary>Combined significant wave height in metres, for shading and audio.</summary>
 	public float SignificantHeight { get; private set; }
 
-	/// <summary>Current spectral peak wavelength in metres. Also lagged.</summary>
+	/// <summary>Medium-band peak wavelength in metres, for HUD display.</summary>
 	public float PeakWavelength { get; private set; }
 
 	/// <summary>
@@ -48,22 +49,36 @@ public partial class Ocean : Node
 
 	private Vector4[] _waves = System.Array.Empty<Vector4>();
 	private float[] _phases = System.Array.Empty<float>();
+	private float[] _physicsWeights = System.Array.Empty<float>();
+	private int _physicsCount;
+
+	private readonly Vector4[] _seaSources = new Vector4[MaxSeaSources];
+	private readonly float[] _seaFalloffs = new float[MaxSeaSources];
+	private readonly List<(Vector2 Pos, float Radius)> _islands = new();
+	private bool _islandsGathered;
 
 	/// <summary>xy = direction, z = amplitude, w = wavelength. Read by OceanSurface.</summary>
 	/// <remarks>
-	/// Amplitudes are rewritten every frame from the wind; directions, wavelengths, and
-	/// phases never change after <see cref="Rebuild"/>. Callers may cache the array
-	/// reference but must not cache the values.
-	///
-	/// The shader additionally fades short waves out with distance from the camera, to
-	/// stop the far field aliasing on a coarse mesh. That fade is deliberately not
-	/// mirrored here: it is a rendering concern, it is view-dependent, and everything
+	/// Bands are contiguous: [swell | medium | chop]. Amplitudes are static between
+	/// rebuilds. The shader additionally fades short waves out with distance from the
+	/// camera, to stop the far field aliasing on a coarse mesh. That fade is deliberately
+	/// not mirrored here: it is a rendering concern, it is view-dependent, and everything
 	/// that samples the CPU side is close enough to the camera for it to be inactive.
 	/// </remarks>
 	public Vector4[] Waves => _waves;
 
 	/// <summary>Per-wave phase offset in radians, parallel to <see cref="Waves"/>.</summary>
 	public float[] Phases => _phases;
+
+	public int PhysicsWaveCount => _physicsCount;
+
+	public float[] PhysicsWeights => _physicsWeights;
+
+	public Vector4[] SeaSources => _seaSources;
+
+	public float[] SeaFalloffs => _seaFalloffs;
+
+	public int SeaSourceCount { get; private set; }
 
 	public override void _EnterTree()
 	{
@@ -80,22 +95,28 @@ public partial class Ocean : Node
 	public override void _Process(double delta)
 	{
 		Time += delta;
-		UpdateSeaState((float)delta);
+
+		if (!_islandsGathered) GatherIslands();
+		RefreshSeaSources();
 	}
 
-	/// <summary>
-	/// Rebuilds the wave skeleton after editing <see cref="Settings"/>, and snaps the sea
-	/// state straight to whatever the wind currently justifies rather than growing into it.
-	/// </summary>
+	/// <summary>Rebuilds the wave skeleton and amplitudes after editing <see cref="Settings"/>.</summary>
 	public void Rebuild()
 	{
 		Settings.BuildSkeleton(out _waves, out _phases);
 
-		float windSpeed = Wind.Instance?.Speed ?? 0f;
-		SignificantHeight = Settings.DevelopedHeight(windSpeed);
-		PeakWavelength = Settings.DevelopedPeakWavelength(windSpeed);
+		int swell = Mathf.Min(Settings.ClampedSwellCount, _waves.Length);
+		_physicsCount = Mathf.Min(Settings.PhysicsWaveCount, _waves.Length);
+		_physicsWeights = new float[_physicsCount];
 
-		SolveAmplitudes();
+		for (int i = 0; i < _physicsCount; i++)
+		{
+			_physicsWeights[i] = i < swell ? Settings.SwellPhysicsWeight : Settings.MediumPhysicsWeight;
+		}
+
+		SignificantHeight = Settings.CombinedHeight;
+		PeakWavelength = Settings.MediumPeakWavelength;
+		SteepnessNormaliser = Settings.SolveAmplitudes(_waves);
 	}
 
 	/// <summary>
@@ -112,49 +133,82 @@ public partial class Ocean : Node
 	/// <summary>Overrides wave time. Used by clients to adopt the host's clock.</summary>
 	public void SetTime(double time) => Time = time;
 
+	public void RefreshIslands()
+	{
+		_islandsGathered = false;
+	}
+
+	private void GatherIslands()
+	{
+		Node scene = GetTree()?.CurrentScene;
+		if (scene == null) return;
+
+		_islandsGathered = true;
+		_islands.Clear();
+		CollectIslands(scene);
+	}
+
+	private void CollectIslands(Node node)
+	{
+		if (node is MeshInstance3D mesh && node.Name.ToString().Contains("Island")
+			&& mesh.Mesh is CylinderMesh cylinder)
+		{
+			Vector3 pos = mesh.GlobalPosition;
+			_islands.Add((new Vector2(pos.X, pos.Z), cylinder.TopRadius));
+		}
+
+		foreach (Node child in node.GetChildren()) CollectIslands(child);
+	}
+
+	private void RefreshSeaSources()
+	{
+		int count = 0;
+
+		foreach ((Vector2 pos, float radius) in _islands)
+		{
+			if (count >= MaxSeaSources) break;
+
+			_seaSources[count] = new Vector4(pos.X, pos.Y, radius * 1.1f, Settings.ShallowCalm);
+			_seaFalloffs[count] = radius * Settings.ShallowReach;
+			count++;
+		}
+
+		foreach (SeaZone zone in SeaZone.Active)
+		{
+			if (count >= MaxSeaSources) break;
+			if (!IsInstanceValid(zone) || !zone.IsInsideTree()) continue;
+
+			Vector3 pos = zone.GlobalPosition;
+			_seaSources[count] = new Vector4(pos.X, pos.Z, zone.Radius, zone.Intensity);
+			_seaFalloffs[count] = zone.Falloff;
+			count++;
+		}
+
+		SeaSourceCount = count;
+	}
+
 	/// <summary>
-	/// Overrides the lagged sea state. The lag is deterministic given the same wind
-	/// history, but a client joining mid-session has no history to integrate, so the host
-	/// hands over where the sea has actually got to.
+	/// Local sea-state multiplier at a world XZ position. 1 in open water, pulled toward
+	/// each source's intensity inside its influence: near 0 over island shallows, above 1
+	/// inside rough zones. Mirrored by sea_scale() in ocean.gdshader.
 	/// </summary>
-	public void SetSeaState(float significantHeight, float peakWavelength)
+	public float SeaScale(Vector2 worldXZ)
 	{
-		SignificantHeight = significantHeight;
-		PeakWavelength = peakWavelength;
-		SolveAmplitudes();
+		float s = 1f;
+
+		for (int i = 0; i < SeaSourceCount; i++)
+		{
+			Vector4 src = _seaSources[i];
+			float dist = new Vector2(src.X, src.Y).DistanceTo(worldXZ);
+			float w = 1f - Mathf.SmoothStep(src.Z, src.Z + Mathf.Max(_seaFalloffs[i], 0.01f), dist);
+			s = Mathf.Lerp(s, src.W, w);
+		}
+
+		return Mathf.Clamp(s, 0f, Settings.MaxSeaScale);
 	}
 
 	/// <summary>
-	/// Eases the sea toward what the current wind would eventually build, then re-solves
-	/// amplitudes. The lag is the point: gusts arrive in seconds, water takes far longer,
-	/// so without it every puff visibly inflates the surface.
-	/// </summary>
-	private void UpdateSeaState(float delta)
-	{
-		Wind wind = Wind.Instance;
-		if (wind == null) return;
-
-		float targetHeight = Settings.DevelopedHeight(wind.Speed);
-		float targetPeak = Settings.DevelopedPeakWavelength(wind.Speed);
-
-		// Frame-rate independent exponential approach.
-		float lag = Mathf.Max(Settings.DevelopmentLagSeconds, 0.001f);
-		float blend = 1f - Mathf.Exp(-delta / lag);
-
-		SignificantHeight = Mathf.Lerp(SignificantHeight, targetHeight, blend);
-		PeakWavelength = Mathf.Lerp(PeakWavelength, targetPeak, blend);
-
-		SolveAmplitudes();
-	}
-
-	private void SolveAmplitudes()
-	{
-		float windDir = Wind.Instance?.DirectionRad ?? 0f;
-		SteepnessNormaliser = Settings.SolveAmplitudes(_waves, windDir, SignificantHeight, PeakWavelength);
-	}
-
-	/// <summary>
-	/// Surface height at a world XZ position.
+	/// Surface height felt by physics: swell and medium bands at their physics weights.
 	///
 	/// Note this samples the undisplaced height field — it ignores the Gerstner
 	/// horizontal pinch the shader applies, so in choppy water the value is off by
@@ -163,6 +217,30 @@ public partial class Ocean : Node
 	/// Steepness ever goes high enough that boats visibly float above the crests.
 	/// </summary>
 	public float GetHeight(Vector2 worldXZ)
+	{
+		float y = 0f;
+		float t = (float)Time;
+
+		for (int i = 0; i < _physicsCount; i++)
+		{
+			Vector4 w = _waves[i];
+			var dir = new Vector2(w.X, w.Y);
+			float k = Mathf.Tau / w.W;
+			float omega = Mathf.Sqrt(Gravity * k);
+
+			y += w.Z * _physicsWeights[i] * Mathf.Sin(k * dir.Dot(worldXZ) - omega * t + _phases[i]);
+		}
+
+		return y * SeaScale(worldXZ);
+	}
+
+	public float GetHeight(Vector3 worldPos) => GetHeight(new Vector2(worldPos.X, worldPos.Z));
+
+	/// <summary>
+	/// Surface height as drawn: every band at full amplitude. For cosmetic consumers —
+	/// cameras, audio, spray, swimmers — that must agree with the rendered surface.
+	/// </summary>
+	public float GetRenderedHeight(Vector2 worldXZ)
 	{
 		float y = 0f;
 		float t = (float)Time;
@@ -177,10 +255,10 @@ public partial class Ocean : Node
 			y += w.Z * Mathf.Sin(k * dir.Dot(worldXZ) - omega * t + _phases[i]);
 		}
 
-		return y;
+		return y * SeaScale(worldXZ);
 	}
 
-	public float GetHeight(Vector3 worldPos) => GetHeight(new Vector2(worldPos.X, worldPos.Z));
+	public float GetRenderedHeight(Vector3 worldPos) => GetRenderedHeight(new Vector2(worldPos.X, worldPos.Z));
 
 	/// <summary>
 	/// Analytic surface normal. Derived from the wave derivatives rather than sampled
@@ -195,26 +273,34 @@ public partial class Ocean : Node
 		float jzz = 0f;
 		float t = (float)Time;
 		float q = Settings.Steepness / Mathf.Max(SteepnessNormaliser, 0.0001f);
+		float sea = SeaScale(worldXZ);
 
-		for (int i = 0; i < _waves.Length; i++)
+		for (int i = 0; i < _physicsCount; i++)
 		{
 			Vector4 w = _waves[i];
 			var dir = new Vector2(w.X, w.Y);
+			float amp = w.Z * _physicsWeights[i];
 			float k = Mathf.Tau / w.W;
 			float omega = Mathf.Sqrt(Gravity * k);
 			float phase = k * dir.Dot(worldXZ) - omega * t + _phases[i];
 
 			float s = Mathf.Sin(phase);
-			float c = Mathf.Cos(phase) * w.Z * k;
+			float c = Mathf.Cos(phase) * amp * k;
 
 			dx += c * dir.X;
 			dz += c * dir.Y;
 
-			float qak = q * w.Z * k;
+			float qak = q * amp * k;
 			jxx += qak * dir.X * dir.X * s;
 			jxz += qak * dir.X * dir.Y * s;
 			jzz += qak * dir.Y * dir.Y * s;
 		}
+
+		dx *= sea;
+		dz *= sea;
+		jxx *= sea;
+		jxz *= sea;
+		jzz *= sea;
 
 		var tangentX = new Vector3(1f - jxx, dx, -jxz);
 		var tangentZ = new Vector3(-jxz, dz, 1f - jzz);
@@ -225,10 +311,28 @@ public partial class Ocean : Node
 	public Vector3 GetNormal(Vector3 worldPos) => GetNormal(new Vector2(worldPos.X, worldPos.Z));
 
 	/// <summary>
-	/// Vertical velocity of the surface. Useful for drag that should not fight a wave
-	/// lifting a hull, and for spray thresholds.
+	/// Vertical velocity of the physics surface. Useful for drag that should not fight a
+	/// wave lifting a hull, and for spray thresholds.
 	/// </summary>
 	public float GetVerticalVelocity(Vector2 worldXZ)
+	{
+		float v = 0f;
+		float t = (float)Time;
+
+		for (int i = 0; i < _physicsCount; i++)
+		{
+			Vector4 w = _waves[i];
+			var dir = new Vector2(w.X, w.Y);
+			float k = Mathf.Tau / w.W;
+			float omega = Mathf.Sqrt(Gravity * k);
+
+			v += -w.Z * _physicsWeights[i] * omega * Mathf.Cos(k * dir.Dot(worldXZ) - omega * t + _phases[i]);
+		}
+
+		return v * SeaScale(worldXZ);
+	}
+
+	public float GetRenderedVerticalVelocity(Vector2 worldXZ)
 	{
 		float v = 0f;
 		float t = (float)Time;
@@ -243,7 +347,7 @@ public partial class Ocean : Node
 			v += -w.Z * omega * Mathf.Cos(k * dir.Dot(worldXZ) - omega * t + _phases[i]);
 		}
 
-		return v;
+		return v * SeaScale(worldXZ);
 	}
 
 	/// <summary>
@@ -257,14 +361,14 @@ public partial class Ocean : Node
 		var flow = Vector3.Zero;
 		float t = (float)Time;
 
-		for (int i = 0; i < _waves.Length; i++)
+		for (int i = 0; i < _physicsCount; i++)
 		{
 			Vector4 w = _waves[i];
 			var dir = new Vector2(w.X, w.Y);
 			float k = Mathf.Tau / w.W;
 			float omega = Mathf.Sqrt(Gravity * k);
 			float phase = k * dir.Dot(flat) - omega * t + _phases[i];
-			float amplitude = w.Z * omega * Mathf.Exp(k * Mathf.Min(worldPos.Y, 0f));
+			float amplitude = w.Z * _physicsWeights[i] * omega * Mathf.Exp(k * Mathf.Min(worldPos.Y, 0f));
 			float swing = Mathf.Sin(phase);
 
 			flow.X += dir.X * amplitude * swing;
@@ -272,6 +376,6 @@ public partial class Ocean : Node
 			flow.Y -= amplitude * Mathf.Cos(phase);
 		}
 
-		return flow;
+		return flow * SeaScale(flat);
 	}
 }

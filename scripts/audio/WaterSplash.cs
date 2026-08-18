@@ -57,7 +57,7 @@ public partial class WaterSplash : Node3D
         if (ocean == null || _body == null || _emitter == null || !IsInstanceValid(_body)) return;
 
         Vector3 at = _body.GlobalPosition;
-        float surface = ocean.GetHeight(at);
+        float surface = ocean.GetRenderedHeight(at);
         float depth = surface - at.Y;
         float fall = Fall(at, (float)delta, ocean);
 
@@ -85,7 +85,7 @@ public partial class WaterSplash : Node3D
 
     private float Fall(Vector3 at, float dt, OceanField ocean)
     {
-        float rise = ocean.GetVerticalVelocity(new Vector2(at.X, at.Z));
+        float rise = ocean.GetRenderedVerticalVelocity(new Vector2(at.X, at.Z));
 
         if (_rigid != null) return rise - _rigid.LinearVelocity.Y;
 

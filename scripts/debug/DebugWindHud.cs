@@ -65,7 +65,11 @@ public partial class DebugWindHud : CanvasLayer
             if (!float.TryParse(arg["--seacap=".Length..], out float cap)) continue;
             if (OceanSystem.Instance?.Settings == null) continue;
 
-            OceanSystem.Instance.Settings.MaxWaveHeight = cap;
+            Knotical.Ocean.OceanSettings sea = OceanSystem.Instance.Settings;
+            sea.SwellHeight = Mathf.Min(sea.SwellHeight, cap);
+            sea.MediumHeight = Mathf.Min(sea.MediumHeight, cap);
+            sea.ChopHeight = Mathf.Min(sea.ChopHeight, cap);
+            OceanSystem.Instance.Rebuild();
             GD.Print($"sea capped at {cap} m");
         }
 
@@ -104,7 +108,14 @@ public partial class DebugWindHud : CanvasLayer
         ReadInput(wind, (float)delta);
 
         float headingDeg = Mathf.PosMod(Mathf.RadToDeg(wind.DirectionRad), 360f);
-        float developed = ocean.Settings.DevelopedHeight(wind.Speed);
+
+        float localScale = 1f;
+        Camera3D camera = GetViewport().GetCamera3D();
+        if (camera != null)
+        {
+            Vector3 eye = camera.GlobalPosition;
+            localScale = ocean.SeaScale(new Vector2(eye.X, eye.Z));
+        }
 
         string clock = "";
         DayCycle cycle = DayCycle.Instance;
@@ -123,7 +134,7 @@ public partial class DebugWindHud : CanvasLayer
             $"Force {wind.BeaufortForce} — {wind.BeaufortName}\n" +
             $"       {headingDeg,5:0}°  {Compass(headingDeg)}\n" +
             $"\n" +
-            $"SEA    H  {ocean.SignificantHeight,5:0.00} m   (developing toward {developed,5:0.00} m)\n" +
+            $"SEA    H  {ocean.SignificantHeight,5:0.00} m   local scale {localScale,4:0.00}\n" +
             $"       peak {ocean.PeakWavelength,5:0} m   steepness sum {ocean.SteepnessNormaliser,5:0.00}\n" +
             $"\n" +
             clock +

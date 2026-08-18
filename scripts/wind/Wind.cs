@@ -74,6 +74,20 @@ public partial class Wind : Node
     {
         Instance = this;
         Settings ??= new WindSettings();
+
+        foreach (string arg in OS.GetCmdlineUserArgs())
+        {
+            string[] pair = arg.TrimPrefix("--").Split('=');
+            if (pair.Length != 2 || !float.TryParse(pair[1], out float value)) continue;
+
+            switch (pair[0])
+            {
+                case "wind": Settings.BaseSpeed = value; break;
+                case "winddir": Settings.BaseDirectionDeg = value; break;
+                case "gust": Settings.Gustiness = value; break;
+            }
+        }
+
         Sample();
     }
 

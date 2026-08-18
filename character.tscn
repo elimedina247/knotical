@@ -12,6 +12,8 @@
 [ext_resource type="Resource" path="res://audio/submerges.tres" id="10_submerges"]
 [ext_resource type="Resource" path="res://audio/emerges.tres" id="11_emerges"]
 [ext_resource type="AudioStream" uid="uid://dj25jpdhmjg56" path="res://assets/audio/underwater/underwater.mp3" id="12_underbed"]
+[ext_resource type="Script" path="res://scripts/rope/RopeCarrier.cs" id="13_ropes"]
+[ext_resource type="Script" path="res://scripts/player/Gait.cs" id="14_gait"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_body"]
 friction = 0.9
@@ -214,3 +216,9 @@ max_distance = 20.0
 bus = &"Master"
 script = ExtResource("6_emitter")
 DefaultBus = "Master"
+
+[node name="RopeCarrier" type="Node3D" parent="."]
+script = ExtResource("13_ropes")
+
+[node name="Gait" type="Node3D" parent="."]
+script = ExtResource("14_gait")

@@ -13,7 +13,7 @@ public partial class Helm : Node3D, IGrabbable
     [Export] public HelmPointer Pointer { get; set; }
 
     [Export(PropertyHint.Range, "0.25,6,0.05")]
-    public float TurnsToLock { get; set; } = 0.25f;
+    public float TurnsToLock { get; set; } = 0.75f;
 
     [Export(PropertyHint.Range, "0.5,400,0.5")]
     public float Inertia { get; set; } = 3f;

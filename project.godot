@@ -33,6 +33,10 @@ window/stretch/aspect="expand"
 
 project/assembly_name="Knotical"
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/terrain_3d/plugin.cfg")
+
 [input]
 
 move_forward={

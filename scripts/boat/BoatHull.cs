@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Godot;
+using Knotical.Weather;
 using OceanField = Knotical.Ocean.Ocean;
 
 namespace Knotical.Boat;
@@ -10,12 +11,17 @@ public partial class BoatHull : RigidBody3D
 {
     private const float Gravity = 9.81f;
 
+    public static readonly List<BoatHull> Active = new();
+
     private readonly HullForm _form = new();
     private readonly List<IFoil> _foils = new();
-    private Vector3[] _local;
-    private Vector3[] _world;
-    private float[] _depth;
-    private int[] _indices;
+    private Vector3[] _probeLocal = System.Array.Empty<Vector3>();
+    private float[] _probeVolume = System.Array.Empty<float>();
+    private float[] _probeSpan = System.Array.Empty<float>();
+    private float[] _probeReserve = System.Array.Empty<float>();
+    private float[] _probeArea = System.Array.Empty<float>();
+    private float _lateralArea;
+    private float _frontalArea;
     private OceanField _ocean;
     private Vector3 _com;
     private Vector3 _linear;
@@ -101,11 +107,14 @@ public partial class BoatHull : RigidBody3D
     [Export(PropertyHint.Range, "0,2.5,0.005")]
     public float SurfaceOffset { get => _surfaceOffset; set { _surfaceOffset = value; Rebuild(); } }
 
+    private float _comHeight = -0.8f;
+    private float _comLength = 0.13f;
+
     [Export(PropertyHint.Range, "-20,15,0.05")]
-    public float CenterOfMassHeight { get; set; } = -0.8f;
+    public float CenterOfMassHeight { get => _comHeight; set { _comHeight = value; Rebuild(); } }
 
     [Export(PropertyHint.Range, "-30,30,0.05")]
-    public float CenterOfMassLength { get; set; } = 0.13f;
+    public float CenterOfMassLength { get => _comLength; set { _comLength = value; Rebuild(); } }
 
     [Export] public float WaterDensity { get; set; } = 1025f;
 
@@ -114,40 +123,79 @@ public partial class BoatHull : RigidBody3D
     [Export(PropertyHint.Range, "0.2,1.4,0.005")]
     public float Displacement { get => _displacement; set { _displacement = value; Rebuild(); } }
 
-    [Export(PropertyHint.Range, "0,6,0.05")]
-    public float NormalDrag { get; set; } = 1.4f;
+    private int _probeStations = 5;
 
-    [Export(PropertyHint.Range, "0,0.5,0.001")]
-    public float SkinDrag { get; set; } = 0.05f;
+    [Export(PropertyHint.Range, "3,9,1")]
+    public int ProbeStations { get => _probeStations; set { _probeStations = value; Rebuild(); } }
 
     [Export(PropertyHint.Range, "0,4,0.05")]
-    public float DragFloor { get; set; } = 0.15f;
+    public float HeaveDamping { get; set; } = 1.5f;
+
+    [Export(PropertyHint.Range, "0,6,0.05")]
+    public float SlamDrag { get; set; } = 1.2f;
+
+    [Export(PropertyHint.Range, "0,2,0.01")]
+    public float ForwardDrag { get; set; } = 0.3f;
+
+    [Export(PropertyHint.Range, "0,0.2,0.005")]
+    public float ForwardDragLinear { get; set; } = 0.02f;
+
+    [Export(PropertyHint.Range, "0,20,0.1")]
+    public float LateralDrag { get; set; } = 4f;
+
+    [Export(PropertyHint.Range, "0,2,0.01")]
+    public float LateralDragLinear { get; set; } = 0.4f;
+
+    [Export(PropertyHint.Range, "0,1,0.01")]
+    public float SlopePush { get; set; } = 0.25f;
+
+    [Export(PropertyHint.Range, "1,10,0.1")]
+    public float RudderAuthority { get; set; } = 3f;
+
+    [Export(PropertyHint.Range, "0,3,0.05")]
+    public float WaveDragGain { get; set; } = 0.6f;
+
+    [Export(PropertyHint.Range, "0.5,1,0.01")]
+    public float WaveWallOnset { get; set; } = 0.85f;
 
     [Export(PropertyHint.Range, "0,3,0.01")]
-    public float RollDamping { get; set; } = 0.1f;
+    public float RollDamping { get; set; } = 0.6f;
 
     [Export(PropertyHint.Range, "0,3,0.01")]
     public float PitchDamping { get; set; } = 0.65f;
 
     [Export(PropertyHint.Range, "0,3,0.01")]
-    public float YawDamping { get; set; } = 0.5f;
+    public float YawDamping { get; set; } = 0.9f;
 
-    [Export(PropertyHint.Range, "0,4,0.05")]
-    public float AddedMass { get; set; } = 0.1f;
+    [Export(PropertyHint.Range, "0,40,0.5")]
+    public float HeelLever { get; set; } = 8f;
 
-    [Export(PropertyHint.Range, "0,8,0.05")]
-    public float AddedInertia { get; set; } = 0.8f;
+    [Export(PropertyHint.Range, "5,45,1")]
+    public float MaxHeelDegrees { get; set; } = 18f;
+
+    [Export(PropertyHint.Range, "0,10,0.1")]
+    public float KeelLever { get; set; } = 3f;
+
+    [Export(PropertyHint.Range, "0,60,1")]
+    public float DriveNoGoDeg { get; set; } = 35f;
 
     [Export(PropertyHint.Range, "0,1,0.01")]
-    public float PitchRelief { get; set; } = 0.7f;
+    public float NoGoDrive { get; set; } = 0.05f;
+
+    [Export(PropertyHint.Range, "0,1,0.01")]
+    public float CloseHauledDrive { get; set; } = 0.35f;
+
+    [Export(PropertyHint.Range, "0,1,0.01")]
+    public float ReachDrive { get; set; } = 0.8f;
 
     [Export(PropertyHint.Range, "5,200,1")]
-    public float MaxAcceleration { get; set; } = 60f;
+    public float MaxAcceleration { get; set; } = 25f;
 
     [Export] public bool RebuildNow { get => false; set { if (value) Rebuild(); } }
 
     [Export] public bool Trace { get; set; }
 
+    private float _steerTorque;
     private float _tick;
     private float _clock;
     private float _knock;
@@ -156,8 +204,9 @@ public partial class BoatHull : RigidBody3D
     private Vector3 _wasLinear;
     private Vector3 _wasAngular;
 
-
     public float SubmergedVolume { get; private set; }
+
+    public Vector3 DeckAcceleration { get; private set; }
 
     public Vector3 RigForce { get; private set; }
 
@@ -168,7 +217,7 @@ public partial class BoatHull : RigidBody3D
     [Signal] public delegate void FlippedEventHandler(bool flipped);
 
     [Export(PropertyHint.Range, "30,180,1")]
-    public float FlipAngle { get; set; } = 100f;
+    public float FlipAngle { get; set; } = 130f;
 
     [Export(PropertyHint.Range, "5,90,1")]
     public float RightingAngle { get; set; } = 70f;
@@ -189,6 +238,16 @@ public partial class BoatHull : RigidBody3D
         GD.Print($"{Name}: salvaged");
     }
 
+    public override void _EnterTree()
+    {
+        if (!Engine.IsEditorHint()) Active.Add(this);
+    }
+
+    public override void _ExitTree()
+    {
+        Active.Remove(this);
+    }
+
     public override void _Ready()
     {
         CanSleep = false;
@@ -206,19 +265,29 @@ public partial class BoatHull : RigidBody3D
             switch (pair[0])
             {
                 case "pitchdamp": PitchDamping = value; break;
-                case "addedinertia": AddedInertia = value; break;
-                case "pitchrelief": PitchRelief = value; break;
+                case "rolldamp": RollDamping = value; break;
+                case "yawdamp": YawDamping = value; break;
+                case "heavedamp": HeaveDamping = value; break;
+                case "slamdrag": SlamDrag = value; break;
+                case "fwddrag": ForwardDrag = value; break;
+                case "latdrag": LateralDrag = value; break;
+                case "slopepush": SlopePush = value; break;
+                case "heellever": HeelLever = value; break;
+                case "maxheel": MaxHeelDegrees = value; break;
+                case "keellever": KeelLever = value; break;
+                case "nogo": DriveNoGoDeg = value; break;
                 case "knockdown": _knock = value; break;
                 case "rocker": Rocker = value; break;
                 case "flipangle": FlipAngle = value; break;
                 case "swamped": SwampedRighting = value; break;
                 case "roll": _startRoll = Mathf.DegToRad(value); break;
+                case "trace": Trace = value > 0f; break;
             }
         }
 
-        GD.Print($"hull tuning: NormalDrag={NormalDrag} SkinDrag={SkinDrag} DragFloor={DragFloor} " +
-                 $"AddedMass={AddedMass} AddedInertia={AddedInertia} PitchDamping={PitchDamping} " +
-                 $"PitchRelief={PitchRelief}");
+        GD.Print($"hull tuning: HeaveDamping={HeaveDamping} SlamDrag={SlamDrag} " +
+                 $"ForwardDrag={ForwardDrag} LateralDrag={LateralDrag} SlopePush={SlopePush} " +
+                 $"probes={_probeLocal.Length}");
 
         Rebuild();
         RefreshRig();
@@ -264,9 +333,7 @@ public partial class BoatHull : RigidBody3D
 
     private void Rebuild()
     {
-        _form.BuildSolid(_solidStations, _solidRings, _surfaceOffset, out _local, out _indices);
-        _world = new Vector3[_local.Length];
-        _depth = new float[_local.Length];
+        BuildProbes();
 
         CenterOfMassMode = CenterOfMassModeEnum.Custom;
         CenterOfMass = new Vector3(0f, CenterOfMassHeight, CenterOfMassLength);
@@ -275,6 +342,103 @@ public partial class BoatHull : RigidBody3D
         Mass = Mathf.Max(1f, WaterDensity * _displacement * _designVolume);
 
         if (IsInsideTree()) BuildCollision();
+    }
+
+    private void BuildProbes()
+    {
+        int stations = Mathf.Clamp(_probeStations, 3, 9);
+        int count = stations * 2 + 2;
+
+        var locals = new List<Vector3>(count);
+        var weights = new List<float>(count);
+
+        for (int k = 0; k < stations; k++)
+        {
+            float t = (k + 0.5f) / stations;
+            float keel = _form.KeelY(t);
+            float depth = Mathf.Max(-keel, 0.2f);
+            float width = _form.Beam * 0.5f * _form.PlanFactor(t);
+            float x = Mathf.Max(width * 0.85f, 0.1f);
+            float z = _form.ZAt(t);
+            float weight = Mathf.Max(_form.PlanFactor(t) * depth, 0.01f);
+
+            locals.Add(new Vector3(x, keel, z));
+            weights.Add(weight);
+            locals.Add(new Vector3(-x, keel, z));
+            weights.Add(weight);
+        }
+
+        foreach (float t in new[] { 0.02f, 0.98f })
+        {
+            float keel = _form.KeelY(t);
+            locals.Add(new Vector3(0f, keel, _form.ZAt(t)));
+            weights.Add(Mathf.Max(_form.PlanFactor(t) * Mathf.Max(-keel, 0.2f), 0.01f) * 0.6f);
+        }
+
+        float total = 0f;
+        foreach (float w in weights) total += w;
+
+        float volume = Mathf.Max(_form.VolumeBelow(0f, _surfaceOffset, 96, 96), 0.1f);
+
+        _probeLocal = locals.ToArray();
+        _probeVolume = new float[count];
+        _probeSpan = new float[count];
+        _probeReserve = new float[count];
+        _probeArea = new float[count];
+
+        for (int i = 0; i < count; i++)
+        {
+            _probeVolume[i] = volume * weights[i] / total;
+        }
+
+        BalanceProbes(volume);
+
+        for (int i = 0; i < count; i++)
+        {
+            _probeSpan[i] = Mathf.Max(-_probeLocal[i].Y, 0.3f);
+            _probeReserve[i] = (_probeSpan[i] + _form.Freeboard * 0.8f) / _probeSpan[i];
+            _probeArea[i] = _probeVolume[i] / _probeSpan[i];
+        }
+
+        _lateralArea = _form.Length * _form.Draft / count;
+        _frontalArea = _form.Beam * _form.Draft / count;
+    }
+
+    private void BalanceProbes(float volume)
+    {
+        float mean = 0f;
+        foreach (float v in _probeVolume) mean += v;
+        if (mean <= 0f) return;
+
+        float centroid = 0f;
+        for (int i = 0; i < _probeVolume.Length; i++)
+        {
+            centroid += _probeVolume[i] * _probeLocal[i].Z;
+        }
+        centroid /= mean;
+
+        float spread = 0f;
+        for (int i = 0; i < _probeVolume.Length; i++)
+        {
+            float dz = _probeLocal[i].Z - centroid;
+            spread += _probeVolume[i] * dz * dz;
+        }
+        if (spread <= 0.0001f) return;
+
+        float shift = (CenterOfMassLength - centroid) / (spread / mean);
+
+        float rescale = 0f;
+        for (int i = 0; i < _probeVolume.Length; i++)
+        {
+            float factor = 1f + shift * (_probeLocal[i].Z - centroid);
+            _probeVolume[i] *= Mathf.Max(factor, 0.1f);
+            rescale += _probeVolume[i];
+        }
+
+        for (int i = 0; i < _probeVolume.Length; i++)
+        {
+            _probeVolume[i] *= volume / rescale;
+        }
     }
 
     private void BuildCollision()
@@ -364,9 +528,31 @@ public partial class BoatHull : RigidBody3D
         });
     }
 
+    public void GetSurfaceMask(out Vector4 frame, out Vector4 extents)
+    {
+        Transform3D xform = GlobalTransform;
+        Basis level = xform.Basis.Orthonormalized();
+        var fwd = new Vector2(-level.Z.X, -level.Z.Z);
+        fwd = fwd.LengthSquared() > 0.0001f ? fwd.Normalized() : Vector2.Right;
+
+        frame = new Vector4(xform.Origin.X, xform.Origin.Z, fwd.X, fwd.Y);
+
+        float keelBow = (xform * new Vector3(0f, _form.KeelY(1f), _form.ZAt(1f))).Y;
+        float keelMid = (xform * new Vector3(0f, _form.KeelY(0.5f), _form.ZAt(0.5f))).Y;
+        float keelStern = (xform * new Vector3(0f, _form.KeelY(0f), _form.ZAt(0f))).Y;
+        float sink = Mathf.Min(keelMid, Mathf.Min(keelBow, keelStern)) - 0.4f;
+
+        extents = new Vector4(
+            _form.Length * 0.5f + 1.2f,
+            _form.Beam * 0.5f + 1.2f,
+            sink,
+            0.35f);
+    }
+
     public override void _IntegrateForces(PhysicsDirectBodyState3D state)
     {
         Transform3D xform = state.Transform;
+        Basis level = xform.Basis.Orthonormalized();
 
         _ocean = OceanField.Instance;
         _com = xform * state.CenterOfMassLocal;
@@ -377,37 +563,42 @@ public partial class BoatHull : RigidBody3D
         _drag = Vector3.Zero;
         SubmergedVolume = 0f;
 
-        if (_ocean != null && _local != null && _indices != null)
+        if (_ocean != null)
         {
-            for (int i = 0; i < _local.Length; i++)
+            for (int i = 0; i < _probeLocal.Length; i++)
             {
-                Vector3 p = xform * _local[i];
-                _world[i] = p;
-                _depth[i] = _ocean.GetHeight(new Vector2(p.X, p.Z)) - p.Y;
-            }
-
-            for (int i = 0; i < _indices.Length; i += 3)
-            {
-                Clip(_indices[i], _indices[i + 1], _indices[i + 2]);
+                Probe(i, xform, level);
             }
         }
 
         HullForce = _drag;
         Vector3 rig = Vector3.Zero;
+        Vector3 canvas = Vector3.Zero;
+
+        Vector3 keelwise = -level.Z;
 
         for (int i = 0; i < _foils.Count; i++)
         {
             if (_foils[i] is not Node3D node || !IsInstanceValid(node)) continue;
 
             Vector3 arm = _foils[i].GlobalCentreOfEffort - _com;
-            Vector3 f = _foils[i].ComputeForce(_linear + _angular.Cross(arm));
+            Vector3 pointVelocity = _foils[i] is Rudder
+                ? keelwise * _linear.Dot(keelwise) + _angular.Cross(arm)
+                : _linear + _angular.Cross(arm);
+            Vector3 f = _foils[i].ComputeForce(pointVelocity);
+
+            if (_foils[i] is Sail)
+            {
+                canvas += f;
+                continue;
+            }
 
             Vector3 twist = arm.Cross(f);
 
-            if (PitchRelief > 0f)
+            if (_foils[i] is Rudder)
             {
-                Vector3 axis = xform.Basis.Orthonormalized().X;
-                twist -= axis * (twist.Dot(axis) * PitchRelief);
+                twist += level.Y * (twist.Dot(level.Y) * (RudderAuthority - 1f));
+                _steerTorque = twist.Dot(level.Y);
             }
 
             rig += f;
@@ -415,15 +606,47 @@ public partial class BoatHull : RigidBody3D
             _torque += twist;
         }
 
+        canvas.Y = 0f;
+
+        var ahead = new Vector3(-level.Z.X, 0f, -level.Z.Z);
+        if (ahead.LengthSquared() > 0.0001f)
+        {
+            ahead = ahead.Normalized();
+            float drive = canvas.Dot(ahead);
+            Vector3 side = canvas - ahead * drive;
+
+            canvas = ahead * (drive > 0f ? drive * Polar(level) : drive) + side;
+            _torque += HeelTorque(level, side);
+        }
+        else
+        {
+            _torque += HeelTorque(level, canvas);
+        }
+
+        rig += canvas;
+        _force += canvas;
+
         RigForce = rig;
+
+        if (WaveDragGain > 0f && ahead.LengthSquared() > 0.0001f)
+        {
+            float headway = _linear.Dot(ahead);
+            float over = headway - WaveWallOnset * 1.25f * Mathf.Sqrt(_form.Length);
+            if (over > 0f)
+            {
+                _force -= ahead * (Mass * WaveDragGain * over * over);
+            }
+        }
+
+        if (KeelLever > 0f)
+        {
+            float roll = -Mathf.Asin(Mathf.Clamp(level.X.Y, -1f, 1f));
+            _torque += level.Z * (Mass * Gravity * KeelLever * roll);
+        }
 
         _force.Y -= Mass * Gravity;
 
-        float entrained = WaterDensity * SubmergedVolume;
-        _force *= Mass / (Mass + AddedMass * entrained);
-        _torque *= Mass / (Mass + AddedInertia * entrained);
-
-        Damp(state, xform.Basis.Orthonormalized());
+        Damp(state, level);
 
         float maxForce = Mass * MaxAcceleration;
         if (_force.LengthSquared() > maxForce * maxForce) _force = _force.Normalized() * maxForce;
@@ -434,17 +657,100 @@ public partial class BoatHull : RigidBody3D
         if (_knock > 0f)
         {
             _knock -= (float)state.Step;
-            _torque += xform.Basis.Orthonormalized().Z * (Mass * 40f);
+            _torque += level.Z * (Mass * 40f);
         }
 
-        Capsize(xform.Basis.Orthonormalized());
+        Capsize(level);
+
+        DeckAcceleration = new Vector3(_force.X, 0f, _force.Z) / Mass;
 
         state.ApplyCentralForce(_force);
         state.ApplyTorque(_torque);
 
-        if (Trace) Log(state, xform, rig, entrained);
+        if (Trace) Log(state, xform, rig);
     }
 
+    private void Probe(int i, Transform3D xform, Basis level)
+    {
+        Vector3 p = xform * _probeLocal[i];
+        var flat = new Vector2(p.X, p.Z);
+        float depth = _ocean.GetHeight(flat) - p.Y;
+        float s = Mathf.Clamp(depth / _probeSpan[i], 0f, _probeReserve[i]);
+        if (s <= 0f) return;
+
+        float wet = Mathf.Min(s, 1f);
+        SubmergedVolume += _probeVolume[i] * wet;
+
+        Vector3 arm = p - _com;
+        Vector3 rel = _linear + _angular.Cross(arm) - _ocean.GetFlow(p);
+
+        Vector3 lift = SlopePush > 0f
+            ? Vector3.Up.Lerp(_ocean.GetNormal(flat), SlopePush).Normalized()
+            : Vector3.Up;
+
+        Vector3 f = lift * (WaterDensity * Gravity * _probeVolume[i] * s);
+
+        float share = Mass / _probeLocal.Length;
+        Vector3 ahead = -level.Z;
+        Vector3 side = level.X;
+
+        float relY = rel.Y;
+        float relF = rel.Dot(ahead);
+        float relS = rel.Dot(side);
+
+        Vector3 drag =
+            Vector3.Up * (-(HeaveDamping * share) * relY - SlamDrag * WaterDensity * _probeArea[i] * relY * Mathf.Abs(relY))
+            + ahead * (-(ForwardDragLinear * share) * relF - ForwardDrag * WaterDensity * _frontalArea * relF * Mathf.Abs(relF))
+            + side * (-(LateralDragLinear * share) * relS - LateralDrag * WaterDensity * _lateralArea * relS * Mathf.Abs(relS));
+
+        drag *= wet;
+
+        _drag += drag;
+        f += drag;
+        _force += f;
+        _torque += arm.Cross(f);
+    }
+
+    private float Polar(Basis basis)
+    {
+        Wind wind = Wind.Instance;
+        if (wind == null) return 1f;
+
+        Vector2 breeze = wind.Velocity;
+        if (breeze.LengthSquared() < 0.01f) return 1f;
+
+        Vector3 fwd = -basis.Z;
+        var heading = new Vector2(fwd.X, fwd.Z);
+        if (heading.LengthSquared() < 0.0001f) return 1f;
+
+        float offWind = Mathf.RadToDeg(Mathf.Acos(
+            Mathf.Clamp(heading.Normalized().Dot(-breeze.Normalized()), -1f, 1f)));
+
+        float shape = offWind <= 90f
+            ? Mathf.Lerp(CloseHauledDrive, ReachDrive,
+                Mathf.SmoothStep(0f, 1f, (offWind - DriveNoGoDeg) / Mathf.Max(90f - DriveNoGoDeg, 1f)))
+            : Mathf.Lerp(ReachDrive, 1f, Mathf.SmoothStep(0f, 1f, (offWind - 90f) / 90f));
+
+        float gate = Mathf.SmoothStep(0f, 1f, (offWind - (DriveNoGoDeg - 6f)) / 12f);
+
+        return Mathf.Lerp(NoGoDrive, shape, gate);
+    }
+
+    private Vector3 HeelTorque(Basis basis, Vector3 canvas)
+    {
+        if (HeelLever <= 0f) return Vector3.Zero;
+
+        float lean = canvas.Dot(basis.X);
+        Vector3 side = basis.X * lean;
+        if (side.LengthSquared() < 1f) return Vector3.Zero;
+
+        float roll = -Mathf.Asin(Mathf.Clamp(basis.X.Y, -1f, 1f));
+        float toward = roll * Mathf.Sign(lean);
+        float progress = Mathf.Clamp(toward / Mathf.DegToRad(MaxHeelDegrees), 0f, 1f);
+        float fade = 1f - progress * progress * progress * progress;
+
+        return (basis.Y * (HeelLever * fade)).Cross(side);
+    }
 
     private void Capsize(Basis basis)
     {
@@ -456,6 +762,10 @@ public partial class BoatHull : RigidBody3D
             EmitSignal(SignalName.Flipped, true);
             GD.Print($"{Name}: CAPSIZED at {Tilt:0}° tilt");
         }
+        else if (IsFlipped && Tilt < RightingAngle)
+        {
+            Right();
+        }
 
         if (!IsFlipped || SwampedRighting >= 1f) return;
 
@@ -463,7 +773,7 @@ public partial class BoatHull : RigidBody3D
         _torque -= axis * (_torque.Dot(axis) * (1f - SwampedRighting));
     }
 
-    private void Log(PhysicsDirectBodyState3D state, Transform3D xform, Vector3 rig, float entrained)
+    private void Log(PhysicsDirectBodyState3D state, Transform3D xform, Vector3 rig)
     {
         float step = (float)state.Step;
         _clock += step;
@@ -484,21 +794,32 @@ public partial class BoatHull : RigidBody3D
         if (_tick < 0.5f) return;
         _tick = 0f;
 
-        Vector3 fwd = -xform.Basis.Orthonormalized().Z;
+        Basis level = xform.Basis.Orthonormalized();
+        Vector3 fwd = -level.Z;
         float speed = new Vector2(velocity.X, velocity.Z).Length();
+        float lateral = velocity.Dot(level.X);
+
+        float offWind = 0f;
+        if (Wind.Instance != null && Wind.Instance.Velocity.LengthSquared() > 0.01f)
+        {
+            var heading = new Vector2(fwd.X, fwd.Z).Normalized();
+            offWind = Mathf.RadToDeg(Mathf.Acos(
+                Mathf.Clamp(heading.Dot(-Wind.Instance.Velocity.Normalized()), -1f, 1f)));
+        }
 
         float trim = Mathf.RadToDeg(Mathf.Asin(Mathf.Clamp(fwd.Y, -1f, 1f)));
         Vector3 stem = xform * new Vector3(0f, _form.KeelY(1f), _form.ZAt(1f));
         float clear = _ocean != null ? stem.Y - _ocean.GetHeight(new Vector2(stem.X, stem.Z)) : 0f;
 
         GD.Print(
-            $"t={_clock,6:0.0} spd={speed,5:0.00} " +
+            $"{Name} t={_clock,6:0.0} spd={speed,5:0.00} lat={lateral,5:0.00} off={offWind,4:0}° polar={Polar(level),4:0.00} yawrate={spin.Y,6:0.000} " +
             $"rig={rig.Dot(fwd) / 1e6f,6:0.00} drag={_drag.Dot(fwd) / 1e6f,6:0.00} " +
             $"applied={_force.Dot(fwd) / 1e6f,6:0.00} MN | " +
             $"a_want={_force.Dot(fwd) / Mass,6:0.000} a_real={measured.Dot(fwd),6:0.000} m/s2 | " +
-            $"mass={Mass / 1e6f,5:0.00}M vol={SubmergedVolume,7:0} entr={entrained / 1e6f,5:0.00}M " +
-            $"scale={Mass / (Mass + AddedMass * entrained),4:0.00} " +
-            $"tilt={Tilt,5:0}° bowg={_bowPeak / 9.81f,5:0.00} vY={velocity.Y,5:0.00} trim={trim,5:0.0}° bow={clear,5:0.0}m{(clear < 0f ? " UNDER" : "")}");
+            $"mass={Mass / 1e6f,5:0.00}M vol={SubmergedVolume,6:0} " +
+            $"tilt={Tilt,5:0}° bowg={_bowPeak / 9.81f,5:0.00} vY={velocity.Y,5:0.00} " +
+            $"trim={trim,5:0.0}° bow={clear,5:0.0}m{(clear < 0f ? " UNDER" : "")} " +
+            $"steer={_steerTorque / 1e6f,6:0.00} totYaw={_torque.Dot(level.Y) / 1e6f,6:0.00}MNm");
     }
 
     private void Damp(PhysicsDirectBodyState3D state, Basis basis)
@@ -519,83 +840,5 @@ public partial class BoatHull : RigidBody3D
             local.Z * Mathf.Min(RollDamping * wet * step, 1f));
 
         _torque -= inverseInertia.Inverse() * (basis * shed) / step;
-    }
-
-    private void Clip(int i0, int i1, int i2)
-    {
-        Vector3 a = _world[i0], b = _world[i1], c = _world[i2];
-        float da = _depth[i0], db = _depth[i1], dc = _depth[i2];
-
-        int under = (da > 0f ? 1 : 0) + (db > 0f ? 1 : 0) + (dc > 0f ? 1 : 0);
-        if (under == 0) return;
-
-        if (under == 3)
-        {
-            Face(a, da, b, db, c, dc, Vector3.Zero, 0f, false);
-            return;
-        }
-
-        if (under == 1)
-        {
-            if (db > 0f) (a, da, b, db, c, dc) = (b, db, c, dc, a, da);
-            else if (dc > 0f) (a, da, b, db, c, dc) = (c, dc, a, da, b, db);
-
-            Face(a, da, Cut(a, da, b, db), 0f, Cut(a, da, c, dc), 0f, Vector3.Zero, 0f, false);
-            return;
-        }
-
-        if (db <= 0f) (a, da, b, db, c, dc) = (b, db, c, dc, a, da);
-        else if (dc <= 0f) (a, da, b, db, c, dc) = (c, dc, a, da, b, db);
-
-        Face(Cut(b, db, a, da), 0f, b, db, c, dc, Cut(c, dc, a, da), 0f, true);
-    }
-
-    private static Vector3 Cut(Vector3 wet, float wetDepth, Vector3 dry, float dryDepth)
-    {
-        float t = wetDepth / (wetDepth - dryDepth);
-        return wet + (dry - wet) * t;
-    }
-
-    private void Face(Vector3 a, float da, Vector3 b, float db, Vector3 c, float dc, Vector3 d, float dd, bool quad)
-    {
-        Vector3 cross = (b - a).Cross(c - a);
-        float twiceArea = cross.Length();
-        if (twiceArea < 1e-8f) return;
-
-        Vector3 normal = cross / twiceArea;
-
-        float area = twiceArea * 0.5f;
-        Vector3 centroid = (a + b + c) * (area / 3f);
-        float depth = (da + db + dc) * (area / 3f);
-
-        if (quad)
-        {
-            float second = (c - a).Cross(d - a).Length() * 0.5f;
-            area += second;
-            centroid += (a + c + d) * (second / 3f);
-            depth += (da + dc + dd) * (second / 3f);
-        }
-
-        if (area < 1e-8f) return;
-        centroid /= area;
-        depth /= area;
-        if (depth <= 0f) return;
-
-        SubmergedVolume += depth * area * -normal.Y;
-
-        Vector3 f = normal * (-WaterDensity * Gravity * depth * area);
-
-        Vector3 arm = centroid - _com;
-        Vector3 relative = _linear + _angular.Cross(arm) - _ocean.GetFlow(centroid);
-
-        float alongNormal = relative.Dot(normal);
-        Vector3 resist = normal * (-NormalDrag * WaterDensity * area * alongNormal * (Mathf.Abs(alongNormal) + DragFloor));
-        resist += (relative - normal * alongNormal) * (-SkinDrag * WaterDensity * area);
-
-        _drag += resist;
-        f += resist;
-
-        _force += f;
-        _torque += arm.Cross(f);
     }
 }

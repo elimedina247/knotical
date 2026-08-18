@@ -1,0 +1,59 @@
+using Godot;
+
+namespace Knotical.Boat;
+
+[GlobalClass]
+public partial class DeckCargo : RigidBody3D
+{
+    [Export(PropertyHint.Range, "0,1,0.01")]
+    public float Follow { get; set; } = 1f;
+
+    [Export(PropertyHint.Range, "0,1,0.05")]
+    public float CarryTime { get; set; } = 0.25f;
+
+    private BoatHull _hull;
+    private float _held;
+
+    public BoatHull Hull => _hull;
+
+    public override void _Ready()
+    {
+        ContactMonitor = true;
+        MaxContactsReported = Mathf.Max(MaxContactsReported, 8);
+    }
+
+    public override void _IntegrateForces(PhysicsDirectBodyState3D state)
+    {
+        BoatHull touching = null;
+
+        for (int i = 0; i < state.GetContactCount(); i++)
+        {
+            if (state.GetContactColliderObject(i) is BoatHull hull)
+            {
+                touching = hull;
+                break;
+            }
+
+            if (state.GetContactColliderObject(i) is DeckCargo cargo && cargo.Hull != null)
+                touching ??= cargo.Hull;
+        }
+
+        if (touching != null)
+        {
+            _hull = touching;
+            _held = CarryTime;
+        }
+        else
+        {
+            _held -= (float)state.Step;
+
+            if (_held <= 0f || _hull == null || !IsInstanceValid(_hull))
+            {
+                _hull = null;
+                return;
+            }
+        }
+
+        state.ApplyCentralForce(_hull.DeckAcceleration * (Mass * Follow));
+    }
+}

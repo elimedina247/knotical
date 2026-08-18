@@ -102,7 +102,7 @@ public partial class UnderwaterSound : Node3D
         if (ocean == null || _head == null || !IsInstanceValid(_head)) return;
 
         Vector3 at = _head.GlobalPosition;
-        float depth = ocean.GetHeight(at) - at.Y;
+        float depth = ocean.GetRenderedHeight(at) - at.Y;
         bool under = depth > (_under ? -Hysteresis : Hysteresis);
 
         if (under != _under || !_primed)

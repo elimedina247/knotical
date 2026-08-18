@@ -36,7 +36,7 @@ public partial class Rudder : MeshInstance3D, IFoil
     public float HeadRise { get => _headRise; set { _headRise = value; Rebuild(); } }
 
     [Export(PropertyHint.Range, "1,60,0.5")]
-    public float MaxAngleDegrees { get; set; } = 45f;
+    public float MaxAngleDegrees { get; set; } = 30f;
 
     [Export(PropertyHint.Range, "-1,1,0.005")]
     public float Steering
@@ -49,13 +49,16 @@ public partial class Rudder : MeshInstance3D, IFoil
     public float NormalCoefficient { get; set; } = 1.6f;
 
     [Export(PropertyHint.Range, "0,200,0.5")]
-    public float Gain { get; set; } = 3f;
+    public float Gain { get; set; } = 12f;
 
     [Export(PropertyHint.Range, "0,20,0.1")]
     public float LowSpeedBite { get; set; } = 4f;
 
     [Export(PropertyHint.Range, "0,1,0.01")]
     public float CentreOfPressure { get; set; } = 0.4f;
+
+    [Export(PropertyHint.Range, "0,1,0.01")]
+    public float BrakeRelief { get; set; } = 0.7f;
 
     [Export] public bool RebuildNow { get => false; set { if (value) Rebuild(); } }
 
@@ -119,7 +122,15 @@ public partial class Rudder : MeshInstance3D, IFoil
 
         StockTorque = LocalCentreOfEffort.Z * push;
 
-        return n * push;
+        Vector3 f = n * push;
+
+        if (BrakeRelief > 0f)
+        {
+            Vector3 downstream = stream / Flow;
+            f -= downstream * (f.Dot(downstream) * BrakeRelief);
+        }
+
+        return f;
     }
 
     private Vector3 WaterVelocity()

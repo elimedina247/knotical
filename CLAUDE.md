@@ -17,6 +17,16 @@ assembly and the code appears not to have changed.
 
 Without permission, finish the edits, say what to look for when it runs, and stop there.
 
+## Ask when the design is ambiguous
+
+When a request leaves gameplay design open — which input triggers what, how two mechanics
+share a button, which behavior wins when systems overlap — ask before building. One short
+question listing the options. Do not invent a control scheme or pick an interaction model
+on Eli's behalf; a guessed design costs more to unwind than the question would have.
+
+This happened with grabbing cargo: "drag" was read as a second grab mode on another button
+when the intent was rope items pull, bare hands pick up.
+
 ## Scene overrides outrank code defaults
 
 `ocean.tscn` instances `boat_2.tscn`, and any property tuned while `ocean.tscn` is open is

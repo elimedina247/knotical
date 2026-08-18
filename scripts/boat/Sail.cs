@@ -111,16 +111,16 @@ public partial class Sail : MeshInstance3D, IFoil
     public float HaulRate { get; set; } = 0.12f;
 
     [Export(PropertyHint.Range, "0,200,0.5")]
-    public float DriveGain { get; set; } = 40f;
+    public float DriveGain { get; set; } = 20f;
 
     [Export(PropertyHint.Range, "0,4,0.01")]
-    public float LiftCoefficient { get; set; } = 1.6f;
+    public float LiftCoefficient { get; set; } = 0.5f;
 
     [Export(PropertyHint.Range, "0,6,0.01")]
-    public float DragCoefficient { get; set; } = 2.3f;
+    public float DragCoefficient { get; set; } = 2.6f;
 
     [Export(PropertyHint.Range, "0,1,0.05")]
-    public float ApparentWind { get; set; } = 1f;
+    public float ApparentWind { get; set; } = 0.6f;
 
     [Export(PropertyHint.Range, "0,1,0.005")]
     public float DragBase { get; set; } = 0.08f;

@@ -199,13 +199,18 @@ public partial class PlayerBody : RigidBody3D
 
     public float DeckHeel => Mathf.RadToDeg(_groundNormal.AngleTo(Vector3.Up));
 
-    public bool IsFootless => _grounded && DeckHeel > KnockdownHeel;
+    public float ShipHeel =>
+        _deck != null && IsInstanceValid(_deck)
+            ? Mathf.RadToDeg(_deck.GlobalBasis.Y.Normalized().AngleTo(Vector3.Up))
+            : 0f;
+
+    public bool IsFootless => _grounded && ShipHeel > KnockdownHeel;
 
     public float Traction
     {
         get
         {
-            float fade = Mathf.InverseLerp(GripHeel, Mathf.Max(SlipHeel, GripHeel + 0.01f), DeckHeel);
+            float fade = Mathf.InverseLerp(GripHeel, Mathf.Max(SlipHeel, GripHeel + 0.01f), ShipHeel);
             return Mathf.Lerp(1f, MinTraction, Mathf.Clamp(fade, 0f, 1f));
         }
     }
@@ -221,6 +226,8 @@ public partial class PlayerBody : RigidBody3D
 
     public override void _Ready()
     {
+        AddToGroup("Players");
+
         _pivot = CameraPivot ?? GetNodeOrNull<Node3D>("CameraPivot");
         _grab = Grab ?? GetNodeOrNull<PlayerGrab>("Grab");
         _camera = View ?? _pivot?.GetNodeOrNull<Camera3D>("Camera3D");
@@ -263,6 +270,7 @@ public partial class PlayerBody : RigidBody3D
         foreach (Node child in node.GetChildren())
         {
             if (ShowHands && child is DangleArm) continue;
+            if (ShowHands && node == this && ((string)child.Name is "LegLeft" or "LegRight")) continue;
 
             if (child is GeometryInstance3D part
                 && part.CastShadow != GeometryInstance3D.ShadowCastingSetting.Off)
@@ -336,8 +344,11 @@ public partial class PlayerBody : RigidBody3D
                 GlobalBasis.Orthonormalized() * Basis.FromEuler(new Vector3(_pitch, 0f, 0f)));
             _pivot.GlobalBasis = new Basis(level.Slerp(ride, _tilt));
 
-            Vector3 seat = _pivot.Position;
-            _pivot.Position = new Vector3(seat.X, _pivotRest + Swell(dt), seat.Z);
+            float lift = _pivotRest + Swell(dt);
+            float waist = BodyHeight * 0.5f;
+            Vector3 steady = GlobalTransform * new Vector3(0f, waist, 0f) + Vector3.Up * (lift - waist);
+            Vector3 seated = GlobalTransform * new Vector3(0f, lift, 0f);
+            _pivot.GlobalPosition = steady.Lerp(seated, _tilt);
         }
 
         if (_camera == null) return;
@@ -484,9 +495,9 @@ public partial class PlayerBody : RigidBody3D
         }
 
         Vector3 at = state.Transform.Origin;
-        float surface = ocean.GetHeight(at);
+        float surface = ocean.GetRenderedHeight(at);
 
-        _waterRise = ocean.GetVerticalVelocity(new Vector2(at.X, at.Z));
+        _waterRise = ocean.GetRenderedVerticalVelocity(new Vector2(at.X, at.Z));
         _submersion = Mathf.Clamp((surface - at.Y) / Mathf.Max(BodyHeight, 0.1f), 0f, 1f);
         _swimming = _submersion > (_swimming ? SwimEntry * 0.6f : SwimEntry);
     }
