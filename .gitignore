@@ -12,8 +12,8 @@ build/
 *.translation
 
 # .NET / C# build artifacts
-bin/
-obj/
+/bin/
+/obj/
 *.user
 .mono/
 data_*/
