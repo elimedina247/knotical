@@ -7,10 +7,10 @@
 [node name="FloatTest" type="Node3D"]
 
 [node name="CargoCrate" parent="." instance=ExtResource("1_crate")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 36, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 31.5, 0)
 
 [node name="CargoCrateLarge" parent="." instance=ExtResource("2_large")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 36, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 31.5, 0)
 
 [node name="FloatProbe" type="Node" parent="."]
 script = ExtResource("3_probe")

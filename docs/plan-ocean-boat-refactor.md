@@ -1,5 +1,12 @@
 # Ocean & boat refactor + splash/foam plan
 
+> **Superseded 2026-08-18.** Eli pivoted: the Godot project was refactored to match
+> Girardot's UE5 implementation directly (his example projects are in
+> `C:\Users\elime\Documents\ghislaine`). The three-band ocean, physics weights,
+> SeaDepthField/SeaZone, and set envelope described below were deleted; splash and foam
+> (phases 5–6) live on. See `docs/girardot-vs-knotical.md` for the differences and what
+> changed. This file stays as history.
+
 Working plan for restructuring the ocean into three bands, componentizing buoyancy, adding a
 simple debug boat, and layering in Girardot-style splash and foam presentation. Written to be
 picked up by any future session with no other context. Reference video series: Ghislain
@@ -129,43 +136,43 @@ unnecessary here. We are borrowing: pontoon debug visuals (part 1), splash syste
 - 2026-08-17 (evening, autonomous run): **Phases 2–6 implemented, built, and
   headless-verified.** Details:
   - *Phase 2 — set envelope.* `Ocean.Breathe()` re-solves amplitudes every frame with the
-    swell height scaled by a sum of three incommensurable oscillators (91/212/337 s).
-    Modelled over an hour: swell breathes 0.56×–1.43×, above 1.35× only 2.8% of the time —
-    big sets are events, not the norm. `SwellSetDepth` (0.45) on OceanSettings; `set` shown
-    on the wind HUD. Because amplitudes re-solve per frame, band-height edits are live
-    again; only skeleton edits need `RebuildNow`. Retuned toward swell-dominant:
-    swell 3.0 m / medium 2.5 m in `ocean_settings.tres` (now assigned in both scenes).
+	swell height scaled by a sum of three incommensurable oscillators (91/212/337 s).
+	Modelled over an hour: swell breathes 0.56×–1.43×, above 1.35× only 2.8% of the time —
+	big sets are events, not the norm. `SwellSetDepth` (0.45) on OceanSettings; `set` shown
+	on the wind HUD. Because amplitudes re-solve per frame, band-height edits are live
+	again; only skeleton edits need `RebuildNow`. Retuned toward swell-dominant:
+	swell 3.0 m / medium 2.5 m in `ocean_settings.tres` (now assigned in both scenes).
   - *Phase 3 — Buoyancy component + gizmos + floating cargo.* `scripts/boat/Buoyancy.cs`
-    floats any RigidBody3D via Marker3D pontoons (leaves gravity to the body, so it
-    composes with DeckCargo). Both crates float now (4 bottom-corner pontoons each);
-    measured with `float_probe.tscn` + `FloatProbe.cs`: small crate rides at the
-    waterline, large ~0.6 m deep, both stable and wave-rocked. `BuoyancyGizmos.cs` draws
-    every pontoon in the scene (BoatHull probes included, via new GetProbe telemetry)
-    as wireframe spheres colored by submersion with yellow force lines plus a HUD body
-    list — toggle B, on by default in debug.tscn, off in ocean.tscn.
+	floats any RigidBody3D via Marker3D pontoons (leaves gravity to the body, so it
+	composes with DeckCargo). Both crates float now (4 bottom-corner pontoons each);
+	measured with `float_probe.tscn` + `FloatProbe.cs`: small crate rides at the
+	waterline, large ~0.6 m deep, both stable and wave-rocked. `BuoyancyGizmos.cs` draws
+	every pontoon in the scene (BoatHull probes included, via new GetProbe telemetry)
+	as wireframe spheres colored by submersion with yellow force lines plus a HUD body
+	list — toggle B, on by default in debug.tscn, off in ocean.tscn.
   - *Phase 4 — SailingRig extraction.* Foil loop, Polar, HeelTorque, rudder authority,
-    steer telemetry moved to `scripts/boat/SailingRig.cs`; hull auto-creates the child at
-    runtime (never in editor). Tuning exports stayed on BoatHull so scenes keep values;
-    moving them is future cosmetics. Verified: run-to-run traces agree to printed
-    precision (wall-clock wave time prevents byte-exact diffs), and post-refactor speed
-    and polar columns match baseline exactly.
+	steer telemetry moved to `scripts/boat/SailingRig.cs`; hull auto-creates the child at
+	runtime (never in editor). Tuning exports stayed on BoatHull so scenes keep values;
+	moving them is future cosmetics. Verified: run-to-run traces agree to printed
+	precision (wall-clock wave time prevents byte-exact diffs), and post-refactor speed
+	and polar columns match baseline exactly.
   - *Phases 5+6 — splashes and foam.* Probe dry→wet transitions with entry speed
-    > 1.5 m/s call `SplashEmitter.Request` (both BoatHull and Buoyancy report).
-    `scripts/vfx/SplashEmitter.cs`: pooled one-shot GPU particle bursts, billboard
-    droplets, sized by impact; `Trace` export prints events (on in debug.tscn — crate
-    drops printed 7–8 m/s entries, then softer re-bounces). Each splash stamps
-    `scripts/vfx/FoamCapture.cs`: a 2048² world-fixed SubViewport canvas (~6 m/texel,
-    whole 12 km — fixed mapping is what lets the target persist without copy-on-recentre),
-    faded by a translucent black wash on a frame-rate-independent clock (FoamLife 9 s),
-    sampled by ocean.gdshader into the existing fold/foam compositing
-    (`foam_capture*` uniforms, pushed by OceanSurface). Both scenes have both nodes.
+	> 1.5 m/s call `SplashEmitter.Request` (both BoatHull and Buoyancy report).
+	`scripts/vfx/SplashEmitter.cs`: pooled one-shot GPU particle bursts, billboard
+	droplets, sized by impact; `Trace` export prints events (on in debug.tscn — crate
+	drops printed 7–8 m/s entries, then softer re-bounces). Each splash stamps
+	`scripts/vfx/FoamCapture.cs`: a 2048² world-fixed SubViewport canvas (~6 m/texel,
+	whole 12 km — fixed mapping is what lets the target persist without copy-on-recentre),
+	faded by a translucent black wash on a frame-rate-independent clock (FoamLife 9 s),
+	sampled by ocean.gdshader into the existing fold/foam compositing
+	(`foam_capture*` uniforms, pushed by OceanSurface). Both scenes have both nodes.
   - *Deviations from the plan, deliberate:* splash droplets use a built-in
-    ParticleProcessMaterial and do NOT yet die against the analytic wave surface (fine
-    from the eagle camera; upgrade path unchanged). Bow spray not yet added. Foam is
-    world-fixed with no wind drift. BoatWake still separate from the capture texture.
-    All good candidates for the next session, ideally with eyes on the screen.
+	ParticleProcessMaterial and do NOT yet die against the analytic wave surface (fine
+	from the eagle camera; upgrade path unchanged). Bow spray not yet added. Foam is
+	world-fixed with no wind drift. BoatWake still separate from the capture texture.
+	All good candidates for the next session, ideally with eyes on the screen.
   - Everything builds clean and both scenes boot headless without errors. Not yet seen
-    with human eyes: splash/foam look, gizmo look, set-envelope feel.
+	with human eyes: splash/foam look, gizmo look, set-envelope feel.
 
 - 2026-08-17 (late): **Lively-sea pass** after Eli compared against Girardot's video.
   Diagnosis: the boat only fully felt 150–420 m swell (2° slopes — an elevator, not a

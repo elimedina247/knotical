@@ -38,11 +38,20 @@ public partial class OceanSurface : Node3D
 	[Export] public Knotical.Style.GamePalette Palette { get; set; }
 
 	/// <summary>
-	/// Re-applies <see cref="Settings"/> while the game is running. Band heights re-solve
-	/// every frame, but the skeleton — counts, wavelengths, directions — only rebuilds
-	/// through here.
+	/// Re-applies <see cref="Settings"/> while the game is running. Every wave derives
+	/// from the seed, so all edits go through here.
 	/// </summary>
-	[Export] public bool RebuildNow { get => false; set { if (value) Ocean.Instance?.SetSettings(Settings); } }
+	[Export]
+	public bool RebuildNow
+	{
+		get => false;
+		set
+		{
+			if (!value) return;
+			Ocean.Instance?.SetSettings(Settings);
+			InvalidateSkeleton();
+		}
+	}
 
 	private readonly System.Collections.Generic.List<MeshInstance3D> _levels = new();
 	private ShaderMaterial _material;
@@ -53,6 +62,7 @@ public partial class OceanSurface : Node3D
 	// the same way a GDScript array literal does, and rebuilding them each frame would
 	// allocate 48 boxed values per frame for nothing.
 	private readonly Godot.Collections.Array _packedWaves = new();
+	private readonly Godot.Collections.Array _packedSteepness = new();
 	private readonly Godot.Collections.Array _packedPhases = new();
 
 	private const int MaxWakeBows = 4;
@@ -62,8 +72,6 @@ public partial class OceanSurface : Node3D
 	private readonly Godot.Collections.Array _packedWakeBows = new();
 	private readonly Godot.Collections.Array _packedMaskFrames = new();
 	private readonly Godot.Collections.Array _packedMaskExtents = new();
-	private readonly Godot.Collections.Array _packedSeaSources = new();
-	private readonly Godot.Collections.Array _packedSeaFalloffs = new();
 
 	public override void _Ready()
 	{
@@ -78,13 +86,12 @@ public partial class OceanSurface : Node3D
 		// The shader declares fixed-size arrays, so always send a full set with the
 		// unused tail zeroed rather than a short array.
 		_packedWaves.Resize(OceanSettings.MaxWaves);
+		_packedSteepness.Resize(OceanSettings.MaxWaves);
 		_packedPhases.Resize(OceanSettings.MaxWaves);
 		_packedWakePoints.Resize(Knotical.Boat.BoatWake.MaxTrailPoints);
 		_packedWakeBows.Resize(MaxWakeBows);
 		_packedMaskFrames.Resize(MaxHullMasks);
 		_packedMaskExtents.Resize(MaxHullMasks);
-		_packedSeaSources.Resize(Ocean.MaxSeaSources);
-		_packedSeaFalloffs.Resize(Ocean.MaxSeaSources);
 
 		for (int i = 0; i < LevelExtents.Length; i++)
 		{
@@ -138,36 +145,11 @@ public partial class OceanSurface : Node3D
 
 		PushWakeUniforms();
 		PushHullMasks();
-		PushSeaSources();
+		PushFoamCapture();
 	}
 
-	private void PushSeaSources()
+	private void PushFoamCapture()
 	{
-		Ocean ocean = Ocean.Instance;
-		if (ocean == null) return;
-
-		for (int i = 0; i < Ocean.MaxSeaSources; i++)
-		{
-			_packedSeaSources[i] = i < ocean.SeaSourceCount ? ocean.SeaSources[i] : Vector4.Zero;
-			_packedSeaFalloffs[i] = i < ocean.SeaSourceCount ? ocean.SeaFalloffs[i] : 0f;
-		}
-
-		_material.SetShaderParameter("sea_sources", _packedSeaSources);
-		_material.SetShaderParameter("sea_falloffs", _packedSeaFalloffs);
-		_material.SetShaderParameter("sea_source_count", ocean.SeaSourceCount);
-		_material.SetShaderParameter("sea_scale_max", ocean.Settings.MaxSeaScale);
-
-		SeaDepthField depth = ocean.DepthField;
-		bool baked = depth != null && depth.Baked;
-
-		_material.SetShaderParameter("sea_depth_enabled", baked ? 1f : 0f);
-
-		if (baked)
-		{
-			_material.SetShaderParameter("sea_depth_map", depth.Texture);
-			_material.SetShaderParameter("sea_depth_extent", depth.HalfExtent);
-		}
-
 		Knotical.Vfx.FoamCapture foam = Knotical.Vfx.FoamCapture.Instance;
 		if (foam?.Texture != null)
 		{
@@ -250,8 +232,8 @@ public partial class OceanSurface : Node3D
 	}
 
 	/// <summary>
-	/// Ships the live spectrum to the shader. Safe to call every frame — the unchanging
-	/// half (phases, count) is only pushed once, and the rest is 24 vectors.
+	/// Ships the wave set to the shader. Waves are static between rebuilds, so the whole
+	/// set is only pushed once; per-frame traffic is just the sky colour.
 	/// </summary>
 	public void PushWaveUniforms()
 	{
@@ -262,24 +244,19 @@ public partial class OceanSurface : Node3D
 		{
 			for (int i = 0; i < OceanSettings.MaxWaves; i++)
 			{
+				_packedWaves[i] = i < ocean.Waves.Length ? ocean.Waves[i] : Vector4.Zero;
+				_packedSteepness[i] = i < ocean.Steepness.Length ? ocean.Steepness[i] : 0f;
 				_packedPhases[i] = i < ocean.Phases.Length ? ocean.Phases[i] : 0f;
 			}
 
+			_material.SetShaderParameter("waves", _packedWaves);
+			_material.SetShaderParameter("wave_steepness", _packedSteepness);
 			_material.SetShaderParameter("wave_phase", _packedPhases);
 			_material.SetShaderParameter("wave_count", ocean.Waves.Length);
+			_material.SetShaderParameter("significant_height", ocean.SignificantHeight);
+			PushPalette();
 			_skeletonPushed = true;
 		}
-
-		for (int i = 0; i < OceanSettings.MaxWaves; i++)
-		{
-			_packedWaves[i] = i < ocean.Waves.Length ? ocean.Waves[i] : Vector4.Zero;
-		}
-
-		_material.SetShaderParameter("waves", _packedWaves);
-		_material.SetShaderParameter("ka_sum", ocean.SteepnessNormaliser);
-		_material.SetShaderParameter("steepness", ocean.Settings.Steepness);
-		_material.SetShaderParameter("significant_height", ocean.SignificantHeight);
-		PushPalette();
 
 		if (Knotical.Sky.DayCycle.Instance != null)
 		{

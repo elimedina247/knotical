@@ -47,8 +47,6 @@ public partial class MapOverlay : CanvasLayer
 
     private readonly Godot.Collections.Array _packedWaves = new();
     private readonly Godot.Collections.Array _packedPhases = new();
-    private readonly Godot.Collections.Array _packedSeaSources = new();
-    private readonly Godot.Collections.Array _packedSeaFalloffs = new();
     private readonly System.Collections.Generic.List<(Vector2 Pos, float Radius)> _islands = new();
     private bool _islandsGathered;
     private string _shotPath;
@@ -66,8 +64,6 @@ public partial class MapOverlay : CanvasLayer
 
         _packedWaves.Resize(Knotical.Ocean.OceanSettings.MaxWaves);
         _packedPhases.Resize(Knotical.Ocean.OceanSettings.MaxWaves);
-        _packedSeaSources.Resize(OceanSystem.MaxSeaSources);
-        _packedSeaFalloffs.Resize(OceanSystem.MaxSeaSources);
 
         var waveRamp = new Godot.Collections.Array();
         foreach (Color c in WaveRamp) waveRamp.Add(new Vector3(c.R, c.G, c.B));
@@ -189,46 +185,15 @@ public partial class MapOverlay : CanvasLayer
 
         if (ocean != null)
         {
-            int physics = Mathf.Min(ocean.PhysicsWaveCount, ocean.Waves.Length);
             for (int i = 0; i < Knotical.Ocean.OceanSettings.MaxWaves; i++)
             {
-                if (i < physics)
-                {
-                    Vector4 w = ocean.Waves[i];
-                    _packedWaves[i] = new Vector4(w.X, w.Y, w.Z * ocean.PhysicsWeights[i], w.W);
-                }
-                else
-                {
-                    _packedWaves[i] = Vector4.Zero;
-                }
-
+                _packedWaves[i] = i < ocean.Waves.Length ? ocean.Waves[i] : Vector4.Zero;
                 _packedPhases[i] = i < ocean.Phases.Length ? ocean.Phases[i] : 0f;
-            }
-
-            for (int i = 0; i < OceanSystem.MaxSeaSources; i++)
-            {
-                _packedSeaSources[i] = i < ocean.SeaSourceCount ? ocean.SeaSources[i] : Vector4.Zero;
-                _packedSeaFalloffs[i] = i < ocean.SeaSourceCount ? ocean.SeaFalloffs[i] : 0f;
             }
 
             _material.SetShaderParameter("waves", _packedWaves);
             _material.SetShaderParameter("wave_phase", _packedPhases);
-            _material.SetShaderParameter("wave_count", physics);
-            _material.SetShaderParameter("sea_sources", _packedSeaSources);
-            _material.SetShaderParameter("sea_falloffs", _packedSeaFalloffs);
-            _material.SetShaderParameter("sea_source_count", ocean.SeaSourceCount);
-            _material.SetShaderParameter("sea_scale_max", ocean.Settings.MaxSeaScale);
-
-            Knotical.Ocean.SeaDepthField depth = ocean.DepthField;
-            bool baked = depth != null && depth.Baked;
-
-            _material.SetShaderParameter("sea_depth_enabled", baked ? 1f : 0f);
-
-            if (baked)
-            {
-                _material.SetShaderParameter("sea_depth_map", depth.Texture);
-                _material.SetShaderParameter("sea_depth_extent", depth.HalfExtent);
-            }
+            _material.SetShaderParameter("wave_count", ocean.Waves.Length);
             _material.SetShaderParameter("wave_time", (float)ocean.Time);
             _material.SetShaderParameter("significant_height", ocean.SignificantHeight);
         }
@@ -446,10 +411,9 @@ public partial class MapOverlay : CanvasLayer
     {
         if (ocean == null) return Vector2.Zero;
 
-        int swell = Mathf.Min(ocean.Settings.ClampedSwellCount, ocean.Waves.Length);
         Vector2 sum = Vector2.Zero;
 
-        for (int i = 0; i < swell; i++)
+        for (int i = 0; i < ocean.Waves.Length; i++)
         {
             Vector4 w = ocean.Waves[i];
             sum += new Vector2(w.X, w.Y) * w.Z;

@@ -24,6 +24,7 @@ public partial class DebugPilot : Node
     private Knotical.Boat.Helm _wheel;
     private Rudder _rudder;
     private Motor _motor;
+    private BoatController _controller;
     private float _helm;
     private float _throttle;
     private float _forcedThrottle;
@@ -35,6 +36,7 @@ public partial class DebugPilot : Node
 
     public override void _Ready()
     {
+        _controller = Find<BoatController>(GetParent());
         _wheel = Find<Knotical.Boat.Helm>(GetParent());
         _motor = Find<Motor>(GetParent());
 
@@ -62,11 +64,21 @@ public partial class DebugPilot : Node
         float rate = Mathf.IsZeroApprox(steer) ? HelmReturnRate : HelmRate;
         _helm = Mathf.MoveToward(_helm, steer, rate * dt);
 
+        float want = Input.IsPhysicalKeyPressed(Key.W) ? 1f
+            : Input.IsPhysicalKeyPressed(Key.S) ? -1f
+            : _forcedThrottle;
+        _throttle = Mathf.MoveToward(_throttle, want, ThrottleRate * dt);
+
+        if (_controller != null && IsInstanceValid(_controller))
+        {
+            _controller.Throttle = _throttle;
+            _controller.Steer = _helm;
+            return;
+        }
+
         if (_motor != null && IsInstanceValid(_motor))
         {
-            float want = Input.IsPhysicalKeyPressed(Key.W) ? 1f : _forcedThrottle;
-            _throttle = Mathf.MoveToward(_throttle, want, ThrottleRate * dt);
-            _motor.Throttle = _throttle;
+            _motor.Throttle = Mathf.Max(_throttle, 0f);
         }
 
         if (_wheel != null && IsInstanceValid(_wheel))

@@ -4,19 +4,7 @@
 
 [resource]
 script = ExtResource("1_settings")
-SwellHeight = 5.0
-SwellMaxSteepnessRatio = 0.04
-SwellSetDepth = 0.45
-MediumMinWavelength = 20.0
-MediumMaxWavelength = 140.0
-MediumHeight = 5.5
-MediumPeakWavelength = 50.0
-MediumMaxSteepnessRatio = 0.09
-ChopMaxWavelength = 26.0
-ChopHeight = 1.0
-ChopMaxSteepnessRatio = 0.06
-SpectrumWidth = 0.32
-SpreadFloor = 0.35
-Steepness = 0.7
-MediumPhysicsWeight = 0.9
-ChopPhysicsWeight = 0.5
+MinAmplitude = 0.02
+MaxAmplitude = 0.7
+MinSteepness = 0.7
+Distribution = 2.4

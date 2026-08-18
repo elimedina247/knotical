@@ -15,24 +15,10 @@ render_mode world_vertex_coords, cull_disabled, specular_schlick_ggx, depth_draw
 // xy = unit direction, z = amplitude (m), w = wavelength (m).
 // Array size must match OceanSettings.MaxWaves.
 uniform vec4 waves[24];
+uniform float wave_steepness[24];
 uniform float wave_phase[24];
 uniform int wave_count = 16;
 uniform float wave_time = 0.0;
-uniform float steepness : hint_range(0.0, 1.0) = 0.55;
-
-// Sum of k*amplitude over the live spectrum, supplied by Ocean.cs. Normalising the
-// Gerstner pinch by this — rather than by each wave's own amplitude — is what lets a
-// component's horizontal displacement vanish as the wind takes its height away.
-uniform float ka_sum = 1.0;
-
-uniform vec4 sea_sources[16];
-uniform float sea_falloffs[16];
-uniform int sea_source_count = 0;
-uniform float sea_scale_max = 2.0;
-
-uniform sampler2D sea_depth_map : filter_linear, repeat_disable, hint_default_white;
-uniform float sea_depth_extent = 6000.0;
-uniform float sea_depth_enabled = 0.0;
 
 instance uniform float inner_extent = 0.0;
 
@@ -129,26 +115,11 @@ float fbm(vec2 p) {
     return v;
 }
 
-float sea_scale(vec2 p) {
-    float s = 1.0;
-    if (sea_depth_enabled > 0.5) {
-        vec2 uv = clamp(p / (sea_depth_extent * 2.0) + 0.5, vec2(0.0), vec2(1.0));
-        s = texture(sea_depth_map, uv).r;
-    }
-    for (int i = 0; i < sea_source_count; i++) {
-        vec4 src = sea_sources[i];
-        float w = 1.0 - smoothstep(src.z, src.z + max(sea_falloffs[i], 0.01), distance(p, src.xy));
-        s = mix(s, src.w, w);
-    }
-    return clamp(s, 0.0, sea_scale_max);
-}
-
 void vertex() {
     vec3 pos = VERTEX;
     vec2 base_xz = pos.xz;
 
     float dist = length(base_xz - CAMERA_POSITION_WORLD.xz);
-    float sea = sea_scale(base_xz);
 
     float height = 0.0;
     vec2 pinch = vec2(0.0);
@@ -160,11 +131,6 @@ void vertex() {
     float jxz = 0.0;
     float jzz = 0.0;
 
-    // Loop-invariant: every component shares one steepness budget, divided between them
-    // in proportion to k*amp. The total sum of k*a*q then lands exactly on `steepness`,
-    // and steepness < 1 is the condition for the surface never looping through itself.
-    float q = steepness / max(ka_sum, 0.0001);
-
     for (int i = 0; i < wave_count; i++) {
         vec2 dir = waves[i].xy;
         float amp = waves[i].z;
@@ -174,7 +140,7 @@ void vertex() {
         // field shimmers as vertices slide through high-frequency waves.
         float fade = 1.0 - smoothstep(wavelength * 12.0, wavelength * 32.0, dist);
         if (fade <= 0.0) continue;
-        amp *= fade * sea;
+        amp *= fade;
 
         float k = TAU / wavelength;
         float omega = sqrt(GRAVITY * k);
@@ -185,9 +151,12 @@ void vertex() {
 
         height += amp * s;
 
-        pinch += q * amp * dir * c;
+        // GPU-Gems steepness normalisation: pinch is steepness over k and the wave
+        // count, so the summed displacement can never fold through itself.
+        float qa = wave_steepness[i] / (k * float(wave_count)) * fade;
+        pinch += qa * dir * c;
 
-        float qak = q * amp * k;
+        float qak = qa * k;
         jxx += qak * dir.x * dir.x * s;
         jxz += qak * dir.x * dir.y * s;
         jzz += qak * dir.y * dir.y * s;
@@ -226,7 +195,7 @@ void vertex() {
 
     v_world_pos = pos;
     v_world_normal = normalize(cross(tangent_z, tangent_x));
-    v_height = height / max(significant_height * sea, 0.01);
+    v_height = height / max(significant_height, 0.01);
 
     float jacobian = (1.0 - jxx) * (1.0 - jzz) - jxz * jxz;
     v_fold = clamp(1.0 - jacobian, 0.0, 1.0);

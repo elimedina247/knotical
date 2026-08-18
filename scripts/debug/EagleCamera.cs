@@ -152,6 +152,8 @@ public partial class EagleCamera : Camera3D
             if (named != null) return named;
         }
 
+        if (BoatController.Active.Count > 0) return BoatController.Active[0];
+
         return BoatHull.Active.Count > 0 ? BoatHull.Active[0] : null;
     }
 }

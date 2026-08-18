@@ -31,6 +31,8 @@ size = Vector3(0.1, 0.1, 0.8)
 
 [node name="CargoCrate" type="RigidBody3D"]
 mass = 60.0
+center_of_mass_mode = 1
+center_of_mass = Vector3(0, 0.35, 0)
 physics_material_override = SubResource("PhysicsMaterial_crate")
 script = ExtResource("1_cargo")
 
@@ -40,20 +42,20 @@ shape = SubResource("BoxShape_crate")
 
 [node name="Buoyancy" type="Node3D" parent="."]
 script = ExtResource("2_buoyancy")
-BodyVolume = 1.0
-ProbeSpan = 0.9
+Radius = 0.5
+Coefficient = 0.2
 
 [node name="ProbeA" type="Marker3D" parent="Buoyancy"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.3, 0.1, -0.3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.3, 0.5, -0.3)
 
 [node name="ProbeB" type="Marker3D" parent="Buoyancy"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 0.1, -0.3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 0.5, -0.3)
 
 [node name="ProbeC" type="Marker3D" parent="Buoyancy"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.3, 0.1, 0.3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.3, 0.5, 0.3)
 
 [node name="ProbeD" type="Marker3D" parent="Buoyancy"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 0.1, 0.3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 0.5, 0.3)
 
 [node name="Panel" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)

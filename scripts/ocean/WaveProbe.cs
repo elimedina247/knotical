@@ -20,16 +20,13 @@ public partial class WaveProbe : Node3D
     /// <summary>Metres above the surface to sit, so a sphere marker is not half-buried.</summary>
     [Export] public float SurfaceOffset { get; set; }
 
-    /// <summary>Ride the physics-weighted surface hulls feel instead of the rendered one.</summary>
-    [Export] public bool PhysicsWeighted { get; set; }
-
     public override void _Process(double delta)
     {
         Ocean ocean = Ocean.Instance;
         if (ocean == null) return;
 
         var xz = new Vector2(GlobalPosition.X, GlobalPosition.Z);
-        float height = PhysicsWeighted ? ocean.GetHeight(xz) : ocean.GetRenderedHeight(xz);
+        float height = ocean.GetHeight(xz);
         GlobalPosition = new Vector3(xz.X, height + SurfaceOffset, xz.Y);
 
         if (!AlignToNormal) return;

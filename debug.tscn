@@ -1,10 +1,8 @@
 [gd_scene format=3 uid="uid://cx6vlwtdgkpxm"]
 
 [ext_resource type="Script" uid="uid://dvl3k7wgixvcx" path="res://scripts/ocean/OceanSurface.cs" id="1_surface"]
-[ext_resource type="Script" uid="uid://lxy0aorokf63" path="res://scripts/ocean/SeaDepthField.cs" id="3_seadepth"]
 [ext_resource type="Script" uid="uid://lkd4cyvlw54e" path="res://scripts/sky/SkyController.cs" id="4_skyctl"]
 [ext_resource type="Shader" uid="uid://cwls1kmf1fiyw" path="res://shaders/sky.gdshader" id="5_skyshader"]
-[ext_resource type="PackedScene" uid="uid://5buvbskfdg7" path="res://boat_2.tscn" id="6_boat2"]
 [ext_resource type="Script" uid="uid://c3dq4aen6k1cf" path="res://scripts/debug/EagleCamera.cs" id="7_eagle"]
 [ext_resource type="Script" uid="uid://cyemm0pt8ya88" path="res://scripts/debug/DebugWindHud.cs" id="8_windhud"]
 [ext_resource type="Script" uid="uid://d1m8n7tkenvog" path="res://scripts/ui/WindCompass.cs" id="9_compass"]
@@ -16,7 +14,6 @@
 [ext_resource type="Script" uid="uid://bwi13kd85b2gh" path="res://scripts/vfx/SplashEmitter.cs" id="15_splash"]
 [ext_resource type="Script" uid="uid://o36a7vpnmo74" path="res://scripts/vfx/FoamCapture.cs" id="16_foam"]
 [ext_resource type="PackedScene" path="res://map2.tscn" id="17_120lh"]
-[ext_resource type="Script" uid="uid://ccboww0m4gkld" path="res://scripts/debug/DebugPilot.cs" id="17_pilot"]
 [ext_resource type="PackedScene" path="res://boat_skiff.tscn" id="18_skiff"]
 
 [sub_resource type="ShaderMaterial" id="SkyShaderMaterial_1"]
@@ -53,9 +50,6 @@ tonemap_white = 3.0
 [node name="OceanSurface" type="Node3D" parent="." unique_id=1098856226]
 script = ExtResource("1_surface")
 Settings = ExtResource("11_seasettings")
-
-[node name="SeaDepthField" type="Node" parent="." unique_id=806568349]
-script = ExtResource("3_seadepth")
 
 [node name="Sun" type="DirectionalLight3D" parent="." unique_id=745021398]
 transform = Transform3D(1, 0, 0, 0, 0.642788, -0.766044, 0, 0.766044, 0.642788, 0, 60, 0)

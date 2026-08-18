@@ -13,15 +13,6 @@ uniform int wave_count = 0;
 uniform float wave_time = 0.0;
 uniform float significant_height = 1.0;
 
-uniform vec4 sea_sources[16];
-uniform float sea_falloffs[16];
-uniform int sea_source_count = 0;
-uniform float sea_scale_max = 2.0;
-
-uniform sampler2D sea_depth_map : filter_linear, repeat_disable, hint_default_white;
-uniform float sea_depth_extent = 6000.0;
-uniform float sea_depth_enabled = 0.0;
-
 uniform vec2 wind_dir = vec2(1.0, 0.0);
 uniform float wind_speed = 0.0;
 uniform vec2 wind_drift = vec2(0.0);
@@ -58,20 +49,6 @@ float fbm(vec2 p) {
     return v;
 }
 
-float sea_scale(vec2 p) {
-    float s = 1.0;
-    if (sea_depth_enabled > 0.5) {
-        vec2 uv = clamp(p / (sea_depth_extent * 2.0) + 0.5, vec2(0.0), vec2(1.0));
-        s = texture(sea_depth_map, uv).r;
-    }
-    for (int i = 0; i < sea_source_count; i++) {
-        vec4 src = sea_sources[i];
-        float w = 1.0 - smoothstep(src.z, src.z + max(sea_falloffs[i], 0.01), distance(p, src.xy));
-        s = mix(s, src.w, w);
-    }
-    return clamp(s, 0.0, sea_scale_max);
-}
-
 float swell_height(vec2 world) {
     float h = 0.0;
     for (int i = 0; i < wave_count; i++) {
@@ -80,7 +57,7 @@ float swell_height(vec2 world) {
         float omega = sqrt(GRAVITY * k);
         h += waves[i].z * sin(k * dot(dir, world) - omega * wave_time + wave_phase[i]);
     }
-    return h * sea_scale(world);
+    return h;
 }
 
 vec3 wave_color(float h) {

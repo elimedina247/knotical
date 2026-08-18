@@ -107,7 +107,7 @@ public partial class BuoyancyGizmos : Node3D
             for (int i = 0; i < floater.ProbeCount; i++)
             {
                 floater.GetProbe(i, out Vector3 world, out float wet, out Vector3 force, out float span);
-                Pontoon(world, Mathf.Clamp(span * 0.4f, 0.15f, 1.4f), wet, force, floater.Body.Mass);
+                Pontoon(world, Mathf.Clamp(span, 0.15f, 1.4f), wet, force, floater.Body.Mass);
                 pontoons++;
             }
 

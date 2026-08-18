@@ -23,8 +23,25 @@ public partial class FloatProbe : Node
 
             float tilt = Mathf.RadToDeg(Mathf.Acos(Mathf.Clamp(body.GlobalBasis.Y.Normalized().Y, -1f, 1f)));
 
-            GD.Print($"float {body.Name}: y={body.GlobalPosition.Y,7:0.00} tilt={tilt,5:0.0} " +
-                     $"vy={body.LinearVelocity.Y,6:0.00} spd={body.LinearVelocity.Length(),6:0.00}");
+            float water = Knotical.Ocean.Ocean.Instance?.GetHeight(body.GlobalPosition) ?? 0f;
+
+            string buoy = "";
+            foreach (Knotical.Boat.Buoyancy b in Knotical.Boat.Buoyancy.Active)
+            {
+                if (b.Body != body) continue;
+
+                Vector3 total = Vector3.Zero;
+                for (int i = 0; i < b.ProbeCount; i++)
+                {
+                    b.GetProbe(i, out _, out _, out Vector3 force, out _);
+                    total += force;
+                }
+
+                buoy = $" wet={b.Wetness,4:0.00} fy={total.Y,8:0} N";
+            }
+
+            GD.Print($"float {body.Name}: y={body.GlobalPosition.Y,7:0.00} water={water,6:0.00} " +
+                     $"tilt={tilt,5:0.0} vy={body.LinearVelocity.Y,6:0.00} spd={body.LinearVelocity.Length(),6:0.00}{buoy}");
         }
     }
 }
