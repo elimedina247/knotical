@@ -47,6 +47,7 @@ public partial class MapOverlay : CanvasLayer
 
     private readonly Godot.Collections.Array _packedWaves = new();
     private readonly Godot.Collections.Array _packedPhases = new();
+    private readonly Godot.Collections.Array _packedResponse = new();
     private readonly System.Collections.Generic.List<(Vector2 Pos, float Radius)> _islands = new();
     private bool _islandsGathered;
     private string _shotPath;
@@ -64,6 +65,7 @@ public partial class MapOverlay : CanvasLayer
 
         _packedWaves.Resize(Knotical.Ocean.OceanSettings.MaxWaves);
         _packedPhases.Resize(Knotical.Ocean.OceanSettings.MaxWaves);
+        _packedResponse.Resize(Knotical.Ocean.OceanSettings.MaxWaves);
 
         var waveRamp = new Godot.Collections.Array();
         foreach (Color c in WaveRamp) waveRamp.Add(new Vector3(c.R, c.G, c.B));
@@ -189,13 +191,25 @@ public partial class MapOverlay : CanvasLayer
             {
                 _packedWaves[i] = i < ocean.Waves.Length ? ocean.Waves[i] : Vector4.Zero;
                 _packedPhases[i] = i < ocean.Phases.Length ? ocean.Phases[i] : 0f;
+                _packedResponse[i] = i < ocean.DepthResponse.Length ? ocean.DepthResponse[i] : 0f;
             }
 
             _material.SetShaderParameter("waves", _packedWaves);
             _material.SetShaderParameter("wave_phase", _packedPhases);
+            _material.SetShaderParameter("wave_response", _packedResponse);
             _material.SetShaderParameter("wave_count", ocean.Waves.Length);
             _material.SetShaderParameter("wave_time", (float)ocean.Time);
             _material.SetShaderParameter("significant_height", ocean.SignificantHeight);
+
+            Knotical.Ocean.SeaDepthField depth = ocean.DepthField;
+            bool baked = depth != null && depth.Baked;
+            _material.SetShaderParameter("sea_field_enabled", baked ? 1f : 0f);
+
+            if (baked)
+            {
+                _material.SetShaderParameter("sea_field", depth.Texture);
+                _material.SetShaderParameter("sea_field_extent", depth.HalfExtent);
+            }
         }
 
         if (wind != null)

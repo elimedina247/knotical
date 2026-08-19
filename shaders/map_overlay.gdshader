@@ -9,9 +9,14 @@ uniform float body_alpha = 0.94;
 
 uniform vec4 waves[24];
 uniform float wave_phase[24];
+uniform float wave_response[24];
 uniform int wave_count = 0;
 uniform float wave_time = 0.0;
 uniform float significant_height = 1.0;
+
+uniform sampler2D sea_field : filter_linear, repeat_disable, hint_default_white;
+uniform float sea_field_enabled = 0.0;
+uniform float sea_field_extent = 6000.0;
 
 uniform vec2 wind_dir = vec2(1.0, 0.0);
 uniform float wind_speed = 0.0;
@@ -50,12 +55,16 @@ float fbm(vec2 p) {
 }
 
 float swell_height(vec2 world) {
+    float field = sea_field_enabled > 0.5
+        ? texture(sea_field, world / (sea_field_extent * 2.0) + 0.5).r
+        : 1.0;
     float h = 0.0;
     for (int i = 0; i < wave_count; i++) {
         vec2 dir = waves[i].xy;
         float k = TAU / waves[i].w;
         float omega = sqrt(GRAVITY * k);
-        h += waves[i].z * sin(k * dot(dir, world) - omega * wave_time + wave_phase[i]);
+        float scale = field == 1.0 ? 1.0 : pow(field, wave_response[i]);
+        h += waves[i].z * scale * sin(k * dot(dir, world) - omega * wave_time + wave_phase[i]);
     }
     return h;
 }

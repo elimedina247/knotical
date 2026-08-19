@@ -16,6 +16,7 @@
 [ext_resource type="Script" path="res://scripts/debug/MapOverlay.cs" id="15_mapoverlay"]
 [ext_resource type="PackedScene" uid="uid://xx8i2fj8gtmd" path="res://map.tscn" id="16_map"]
 [ext_resource type="Resource" path="res://ocean_settings.tres" id="18_seasettings"]
+[ext_resource type="Script" path="res://scripts/ocean/SeaDepthField.cs" id="17_seadepth"]
 [ext_resource type="Script" path="res://scripts/debug/BuoyancyGizmos.cs" id="19_gizmos"]
 [ext_resource type="Script" path="res://scripts/vfx/SplashEmitter.cs" id="20_splash"]
 [ext_resource type="Script" path="res://scripts/vfx/FoamCapture.cs" id="21_foam"]
@@ -48,6 +49,8 @@ ambient_light_source = 3
 reflected_light_source = 2
 tonemap_mode = 2
 tonemap_white = 3.0
+ssr_enabled = true
+ssr_max_steps = 48
 
 [node name="Main" type="Node3D" unique_id=100000001]
 
@@ -61,6 +64,9 @@ script = ExtResource("1_surface")
 Settings = ExtResource("18_seasettings")
 
 [node name="Map" parent="." unique_id=100000030 instance=ExtResource("16_map")]
+
+[node name="SeaDepthField" type="Node" parent="." unique_id=100000031]
+script = ExtResource("17_seadepth")
 
 [node name="BuoyancyGizmos" type="Node3D" parent="." unique_id=100000032]
 script = ExtResource("19_gizmos")

@@ -17,8 +17,15 @@ render_mode world_vertex_coords, cull_disabled, specular_schlick_ggx, depth_draw
 uniform vec4 waves[24];
 uniform float wave_steepness[24];
 uniform float wave_phase[24];
+uniform float wave_response[24];
 uniform int wave_count = 16;
 uniform float wave_time = 0.0;
+
+// Seabed-baked sea-state field: 1 = baseline, <1 calm shallows, >1 sculpted deeps.
+// Mirrors Ocean.Field(); each wave responds by pow(field, its band response).
+uniform sampler2D sea_field : filter_linear, repeat_disable, hint_default_white;
+uniform float sea_field_enabled = 0.0;
+uniform float sea_field_extent = 6000.0;
 
 instance uniform float inner_extent = 0.0;
 
@@ -76,9 +83,15 @@ uniform float foam_capture_strength = 0.55;
 uniform float fresnel_power : hint_range(0.5, 8.0) = 4.0;
 uniform float fresnel_max : hint_range(0.0, 1.0) = 0.38;
 
-uniform float detail_scale : hint_range(0.05, 2.0) = 0.35;
-uniform float detail_strength : hint_range(0.0, 1.0) = 0.35;
+uniform float detail_strength : hint_range(0.0, 2.0) = 0.6;
 uniform float detail_far : hint_range(50.0, 2000.0) = 600.0;
+
+// Baked FFT ocean flipbook (Girardot): 8x8 grid of 512px tiles, greyscale height,
+// spatially tileable per frame. Sampled with manual wrap so tiles repeat seamlessly.
+uniform sampler2D detail_flipbook : filter_linear, repeat_disable, hint_default_black;
+uniform float detail_flip_enabled = 0.0;
+uniform float detail_flip_tile : hint_range(4.0, 100.0) = 22.0;
+uniform float detail_flip_fps : hint_range(1.0, 60.0) = 14.0;
 
 const float GRAVITY = 9.81;
 
@@ -115,11 +128,39 @@ float fbm(vec2 p) {
     return v;
 }
 
+// --- FFT flipbook sampling. Manual wrap-within-tile bilinear, because the frames
+// live in an atlas and hardware repeat would bleed across neighbouring frames.
+// Girardot's packing: R = up, G/B = the two horizontal normal components. ---------
+
+vec2 flip_sample(vec2 uv, float frame) {
+    float f = mod(floor(frame), 64.0);
+    ivec2 tile_base = ivec2(int(mod(f, 8.0)), int(floor(f / 8.0))) * 512;
+    vec2 p = fract(uv) * 512.0 - 0.5;
+    vec2 i = floor(p);
+    vec2 fr = p - i;
+    ivec2 i00 = ivec2(mod(i, vec2(512.0)));
+    ivec2 i11 = ivec2(mod(i + 1.0, vec2(512.0)));
+    vec2 h00 = texelFetch(detail_flipbook, tile_base + i00, 0).gb;
+    vec2 h10 = texelFetch(detail_flipbook, tile_base + ivec2(i11.x, i00.y), 0).gb;
+    vec2 h01 = texelFetch(detail_flipbook, tile_base + ivec2(i00.x, i11.y), 0).gb;
+    vec2 h11 = texelFetch(detail_flipbook, tile_base + i11, 0).gb;
+    return mix(mix(h00, h10, fr.x), mix(h01, h11, fr.x), fr.y);
+}
+
+vec3 flip_grad(vec2 uv, float frame) {
+    vec2 s = mix(flip_sample(uv, frame), flip_sample(uv, frame + 1.0), fract(frame));
+    vec2 hor = s * 2.0 - 1.0;
+    return vec3(hor.y, 0.0, hor.x);
+}
+
 void vertex() {
     vec3 pos = VERTEX;
     vec2 base_xz = pos.xz;
 
     float dist = length(base_xz - CAMERA_POSITION_WORLD.xz);
+    float field = sea_field_enabled > 0.5
+        ? textureLod(sea_field, base_xz / (sea_field_extent * 2.0) + 0.5, 0.0).r
+        : 1.0;
 
     float height = 0.0;
     vec2 pinch = vec2(0.0);
@@ -140,7 +181,8 @@ void vertex() {
         // field shimmers as vertices slide through high-frequency waves.
         float fade = 1.0 - smoothstep(wavelength * 12.0, wavelength * 32.0, dist);
         if (fade <= 0.0) continue;
-        amp *= fade;
+        float scale = field == 1.0 ? 1.0 : pow(field, wave_response[i]);
+        amp *= fade * scale;
 
         float k = TAU / wavelength;
         float omega = sqrt(GRAVITY * k);
@@ -152,8 +194,10 @@ void vertex() {
         height += amp * s;
 
         // GPU-Gems steepness normalisation: pinch is steepness over k and the wave
-        // count, so the summed displacement can never fold through itself.
-        float qa = wave_steepness[i] / (k * float(wave_count)) * fade;
+        // count, so the summed displacement can never fold through itself. The pinch
+        // follows the field down in calm water but caps at baseline in big water —
+        // giants grow taller and rounder, never folded.
+        float qa = wave_steepness[i] / (k * float(wave_count)) * fade * min(scale, 1.0);
         pinch += qa * dir * c;
 
         float qak = qa * k;
@@ -195,7 +239,7 @@ void vertex() {
 
     v_world_pos = pos;
     v_world_normal = normalize(cross(tangent_z, tangent_x));
-    v_height = height / max(significant_height, 0.01);
+    v_height = height / max(significant_height * field, 0.01);
 
     float jacobian = (1.0 - jxx) * (1.0 - jzz) - jxz * jxz;
     v_fold = clamp(1.0 - jacobian, 0.0, 1.0);
@@ -215,22 +259,24 @@ void fragment() {
     vec3 n = normalize(v_world_normal);
 
     float detail_fade = 1.0 - smoothstep(detail_far * 0.25, detail_far, length(v_world_pos - CAMERA_POSITION_WORLD));
-    vec2 duv = v_world_pos.xz * detail_scale;
-    vec2 flow = vec2(wave_time * 0.55, wave_time * 0.23);
-    float eps = 0.6;
-    float d0 = fbm(duv + flow);
-    float dgx = fbm(duv + flow + vec2(eps, 0.0));
-    float dgz = fbm(duv + flow + vec2(0.0, eps));
-    vec3 grad = vec3(d0 - dgx, 0.0, d0 - dgz);
 
-    vec2 duv2 = v_world_pos.xz * detail_scale * 2.7;
-    vec2 flow2 = vec2(wave_time * -0.31, wave_time * 0.47);
-    float e0 = fbm(duv2 + flow2);
-    float egx = fbm(duv2 + flow2 + vec2(eps, 0.0));
-    float egz = fbm(duv2 + flow2 + vec2(0.0, eps));
-    grad += vec3(e0 - egx, 0.0, e0 - egz) * 0.55;
+    vec3 grad;
+    if (detail_flip_enabled > 0.5) {
+        float frame = wave_time * detail_flip_fps;
+        grad = flip_grad(v_world_pos.xz / detail_flip_tile, frame);
+        grad += flip_grad(v_world_pos.xz / (detail_flip_tile * 0.313) + vec2(37.7, 11.3),
+            frame * 1.31 + 17.0) * 0.45;
+    } else {
+        vec2 duv = v_world_pos.xz * 0.35;
+        vec2 flow = vec2(wave_time * 0.55, wave_time * 0.23);
+        float eps = 0.6;
+        float d0 = fbm(duv + flow);
+        float dgx = fbm(duv + flow + vec2(eps, 0.0));
+        float dgz = fbm(duv + flow + vec2(0.0, eps));
+        grad = vec3(d0 - dgx, 0.0, d0 - dgz) / eps;
+    }
 
-    vec3 n_detail = normalize(n + grad * (detail_strength * detail_fade / eps));
+    vec3 n_detail = normalize(n + grad * (detail_strength * detail_fade));
 
     vec3 n_view = normalize((VIEW_MATRIX * vec4(n_detail, 0.0)).xyz);
 
@@ -324,8 +370,8 @@ void fragment() {
 
     ALBEDO = col;
     ALPHA = alpha;
-    ROUGHNESS = mix(0.62, 0.9, foam);
+    ROUGHNESS = mix(0.24, 0.9, foam);
     METALLIC = 0.0;
-    SPECULAR = 0.15;
+    SPECULAR = 0.4;
     NORMAL = n_view;
 }

@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://cx6vlwtdgkpxm"]
 
 [ext_resource type="Script" uid="uid://dvl3k7wgixvcx" path="res://scripts/ocean/OceanSurface.cs" id="1_surface"]
+[ext_resource type="Script" uid="uid://0keon78qo6xi" path="res://scripts/ocean/SeaDepthField.cs" id="2_seadepth"]
 [ext_resource type="Script" uid="uid://lkd4cyvlw54e" path="res://scripts/sky/SkyController.cs" id="4_skyctl"]
 [ext_resource type="Shader" uid="uid://cwls1kmf1fiyw" path="res://shaders/sky.gdshader" id="5_skyshader"]
 [ext_resource type="Script" uid="uid://c3dq4aen6k1cf" path="res://scripts/debug/EagleCamera.cs" id="7_eagle"]
@@ -11,9 +12,9 @@
 [ext_resource type="Script" uid="uid://cnmwsm8ediaw3" path="res://scripts/debug/BuoyancyGizmos.cs" id="12_gizmos"]
 [ext_resource type="PackedScene" path="res://cargo_crate.tscn" id="13_crate"]
 [ext_resource type="PackedScene" path="res://cargo_crate_large.tscn" id="14_crately"]
+[ext_resource type="PackedScene" uid="uid://xx8i2fj8gtmd" path="res://map.tscn" id="15_kbklh"]
 [ext_resource type="Script" uid="uid://bwi13kd85b2gh" path="res://scripts/vfx/SplashEmitter.cs" id="15_splash"]
 [ext_resource type="Script" uid="uid://o36a7vpnmo74" path="res://scripts/vfx/FoamCapture.cs" id="16_foam"]
-[ext_resource type="PackedScene" path="res://map2.tscn" id="17_120lh"]
 [ext_resource type="PackedScene" path="res://boat_skiff.tscn" id="18_skiff"]
 
 [sub_resource type="ShaderMaterial" id="SkyShaderMaterial_1"]
@@ -44,12 +45,17 @@ ambient_light_source = 3
 reflected_light_source = 2
 tonemap_mode = 2
 tonemap_white = 3.0
+ssr_enabled = true
+ssr_max_steps = 48
 
 [node name="Debug" type="Node3D" unique_id=559908110]
 
 [node name="OceanSurface" type="Node3D" parent="." unique_id=1098856226]
 script = ExtResource("1_surface")
 Settings = ExtResource("11_seasettings")
+
+[node name="SeaDepthField" type="Node" parent="." unique_id=1098856230]
+script = ExtResource("2_seadepth")
 
 [node name="Sun" type="DirectionalLight3D" parent="." unique_id=745021398]
 transform = Transform3D(1, 0, 0, 0, 0.642788, -0.766044, 0, 0.766044, 0.642788, 0, 60, 0)
@@ -73,6 +79,8 @@ script = ExtResource("9_compass")
 
 [node name="BoatSkiff" parent="." unique_id=1626161633 instance=ExtResource("18_skiff")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 121, 30.6, 0)
+PropellerStrength = 78500.0
+MaxSpeed = 40.0
 
 [node name="SplashEmitter" type="Node3D" parent="." unique_id=700000007]
 script = ExtResource("15_splash")
@@ -98,4 +106,4 @@ script = ExtResource("7_eagle")
 Height = 38.0
 Astern = 16.0
 
-[node name="map2" parent="." unique_id=1942486469 instance=ExtResource("17_120lh")]
+[node name="map" parent="." unique_id=915755695 instance=ExtResource("15_kbklh")]

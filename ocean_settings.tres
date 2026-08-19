@@ -4,7 +4,13 @@
 
 [resource]
 script = ExtResource("1_settings")
-MinAmplitude = 0.02
-MaxAmplitude = 0.7
-MinSteepness = 0.7
-Distribution = 2.4
+SwellMaxAmplitude = 0.45
+SwellMinSteepness = 0.35
+MediumMinAmplitude = 0.15
+MediumMaxAmplitude = 0.7
+MediumMinSteepness = 0.7
+MediumMaxSteepness = 0.95
+MediumDepthResponse = 0.6
+ChopMinAmplitude = 0.02
+ChopMaxAmplitude = 0.12
+ChopDepthResponse = 0.15

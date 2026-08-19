@@ -7,13 +7,12 @@ namespace Knotical.Vfx;
 
 /// <summary>
 /// Scene-level splash service. Hulls and floating cargo report water entries through
-/// <see cref="Request"/>; a small pool of one-shot particle bursts plays them and each
-/// splash stamps the foam capture so it leaves a fading patch behind.
+/// <see cref="Request"/>; each splash fires a few large textured spray plumes plus a
+/// burst of droplet sprites, and stamps the foam capture so it leaves a fading patch.
 ///
-/// Droplets are billboarded sprites with plain ballistic motion. They do not yet die
-/// against the wave surface — at these lifetimes they fall past it for a few frames at
-/// most, which reads fine from an eagle camera. The analytic-surface kill from the plan
-/// is the upgrade path if close-up shots ever matter.
+/// The plume texture is a 2x2 sheet of spray variants (Girardot's splash format) —
+/// a handful of big sprites carrying the detail instead of many small blank quads.
+/// Replace res://assets/textures/spray_sheet_2x2.png to reskin every splash at once.
 /// </summary>
 [GlobalClass]
 public partial class SplashEmitter : Node3D
@@ -39,9 +38,13 @@ public partial class SplashEmitter : Node3D
     private const int SprayPool = 4;
 
     private readonly Queue<(Vector3 Pos, float Speed, float Size)> _requests = new();
+    private GpuParticles3D[] _plumes = System.Array.Empty<GpuParticles3D>();
     private GpuParticles3D[] _bursts = System.Array.Empty<GpuParticles3D>();
     private GpuParticles3D[] _sprays = System.Array.Empty<GpuParticles3D>();
     private int _next;
+
+    private static Texture2D _sheet;
+    private static Texture2D _droplet;
 
     public static void Request(Vector3 surfacePos, float entrySpeed, float size)
     {
@@ -66,11 +69,17 @@ public partial class SplashEmitter : Node3D
 
     public override void _Ready()
     {
+        _sheet ??= LoadOptional("res://assets/textures/spray_sheet_2x2.png");
+        _droplet ??= LoadOptional("res://assets/textures/spray_droplet.png");
+
+        _plumes = new GpuParticles3D[Pool];
         _bursts = new GpuParticles3D[Pool];
 
         for (int i = 0; i < Pool; i++)
         {
+            _plumes[i] = BuildPlume();
             _bursts[i] = BuildBurst();
+            AddChild(_plumes[i]);
             AddChild(_bursts[i]);
         }
 
@@ -83,24 +92,88 @@ public partial class SplashEmitter : Node3D
         }
     }
 
-    private static GpuParticles3D BuildSpray()
+    private static Texture2D LoadOptional(string path) =>
+        ResourceLoader.Exists(path) ? GD.Load<Texture2D>(path) : null;
+
+    private static StandardMaterial3D SheetMaterial(float alpha)
+    {
+        return new StandardMaterial3D
+        {
+            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+            VertexColorUseAsAlbedo = true,
+            BillboardMode = BaseMaterial3D.BillboardModeEnum.Particles,
+            AlbedoColor = new Color(1f, 1f, 1f, alpha),
+            AlbedoTexture = _sheet,
+            ParticlesAnimHFrames = 2,
+            ParticlesAnimVFrames = 2,
+            ParticlesAnimLoop = false
+        };
+    }
+
+    private static GpuParticles3D BuildPlume()
     {
         var ramp = new Gradient();
-        ramp.SetColor(0, new Color(1f, 1f, 1f, 0.75f));
-        ramp.SetColor(1, new Color(0.9f, 0.96f, 1f, 0f));
+        ramp.AddPoint(0.18f, Colors.White);
+        ramp.SetColor(0, new Color(1f, 1f, 1f, 0.35f));
+        ramp.SetColor(1, new Color(1f, 1f, 1f, 0.95f));
+        ramp.SetColor(2, new Color(0.94f, 0.98f, 1f, 0f));
+
+        var grow = new Curve();
+        grow.AddPoint(new Vector2(0f, 0.35f));
+        grow.AddPoint(new Vector2(0.35f, 0.8f));
+        grow.AddPoint(new Vector2(1f, 1.15f));
 
         var process = new ParticleProcessMaterial
         {
-            Direction = new Vector3(0f, 0.7f, -0.7f),
-            Spread = 40f,
-            InitialVelocityMin = 3f,
-            InitialVelocityMax = 6f,
-            Gravity = new Vector3(0f, -13f, 0f),
-            ScaleMin = 0.35f,
-            ScaleMax = 0.9f,
+            Direction = new Vector3(0f, 1f, 0f),
+            Spread = 22f,
+            InitialVelocityMin = 1.2f,
+            InitialVelocityMax = 2.6f,
+            Gravity = new Vector3(0f, -2.4f, 0f),
+            ScaleMin = 0.8f,
+            ScaleMax = 1.5f,
+            ScaleCurve = new CurveTexture { Curve = grow },
+            AngleMin = -18f,
+            AngleMax = 18f,
+            AnimOffsetMin = 0f,
+            AnimOffsetMax = 1f,
             ColorRamp = new GradientTexture1D { Gradient = ramp },
-            EmissionShape = ParticleProcessMaterial.EmissionShapeEnum.Box,
-            EmissionBoxExtents = new Vector3(1.2f, 0.2f, 0.6f)
+            EmissionShape = ParticleProcessMaterial.EmissionShapeEnum.Sphere,
+            EmissionSphereRadius = 0.4f
+        };
+
+        return new GpuParticles3D
+        {
+            Emitting = false,
+            OneShot = true,
+            Explosiveness = 1f,
+            Lifetime = 1.5,
+            Amount = 4,
+            ProcessMaterial = process,
+            DrawPass1 = new QuadMesh { Size = new Vector2(1f, 1f), Material = SheetMaterial(0.9f) },
+            VisibilityAabb = new Aabb(new Vector3(-14f, -14f, -14f), new Vector3(28f, 28f, 28f))
+        };
+    }
+
+    private static GpuParticles3D BuildBurst()
+    {
+        var ramp = new Gradient();
+        ramp.SetColor(0, new Color(1f, 1f, 1f, 0.95f));
+        ramp.SetColor(1, new Color(0.92f, 0.97f, 1f, 0f));
+
+        var process = new ParticleProcessMaterial
+        {
+            Direction = new Vector3(0f, 1f, 0f),
+            Spread = 55f,
+            InitialVelocityMin = 3f,
+            InitialVelocityMax = 7f,
+            Gravity = new Vector3(0f, -18f, 0f),
+            ScaleMin = 0.4f,
+            ScaleMax = 1f,
+            ColorRamp = new GradientTexture1D { Gradient = ramp },
+            EmissionShape = ParticleProcessMaterial.EmissionShapeEnum.Sphere,
+            EmissionSphereRadius = 0.5f
         };
 
         var sprite = new StandardMaterial3D
@@ -109,7 +182,43 @@ public partial class SplashEmitter : Node3D
             Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
             VertexColorUseAsAlbedo = true,
             BillboardMode = BaseMaterial3D.BillboardModeEnum.Particles,
-            AlbedoColor = new Color(1f, 1f, 1f, 0.8f)
+            AlbedoColor = new Color(1f, 1f, 1f, 0.9f),
+            AlbedoTexture = _droplet
+        };
+
+        return new GpuParticles3D
+        {
+            Emitting = false,
+            OneShot = true,
+            Explosiveness = 0.95f,
+            Lifetime = 0.85,
+            Amount = 42,
+            ProcessMaterial = process,
+            DrawPass1 = new QuadMesh { Size = new Vector2(0.16f, 0.16f), Material = sprite },
+            VisibilityAabb = new Aabb(new Vector3(-12f, -12f, -12f), new Vector3(24f, 24f, 24f))
+        };
+    }
+
+    private static GpuParticles3D BuildSpray()
+    {
+        var ramp = new Gradient();
+        ramp.SetColor(0, new Color(1f, 1f, 1f, 0.55f));
+        ramp.SetColor(1, new Color(0.9f, 0.96f, 1f, 0f));
+
+        var process = new ParticleProcessMaterial
+        {
+            Direction = new Vector3(0f, 0.7f, -0.7f),
+            Spread = 40f,
+            InitialVelocityMin = 3f,
+            InitialVelocityMax = 6f,
+            Gravity = new Vector3(0f, -9f, 0f),
+            ScaleMin = 0.5f,
+            ScaleMax = 1.1f,
+            AnimOffsetMin = 0f,
+            AnimOffsetMax = 1f,
+            ColorRamp = new GradientTexture1D { Gradient = ramp },
+            EmissionShape = ParticleProcessMaterial.EmissionShapeEnum.Box,
+            EmissionBoxExtents = new Vector3(1.2f, 0.2f, 0.6f)
         };
 
         return new GpuParticles3D
@@ -117,10 +226,10 @@ public partial class SplashEmitter : Node3D
             Emitting = false,
             OneShot = false,
             Lifetime = 0.9,
-            Amount = 180,
+            Amount = 90,
             AmountRatio = 0f,
             ProcessMaterial = process,
-            DrawPass1 = new QuadMesh { Size = new Vector2(0.35f, 0.35f), Material = sprite },
+            DrawPass1 = new QuadMesh { Size = new Vector2(0.8f, 0.8f), Material = SheetMaterial(0.6f) },
             VisibilityAabb = new Aabb(new Vector3(-15f, -15f, -15f), new Vector3(30f, 30f, 30f))
         };
     }
@@ -142,7 +251,7 @@ public partial class SplashEmitter : Node3D
                 float headway = hull.LinearVelocity.Dot(forward);
 
                 Vector3 bow = hull.BowWorld;
-                float water = ocean.GetRenderedHeight(new Vector2(bow.X, bow.Z));
+                float water = ocean.GetHeight(new Vector2(bow.X, bow.Z));
                 float clearance = bow.Y - water;
 
                 float ratio = Mathf.Clamp(
@@ -177,48 +286,6 @@ public partial class SplashEmitter : Node3D
         }
     }
 
-    private static GpuParticles3D BuildBurst()
-    {
-        var ramp = new Gradient();
-        ramp.SetColor(0, new Color(1f, 1f, 1f, 0.9f));
-        ramp.SetColor(1, new Color(0.92f, 0.97f, 1f, 0f));
-
-        var process = new ParticleProcessMaterial
-        {
-            Direction = new Vector3(0f, 1f, 0f),
-            Spread = 65f,
-            InitialVelocityMin = 2f,
-            InitialVelocityMax = 6f,
-            Gravity = new Vector3(0f, -13f, 0f),
-            ScaleMin = 0.5f,
-            ScaleMax = 1.4f,
-            ColorRamp = new GradientTexture1D { Gradient = ramp },
-            EmissionShape = ParticleProcessMaterial.EmissionShapeEnum.Sphere,
-            EmissionSphereRadius = 0.6f
-        };
-
-        var sprite = new StandardMaterial3D
-        {
-            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
-            Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-            VertexColorUseAsAlbedo = true,
-            BillboardMode = BaseMaterial3D.BillboardModeEnum.Particles,
-            AlbedoColor = new Color(1f, 1f, 1f, 0.85f)
-        };
-
-        return new GpuParticles3D
-        {
-            Emitting = false,
-            OneShot = true,
-            Explosiveness = 0.9f,
-            Lifetime = 1.1,
-            Amount = 24,
-            ProcessMaterial = process,
-            DrawPass1 = new QuadMesh { Size = new Vector2(0.4f, 0.4f), Material = sprite },
-            VisibilityAabb = new Aabb(new Vector3(-12f, -12f, -12f), new Vector3(24f, 24f, 24f))
-        };
-    }
-
     public override void _Process(double delta)
     {
         UpdateSprays();
@@ -227,21 +294,34 @@ public partial class SplashEmitter : Node3D
         {
             (Vector3 pos, float speed, float size) = _requests.Dequeue();
 
+            GpuParticles3D plume = _plumes[_next];
             GpuParticles3D burst = _bursts[_next];
             _next = (_next + 1) % Pool;
 
             float punch = Mathf.Clamp(speed / 6f, 0.3f, 2f) * Loudness;
 
+            plume.GlobalPosition = pos;
+            plume.Amount = 3 + (int)Mathf.Clamp(punch * 2f, 0f, 3f);
+
+            if (plume.ProcessMaterial is ParticleProcessMaterial plumeProcess)
+            {
+                plumeProcess.InitialVelocityMin = 1f * punch;
+                plumeProcess.InitialVelocityMax = 2.4f * punch;
+                plumeProcess.EmissionSphereRadius = 0.5f * size;
+                plumeProcess.ScaleMin = 1.6f * size * Mathf.Max(punch, 0.6f);
+                plumeProcess.ScaleMax = 3f * size * Mathf.Max(punch, 0.6f);
+            }
+
+            plume.Restart();
+
             burst.GlobalPosition = pos;
-            burst.Amount = (int)Mathf.Clamp(10f + 22f * punch * size, 8f, 64f);
+            burst.Amount = (int)Mathf.Clamp(16f + 30f * punch * size, 12f, 72f);
 
             if (burst.ProcessMaterial is ParticleProcessMaterial process)
             {
-                process.InitialVelocityMin = 1.5f * punch;
-                process.InitialVelocityMax = 5.5f * punch;
+                process.InitialVelocityMin = 2f * punch;
+                process.InitialVelocityMax = 6.5f * punch;
                 process.EmissionSphereRadius = 0.4f * size;
-                process.ScaleMin = 0.4f * size;
-                process.ScaleMax = 1.2f * size;
             }
 
             burst.Restart();

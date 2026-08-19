@@ -8,9 +8,10 @@ namespace Knotical.Ocean;
 /// The wave field is a pure function of world position, time, and a handful of authored
 /// numbers, which is why it needs almost no networking: sync <see cref="Time"/> and every
 /// client renders and simulates an identical ocean. Every wave is derived from
-/// <see cref="OceanSettings.Seed"/>; the sea only changes when a human edits a setting.
-/// This class owns that function on the CPU; ocean.gdshader runs the same maths on the
-/// GPU. If you change one, change the other.
+/// <see cref="OceanSettings.Seed"/> in three bands (swell, medium, chop); local sea state
+/// comes from the seabed via <see cref="SeaDepthField"/>, baked identically on every
+/// machine. This class owns that function on the CPU; ocean.gdshader runs the same maths
+/// on the GPU. If you change one, change the other.
 ///
 /// There is exactly one surface: what physics feels is what the shader draws.
 ///
@@ -40,23 +41,28 @@ public partial class Ocean : Node
 	/// </summary>
 	public double Time { get; private set; }
 
-	/// <summary>Significant wave height in metres, for shading, HUDs, and audio.</summary>
+	/// <summary>Significant wave height in metres at field 1, for shading, HUDs, and audio.</summary>
 	public float SignificantHeight { get; private set; }
 
 	/// <summary>Amplitude-weighted dominant wavelength in metres, for HUD display.</summary>
 	public float PeakWavelength { get; private set; }
 
+	/// <summary>Bumped on every rebuild so uniform pushers know to re-send the wave set.</summary>
+	public int Version { get; private set; }
+
 	private Vector4[] _waves = System.Array.Empty<Vector4>();
 	private float[] _steepness = System.Array.Empty<float>();
 	private float[] _phases = System.Array.Empty<float>();
+	private float[] _depthResponse = System.Array.Empty<float>();
+	private SeaDepthField _depth;
 
 	/// <summary>xy = unit direction, z = amplitude (m), w = wavelength (m).</summary>
 	/// <remarks>
-	/// Static between rebuilds. The shader additionally fades short waves out with
-	/// distance from the camera, to stop the far field aliasing on a coarse mesh. That
-	/// fade is deliberately not mirrored here: it is a rendering concern, it is
-	/// view-dependent, and everything that samples the CPU side is close enough to the
-	/// camera for it to be inactive.
+	/// Bands are contiguous: [swell | medium | chop]. Static between rebuilds. The shader
+	/// additionally fades short waves out with distance from the camera, to stop the far
+	/// field aliasing on a coarse mesh. That fade is deliberately not mirrored here: it is
+	/// a rendering concern, it is view-dependent, and everything that samples the CPU side
+	/// is close enough to the camera for it to be inactive.
 	/// </remarks>
 	public Vector4[] Waves => _waves;
 
@@ -65,6 +71,12 @@ public partial class Ocean : Node
 
 	/// <summary>Per-wave phase offset in radians, parallel to <see cref="Waves"/>.</summary>
 	public float[] Phases => _phases;
+
+	/// <summary>Per-wave exponent on the local field: 1 = full response, 0 = immune.</summary>
+	public float[] DepthResponse => _depthResponse;
+
+	/// <summary>Seabed-derived sea-state field, or null when no terrain is baked.</summary>
+	public SeaDepthField DepthField => _depth;
 
 	public override void _EnterTree()
 	{
@@ -86,7 +98,7 @@ public partial class Ocean : Node
 	/// <summary>Re-derives every wave from the seed after editing <see cref="Settings"/>.</summary>
 	public void Rebuild()
 	{
-		Settings.Build(out _waves, out _steepness, out _phases);
+		Settings.Build(out _waves, out _steepness, out _phases, out _depthResponse);
 
 		float squareSum = 0f;
 		float weighted = 0f;
@@ -100,6 +112,7 @@ public partial class Ocean : Node
 
 		SignificantHeight = 4f * Mathf.Sqrt(squareSum * 0.5f);
 		PeakWavelength = squareSum > 0f ? weighted / squareSum : 0f;
+		Version++;
 	}
 
 	/// <summary>
@@ -116,13 +129,27 @@ public partial class Ocean : Node
 	/// <summary>Overrides wave time. Used by clients to adopt the host's clock.</summary>
 	public void SetTime(double time) => Time = time;
 
+	public void SetDepthField(SeaDepthField field) => _depth = field;
+
+	/// <summary>
+	/// Local sea-state multiplier at a world XZ position, from the baked seabed field.
+	/// 1 in baseline-depth water, below 1 over shallows, above 1 in sculpted deeps.
+	/// Each wave responds by pow(field, its band's DepthResponse).
+	/// </summary>
+	public float Field(Vector2 worldXZ) => _depth != null ? _depth.Sample(worldXZ) : 1f;
+
+	private float WaveScale(float field, int i) =>
+		field == 1f ? 1f : Mathf.Pow(field, _depthResponse[i]);
+
 	/// <summary>
 	/// Per-wave horizontal pinch amplitude. The GPU-Gems normalisation — steepness
 	/// divided by k and the wave count — keeps the summed displacement below the
-	/// self-intersection limit no matter how the settings are authored.
+	/// self-intersection limit; the pinch follows the field down in calm water but is
+	/// capped at its baseline in big water, so giants grow taller and rounder, never
+	/// folded through themselves.
 	/// </summary>
-	private float PinchAmplitude(int i) =>
-		_steepness[i] / (Mathf.Tau / _waves[i].W * _waves.Length);
+	private float PinchAmplitude(int i, float scale) =>
+		_steepness[i] / (Mathf.Tau / _waves[i].W * _waves.Length) * Mathf.Min(scale, 1f);
 
 	/// <summary>
 	/// Surface height at a world XZ position — the same surface the shader draws.
@@ -133,7 +160,8 @@ public partial class Ocean : Node
 	/// </summary>
 	public float GetHeight(Vector2 worldXZ)
 	{
-		Vector2 p = Undisplace(worldXZ);
+		float field = Field(worldXZ);
+		Vector2 p = Undisplace(worldXZ, field);
 		float y = 0f;
 		float t = (float)Time;
 
@@ -144,7 +172,7 @@ public partial class Ocean : Node
 			float k = Mathf.Tau / w.W;
 			float omega = Mathf.Sqrt(Gravity * k);
 
-			y += w.Z * Mathf.Sin(k * dir.Dot(p) - omega * t + _phases[i]);
+			y += w.Z * WaveScale(field, i) * Mathf.Sin(k * dir.Dot(p) - omega * t + _phases[i]);
 		}
 
 		return SeaLevel + y;
@@ -156,7 +184,7 @@ public partial class Ocean : Node
 
 	public float GetRenderedHeight(Vector3 worldPos) => GetHeight(new Vector2(worldPos.X, worldPos.Z));
 
-	private Vector2 Undisplace(Vector2 worldXZ)
+	private Vector2 Undisplace(Vector2 worldXZ, float field)
 	{
 		float t = (float)Time;
 		Vector2 p = worldXZ;
@@ -172,7 +200,8 @@ public partial class Ocean : Node
 				float k = Mathf.Tau / w.W;
 				float omega = Mathf.Sqrt(Gravity * k);
 
-				pinch += dir * (PinchAmplitude(i) * Mathf.Cos(k * dir.Dot(p) - omega * t + _phases[i]));
+				pinch += dir * (PinchAmplitude(i, WaveScale(field, i))
+					* Mathf.Cos(k * dir.Dot(p) - omega * t + _phases[i]));
 			}
 
 			p = worldXZ - pinch;
@@ -193,22 +222,24 @@ public partial class Ocean : Node
 		float jxz = 0f;
 		float jzz = 0f;
 		float t = (float)Time;
+		float field = Field(worldXZ);
 
 		for (int i = 0; i < _waves.Length; i++)
 		{
 			Vector4 w = _waves[i];
 			var dir = new Vector2(w.X, w.Y);
+			float scale = WaveScale(field, i);
 			float k = Mathf.Tau / w.W;
 			float omega = Mathf.Sqrt(Gravity * k);
 			float phase = k * dir.Dot(worldXZ) - omega * t + _phases[i];
 
 			float s = Mathf.Sin(phase);
-			float c = Mathf.Cos(phase) * w.Z * k;
+			float c = Mathf.Cos(phase) * w.Z * scale * k;
 
 			dx += c * dir.X;
 			dz += c * dir.Y;
 
-			float qak = _steepness[i] / _waves.Length * s;
+			float qak = PinchAmplitude(i, scale) * k * s;
 			jxx += qak * dir.X * dir.X;
 			jxz += qak * dir.X * dir.Y;
 			jzz += qak * dir.Y * dir.Y;
@@ -230,6 +261,7 @@ public partial class Ocean : Node
 	{
 		float v = 0f;
 		float t = (float)Time;
+		float field = Field(worldXZ);
 
 		for (int i = 0; i < _waves.Length; i++)
 		{
@@ -238,7 +270,8 @@ public partial class Ocean : Node
 			float k = Mathf.Tau / w.W;
 			float omega = Mathf.Sqrt(Gravity * k);
 
-			v += -w.Z * omega * Mathf.Cos(k * dir.Dot(worldXZ) - omega * t + _phases[i]);
+			v += -w.Z * WaveScale(field, i) * omega
+				* Mathf.Cos(k * dir.Dot(worldXZ) - omega * t + _phases[i]);
 		}
 
 		return v;
@@ -256,6 +289,7 @@ public partial class Ocean : Node
 		var flat = new Vector2(worldPos.X, worldPos.Z);
 		var flow = Vector3.Zero;
 		float t = (float)Time;
+		float field = Field(flat);
 
 		for (int i = 0; i < _waves.Length; i++)
 		{
@@ -264,7 +298,8 @@ public partial class Ocean : Node
 			float k = Mathf.Tau / w.W;
 			float omega = Mathf.Sqrt(Gravity * k);
 			float phase = k * dir.Dot(flat) - omega * t + _phases[i];
-			float amplitude = w.Z * omega * Mathf.Exp(k * Mathf.Min(worldPos.Y - SeaLevel, 0f));
+			float amplitude = w.Z * WaveScale(field, i) * omega
+				* Mathf.Exp(k * Mathf.Min(worldPos.Y - SeaLevel, 0f));
 			float swing = Mathf.Sin(phase);
 
 			flow.X += dir.X * amplitude * swing;

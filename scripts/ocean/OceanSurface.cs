@@ -47,16 +47,14 @@ public partial class OceanSurface : Node3D
 		get => false;
 		set
 		{
-			if (!value) return;
-			Ocean.Instance?.SetSettings(Settings);
-			InvalidateSkeleton();
+			if (value) Ocean.Instance?.SetSettings(Settings);
 		}
 	}
 
 	private readonly System.Collections.Generic.List<MeshInstance3D> _levels = new();
 	private ShaderMaterial _material;
 	private Camera3D _camera;
-	private bool _skeletonPushed;
+	private int _pushedVersion = -1;
 
 	// Reused every frame. Godot maps untyped arrays onto fixed-size shader array uniforms
 	// the same way a GDScript array literal does, and rebuilding them each frame would
@@ -64,6 +62,7 @@ public partial class OceanSurface : Node3D
 	private readonly Godot.Collections.Array _packedWaves = new();
 	private readonly Godot.Collections.Array _packedSteepness = new();
 	private readonly Godot.Collections.Array _packedPhases = new();
+	private readonly Godot.Collections.Array _packedResponse = new();
 
 	private const int MaxWakeBows = 4;
 	private const int MaxHullMasks = 4;
@@ -83,11 +82,19 @@ public partial class OceanSurface : Node3D
 			Shader = OceanShader ?? GD.Load<Shader>("res://shaders/ocean.gdshader")
 		};
 
+		if (ResourceLoader.Exists("res://assets/textures/ghis/fft_water_normals_8x8.png"))
+		{
+			var flip = GD.Load<Texture2D>("res://assets/textures/ghis/fft_water_normals_8x8.png");
+			_material.SetShaderParameter("detail_flipbook", flip);
+			_material.SetShaderParameter("detail_flip_enabled", 1f);
+		}
+
 		// The shader declares fixed-size arrays, so always send a full set with the
 		// unused tail zeroed rather than a short array.
 		_packedWaves.Resize(OceanSettings.MaxWaves);
 		_packedSteepness.Resize(OceanSettings.MaxWaves);
 		_packedPhases.Resize(OceanSettings.MaxWaves);
+		_packedResponse.Resize(OceanSettings.MaxWaves);
 		_packedWakePoints.Resize(Knotical.Boat.BoatWake.MaxTrailPoints);
 		_packedWakeBows.Resize(MaxWakeBows);
 		_packedMaskFrames.Resize(MaxHullMasks);
@@ -145,7 +152,22 @@ public partial class OceanSurface : Node3D
 
 		PushWakeUniforms();
 		PushHullMasks();
+		PushSeaField();
 		PushFoamCapture();
+	}
+
+	private void PushSeaField()
+	{
+		SeaDepthField depth = Ocean.Instance?.DepthField;
+		bool baked = depth != null && depth.Baked;
+
+		_material.SetShaderParameter("sea_field_enabled", baked ? 1f : 0f);
+
+		if (baked)
+		{
+			_material.SetShaderParameter("sea_field", depth.Texture);
+			_material.SetShaderParameter("sea_field_extent", depth.HalfExtent);
+		}
 	}
 
 	private void PushFoamCapture()
@@ -240,22 +262,24 @@ public partial class OceanSurface : Node3D
 		Ocean ocean = Ocean.Instance;
 		if (ocean == null || _material == null) return;
 
-		if (!_skeletonPushed)
+		if (_pushedVersion != ocean.Version)
 		{
 			for (int i = 0; i < OceanSettings.MaxWaves; i++)
 			{
 				_packedWaves[i] = i < ocean.Waves.Length ? ocean.Waves[i] : Vector4.Zero;
 				_packedSteepness[i] = i < ocean.Steepness.Length ? ocean.Steepness[i] : 0f;
 				_packedPhases[i] = i < ocean.Phases.Length ? ocean.Phases[i] : 0f;
+				_packedResponse[i] = i < ocean.DepthResponse.Length ? ocean.DepthResponse[i] : 0f;
 			}
 
 			_material.SetShaderParameter("waves", _packedWaves);
 			_material.SetShaderParameter("wave_steepness", _packedSteepness);
 			_material.SetShaderParameter("wave_phase", _packedPhases);
+			_material.SetShaderParameter("wave_response", _packedResponse);
 			_material.SetShaderParameter("wave_count", ocean.Waves.Length);
 			_material.SetShaderParameter("significant_height", ocean.SignificantHeight);
 			PushPalette();
-			_skeletonPushed = true;
+			_pushedVersion = ocean.Version;
 		}
 
 		if (Knotical.Sky.DayCycle.Instance != null)
@@ -282,8 +306,8 @@ public partial class OceanSurface : Node3D
 		_material.SetShaderParameter("foam_color", Palette.Foam);
 	}
 
-	/// <summary>Call after rebuilding the skeleton so phases and count are re-sent.</summary>
-	public void InvalidateSkeleton() => _skeletonPushed = false;
+	/// <summary>Forces a uniform re-send; normally the rebuild version covers this.</summary>
+	public void InvalidateSkeleton() => _pushedVersion = -1;
 
 	/// <summary>
 	/// Flat grid centred on the origin. The vertex shader supplies all displacement,

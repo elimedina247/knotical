@@ -105,3 +105,39 @@ Our `FoamCapture.cs` + `foam_capture` uniform already copy this design.
 
 Deliberately not ported: the Niagara readback pipeline (unnecessary — our CPU
 already evaluates the exact rendered wave function).
+
+## Update — his FFT flipbook and the splash rework (2026-08-18)
+
+His fine water detail and better-looking splashes both came from textures, so:
+
+- His baked FFT flipbooks were extracted from the UE 4.27 flipbook project
+  (`GhisFFTFlipbook_UEProject427_19March2023`) straight out of the `.uasset`
+  files (source PNGs live inside zlib-chunked bulk data; UE 5.x assets use
+  Oodle instead, which is why the 5.3 splash textures could not be pulled).
+  Now in `assets/textures/ghis/`: `fft_water_normals_8x8.png` (wired into
+  `ocean.gdshader` as the detail-normal layer, replacing the procedural noise;
+  sampled at two world scales with frame interpolation, his packing R=up,
+  G/B=horizontal), plus `fft_water_height_8x8.png` and `fft_water_crest_8x8.png`
+  extracted and ready for later use (micro-displacement, foam mask).
+- Splashes were blank white quads — that was the whole problem. Now each splash
+  fires a few large billboard plumes using a 2×2 spray-variant sheet
+  (`assets/textures/spray_sheet_2x2.png`, procedurally generated — overwrite the
+  file with his `T_WaterSplashBig_2X2` export to reskin) plus a burst of
+  textured droplets; bow spray uses the sheet too.
+- Screen-space reflections enabled in both scene environments; water roughness
+  lowered (0.62 → 0.24 base) so the sun glints off the detail normals.
+- License note: Girardot's license permits commercial indie use but requires
+  'Ghislain GIRARDOT' in the game credits.
+
+## Update — bands and zones on top of the core (2026-08-18, later)
+
+Two deliberate extensions beyond his demo, both layered over the unchanged core:
+the single seeded wave list became **three seeded bands** (swell / medium / chop,
+same derivation per band, one Seed, ≤24 waves), and a **seabed-baked zone field**
+scales them by place — each band with its own response (swell full, chop barely),
+so deep sculpted water grows huge rolling swell without growing the jittery chop.
+Sculpting the terrain *is* authoring the ocean states: ≤5 m deep = calm, 30 m =
+baseline, ≥55 m = 1.6× seas. Physics still equals the rendered surface everywhere;
+the whole ocean still syncs over the network as a single clock value.
+`ocean_settings_storm.tres` is the big-sea preset (`--seafile=` loads presets in
+headless runs).

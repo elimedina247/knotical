@@ -66,10 +66,29 @@ public partial class DebugWindHud : CanvasLayer
             if (OceanSystem.Instance?.Settings == null) continue;
 
             Knotical.Ocean.OceanSettings sea = OceanSystem.Instance.Settings;
-            sea.MaxAmplitude = Mathf.Min(sea.MaxAmplitude, cap);
-            sea.MinAmplitude = Mathf.Min(sea.MinAmplitude, cap);
+            sea.SwellMaxAmplitude = Mathf.Min(sea.SwellMaxAmplitude, cap);
+            sea.SwellMinAmplitude = Mathf.Min(sea.SwellMinAmplitude, cap);
+            sea.MediumMaxAmplitude = Mathf.Min(sea.MediumMaxAmplitude, cap);
+            sea.MediumMinAmplitude = Mathf.Min(sea.MediumMinAmplitude, cap);
+            sea.ChopMaxAmplitude = Mathf.Min(sea.ChopMaxAmplitude, cap);
             OceanSystem.Instance.Rebuild();
             GD.Print($"sea capped at {cap} m");
+        }
+
+        foreach (string arg in OS.GetCmdlineUserArgs())
+        {
+            if (!arg.StartsWith("--seafile=")) continue;
+
+            string path = arg["--seafile=".Length..];
+            if (ResourceLoader.Exists(path) && GD.Load<Resource>(path) is Knotical.Ocean.OceanSettings preset)
+            {
+                OceanSystem.Instance?.SetSettings(preset);
+                GD.Print($"sea preset {path}");
+            }
+            else
+            {
+                GD.Print($"sea preset NOT FOUND: {path}");
+            }
         }
 
         Boat ??= FindBoat(GetTree().Root);
@@ -108,6 +127,14 @@ public partial class DebugWindHud : CanvasLayer
 
         float headingDeg = Mathf.PosMod(Mathf.RadToDeg(wind.DirectionRad), 360f);
 
+        float field = 1f;
+        Camera3D camera = GetViewport().GetCamera3D();
+        if (camera != null)
+        {
+            Vector3 eye = camera.GlobalPosition;
+            field = ocean.Field(new Vector2(eye.X, eye.Z));
+        }
+
         string clock = "";
         DayCycle cycle = DayCycle.Instance;
         if (cycle != null)
@@ -126,7 +153,7 @@ public partial class DebugWindHud : CanvasLayer
             $"       {headingDeg,5:0}°  {Compass(headingDeg)}\n" +
             $"\n" +
             $"SEA    H  {ocean.SignificantHeight,5:0.00} m   peak {ocean.PeakWavelength,5:0} m   " +
-            $"waves {ocean.Waves.Length}   seed {ocean.Settings.Seed}\n" +
+            $"field {field,4:0.00}   waves {ocean.Waves.Length}   seed {ocean.Settings.Seed}\n" +
             $"\n" +
             clock +
             $"[Up/Down] speed   [Left/Right] veer   [T] wind ff   [Y] day ff   [0] reset";
