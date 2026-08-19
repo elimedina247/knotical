@@ -23,6 +23,9 @@ public partial class SailingRig : Node
 
     public int FoilCount => _foils.Count;
 
+    [Export(PropertyHint.Range, "0,1,0.01")]
+    public float Leeway { get; set; } = 0.35f;
+
     public override void _Ready()
     {
         _hull = GetParentOrNull<BoatHull>();
@@ -92,10 +95,9 @@ public partial class SailingRig : Node
         if (ahead.LengthSquared() > 0.0001f)
         {
             ahead = ahead.Normalized();
-            float drive = canvas.Dot(ahead);
-            Vector3 side = canvas - ahead * drive;
+            Vector3 side = canvas - ahead * canvas.Dot(ahead);
 
-            canvas = ahead * (drive > 0f ? drive * Polar(level) : drive) + side;
+            canvas = ahead * (canvas.Length() * Polar(level)) + side * Leeway;
             torque += HeelTorque(level, side);
         }
         else

@@ -113,6 +113,9 @@ public partial class Sail : MeshInstance3D, IFoil
     [Export(PropertyHint.Range, "0,200,0.5")]
     public float DriveGain { get; set; } = 20f;
 
+    [Export(PropertyHint.Range, "0,400,1")]
+    public float DriveArea { get; set; }
+
     [Export(PropertyHint.Range, "0,4,0.01")]
     public float LiftCoefficient { get; set; } = 0.5f;
 
@@ -258,7 +261,7 @@ public partial class Sail : MeshInstance3D, IFoil
     {
         Exposure = Windage();
 
-        float area = Area * Exposure;
+        float area = (DriveArea > 0f ? DriveArea * _deployment : Area) * Exposure;
         if (area <= 0.0001f) return Vector3.Zero;
 
         Vector3 n = Normal;

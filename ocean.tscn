@@ -14,6 +14,7 @@
 [ext_resource type="PackedScene" path="res://cargo_crate_large.tscn" id="13_ned8m"]
 [ext_resource type="PackedScene" uid="uid://c3vb7k2p4qm8n" path="res://boat_3.tscn" id="14_boat3"]
 [ext_resource type="Script" path="res://scripts/debug/MapOverlay.cs" id="15_mapoverlay"]
+[ext_resource type="PackedScene" path="res://boat_cutter.tscn" id="22_cutter"]
 [ext_resource type="PackedScene" uid="uid://xx8i2fj8gtmd" path="res://map.tscn" id="16_map"]
 [ext_resource type="Resource" path="res://ocean_settings.tres" id="18_seasettings"]
 [ext_resource type="Script" path="res://scripts/ocean/SeaDepthField.cs" id="17_seadepth"]
@@ -105,6 +106,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 30, 0)
 mass = 3290987.5
 YawDamping = 0.5
 KeelLever = 2.0
+
+[node name="BoatCutter" parent="." instance=ExtResource("22_cutter")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 31, 0)
+Trace = true
 
 [node name="CargoCrate" parent="." unique_id=1793790146 instance=ExtResource("11_xgj7f")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 35.326326, 12.580086)

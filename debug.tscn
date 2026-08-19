@@ -8,14 +8,14 @@
 [ext_resource type="Script" uid="uid://cyemm0pt8ya88" path="res://scripts/debug/DebugWindHud.cs" id="8_windhud"]
 [ext_resource type="Script" uid="uid://d1m8n7tkenvog" path="res://scripts/ui/WindCompass.cs" id="9_compass"]
 [ext_resource type="Script" uid="uid://c1x8afgu1pksx" path="res://scripts/debug/DebugNoon.cs" id="10_noon"]
-[ext_resource type="Resource" uid="uid://h0eh8586p1kp" path="res://ocean_settings.tres" id="11_seasettings"]
+[ext_resource type="Resource" path="res://ocean_settings.tres" id="11_seasettings"]
 [ext_resource type="Script" uid="uid://cnmwsm8ediaw3" path="res://scripts/debug/BuoyancyGizmos.cs" id="12_gizmos"]
 [ext_resource type="PackedScene" path="res://cargo_crate.tscn" id="13_crate"]
 [ext_resource type="PackedScene" path="res://cargo_crate_large.tscn" id="14_crately"]
 [ext_resource type="PackedScene" uid="uid://xx8i2fj8gtmd" path="res://map.tscn" id="15_kbklh"]
 [ext_resource type="Script" uid="uid://bwi13kd85b2gh" path="res://scripts/vfx/SplashEmitter.cs" id="15_splash"]
 [ext_resource type="Script" uid="uid://o36a7vpnmo74" path="res://scripts/vfx/FoamCapture.cs" id="16_foam"]
-[ext_resource type="PackedScene" path="res://boat_skiff.tscn" id="18_skiff"]
+[ext_resource type="PackedScene" path="res://boat_cutter.tscn" id="16_nhvwh"]
 
 [sub_resource type="ShaderMaterial" id="SkyShaderMaterial_1"]
 shader = ExtResource("5_skyshader")
@@ -77,11 +77,6 @@ script = ExtResource("8_windhud")
 [node name="WindCompass" type="CanvasLayer" parent="." unique_id=700000002]
 script = ExtResource("9_compass")
 
-[node name="BoatSkiff" parent="." unique_id=1626161633 instance=ExtResource("18_skiff")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 121, 30.6, 0)
-PropellerStrength = 78500.0
-MaxSpeed = 40.0
-
 [node name="SplashEmitter" type="Node3D" parent="." unique_id=700000007]
 script = ExtResource("15_splash")
 Trace = true
@@ -107,3 +102,13 @@ Height = 38.0
 Astern = 16.0
 
 [node name="map" parent="." unique_id=915755695 instance=ExtResource("15_kbklh")]
+
+[node name="BoatCutter" parent="." unique_id=889448396 instance=ExtResource("16_nhvwh")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 56.295418, 0)
+mass = 35722.758
+gravity_scale = 0.0
+center_of_mass_mode = 1
+center_of_mass = Vector3(0, -0.6, 0)
+can_sleep = false
+linear_damp_mode = 1
+angular_damp_mode = 1

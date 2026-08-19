@@ -184,13 +184,13 @@ public partial class ClinkerHull : MeshInstance3D
 
             if (faceUp)
             {
-                Tri(tool, s0, p1, p0);
-                Tri(tool, s0, s1, p1);
+                Tri(tool, s0, p0, p1);
+                Tri(tool, s0, p1, s1);
             }
             else
             {
-                Tri(tool, s0, p0, p1);
-                Tri(tool, s0, p1, s1);
+                Tri(tool, s0, p1, p0);
+                Tri(tool, s0, s1, p1);
             }
         }
     }
