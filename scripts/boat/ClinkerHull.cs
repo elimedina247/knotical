@@ -157,8 +157,8 @@ public partial class ClinkerHull : MeshInstance3D
         for (int k = 0; k < lower.Length; k++)
         {
             int next = (k + 1) % lower.Length;
-            Tri(tool, lower[k], lower[next], upper[next]);
-            Tri(tool, lower[k], upper[next], upper[k]);
+            Tri(tool, lower[k], upper[next], lower[next]);
+            Tri(tool, lower[k], upper[k], upper[next]);
         }
     }
 
@@ -167,8 +167,8 @@ public partial class ClinkerHull : MeshInstance3D
         for (int k = 0; k < lower.Length; k++)
         {
             int next = (k + 1) % lower.Length;
-            Tri(tool, lower[k], upper[next], lower[next]);
-            Tri(tool, lower[k], upper[k], upper[next]);
+            Tri(tool, lower[k], lower[next], upper[next]);
+            Tri(tool, lower[k], upper[next], upper[k]);
         }
     }
 

@@ -132,7 +132,7 @@ public partial class Ratlines : MeshInstance3D
         foreach (CollisionShape3D old in _mounted)
         {
             if (!IsInstanceValid(old)) continue;
-            _body.RemoveChild(old);
+            if (old.GetParent() == _body) _body.RemoveChild(old);
             old.QueueFree();
         }
 
@@ -170,7 +170,7 @@ public partial class Ratlines : MeshInstance3D
                 Transform = local
             };
 
-            _body.AddChild(shape);
+            _body.CallDeferred(Node.MethodName.AddChild, shape);
             _mounted.Add(shape);
         }
     }

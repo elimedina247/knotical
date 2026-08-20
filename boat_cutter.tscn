@@ -13,6 +13,8 @@
 [ext_resource type="Script" uid="uid://dkcoyofow57ln" path="res://scripts/boat/Sail.cs" id="10_sail"]
 [ext_resource type="Script" uid="uid://i7317iio2pb6" path="res://scripts/boat/Halyard.cs" id="11_halyard"]
 [ext_resource type="Script" uid="uid://1agdsn7b0ai1" path="res://scripts/boat/Ratlines.cs" id="12_ratlines"]
+[ext_resource type="Script" path="res://scripts/boat/CrowsNest.cs" id="13_nest"]
+[ext_resource type="Script" path="res://scripts/boat/CapRail.cs" id="14_caprail"]
 
 [sub_resource type="StandardMaterial3D" id="Grey_hull"]
 albedo_color = Color(0.62, 0.62, 0.64, 1)
@@ -207,14 +209,15 @@ _surfaces = [{
 "vertex_data": PackedByteArray("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6X8WABYACsD3Pw8ASlWvqul/FgAWAArA9z8PAEpVr6oAAOj/6X8KgAAA6P/pfwqA9z8PAEpVr6oAAOj/6X8KgPc/DwBKVa+qAADo/+l/CoD3P+//rSpWlfc/7/+tKlaVAADo/+l/CoD3P+//rSpWlQAA6P/pfwqA9z/v/60qVpXpf+j/FgD0v+l/6P8WAPS/9z/v/60qVpXpf+j/FgD0v/c/7/+tKlaVFYDo/xYACsAPgPe/SlWvqg+A979KVa+qFYDo/xYACsAPgPe/SlWvqhWA6P8WAArAD4D3v0pVr6oVgP9/6X8KgBWA/3/pfwqAD4D3v0pVr6oVgP9/6X8KgA+A979KVa+qFYD/f+l/CoAPgAdAripWlQ+AB0CuKlaVFYD/f+l/CoAPgAdAripWlRWA/3/pfwqAD4AHQK4qVpUVgBYAFgD0vxWAFgAWAPS/D4AHQK4qVpUVgBYAFgD0vw+AB0CuKlaVFYAWABYA9L8HwA8AX1WkqgfADwBfVaSqFYAWABYA9L8HwA8AX1WkqhWAFgAWAPS/B8APAF9VpKr//+j/FYAKgP//6P8VgAqAB8APAF9VpKr//+j/FYAKgAfADwBfVaSq///o/xWACoAHwO//pipTlQfA7/+mKlOV///o/xWACoAHwO//pipTlf//6P8VgAqAB8Dv/6YqU5UVgOj/FgAKwBWA6P8WAArAB8Dv/6YqU5UVgOj/FgAKwAfA7/+mKlOV////f/9//7////9//3//v////3//f/+/////f/9//7////9//3//v////3//f/+/////f/9//7////9//3//v////3//f/+/////f/9//7////9//3//v////3//f/+/////f/9//7////9//3//v////3//f/+/////f/9//7////9//3//v////3//f/+/AAD/f/9//78AAP9//3//vwAA/3//f/+/AAD/f/9//78AAP9//3//vwAA/3//f/+/AAD/f/9//78AAP9//3//vwAA/3//f/+/AAD/f/9//78AAP9//3//vwAA/3//f/+/AAD/f/9//78AAP9//3//vwAA/3//f/+/AAD/f/9//78AAP9//3//vwAA/3//f/+/")
 }]
 
-[sub_resource type="CylinderMesh" id="Cylinder_nest"]
-top_radius = 0.75
-bottom_radius = 0.6
-height = 0.22
+[sub_resource type="CylinderMesh" id="Cylinder_partner"]
+top_radius = 0.34
+bottom_radius = 0.42
+height = 0.34
 
-[sub_resource type="CylinderShape3D" id="Cylinder_nestshape"]
-height = 0.22
-radius = 0.75
+[sub_resource type="CylinderMesh" id="Cylinder_cap"]
+top_radius = 0.2
+bottom_radius = 0.26
+height = 0.3
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_pnaq5"]
 _surfaces = [{
@@ -398,8 +401,26 @@ HalfLength = 7.4
 EndRadius = 0.1
 MidRadius = 0.22
 
-[node name="YardBrace" type="Node3D" parent="." unique_id=1585274566]
+[node name="MastPartner" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.92, -0.2)
+mesh = SubResource("Cylinder_partner")
+surface_material_override/0 = SubResource("Grey_trim")
+
+[node name="MastCap" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 11, -0.2)
+mesh = SubResource("Cylinder_cap")
+surface_material_override/0 = SubResource("Grey_trim")
+
+[node name="YardBrace" type="Node3D" parent="." unique_id=1585274566]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 11, -1)
+
+[node name="Truss" type="MeshInstance3D" parent="YardBrace"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 0, 0, 0.4)
+material_override = SubResource("Grey_spar")
+script = ExtResource("9_spar")
+HalfLength = 0.42
+EndRadius = 0.07
+MidRadius = 0.1
 
 [node name="Yard" type="MeshInstance3D" parent="YardBrace" unique_id=1300916440]
 material_override = SubResource("Grey_spar")
@@ -432,15 +453,6 @@ HalfLength = 7.35
 EndRadius = 0.045
 MidRadius = 0.05
 
-[node name="Nest" type="MeshInstance3D" parent="." unique_id=727904653]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 13.8, -0.2)
-mesh = SubResource("Cylinder_nest")
-surface_material_override/0 = SubResource("Grey_trim")
-
-[node name="NestShape" type="CollisionShape3D" parent="." unique_id=66158300]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 13.8, -0.2)
-shape = SubResource("Cylinder_nestshape")
-
 [node name="HalyardMain" type="MeshInstance3D" parent="." unique_id=1736319213]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.85, 2.3, 0.1)
 material_override = SubResource("Grey_spar")
@@ -454,18 +466,41 @@ Drop = 1.5
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, -0.2)
 mesh = SubResource("ArrayMesh_skw6v")
 script = ExtResource("12_ratlines")
-Head = Vector3(0, 9.5, 0)
+Head = Vector3(0, 9.7, 0)
 FootSpread = 2.05
-FootFore = -1.3
-FootAft = 1.3
+FootFore = -0.6
+FootAft = 2.2
 RopeMaterial = SubResource("Grey_spar")
 
 [node name="RatlinesP" type="MeshInstance3D" parent="." unique_id=512089661]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, -0.2)
 mesh = SubResource("ArrayMesh_hgv6i")
 script = ExtResource("12_ratlines")
-Head = Vector3(0, 9.5, 0)
+Head = Vector3(0, 9.7, 0)
 FootSpread = -2.05
-FootFore = -1.3
-FootAft = 1.3
+FootFore = -0.6
+FootAft = 2.2
 RopeMaterial = SubResource("Grey_spar")
+
+[node name="CrowsNest" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 11.2, -0.2)
+script = ExtResource("13_nest")
+FloorRadius = 0.8
+RimRadius = 0.95
+WallHeight = 0.85
+FloorThickness = 0.12
+WallThickness = 0.07
+GapDegrees = 65.0
+GapBearing = 0.0
+Sides = 20
+NestMaterial = SubResource("Grey_trim")
+
+[node name="CapRail" type="MeshInstance3D" parent="."]
+script = ExtResource("14_caprail")
+Thickness = 0.1
+Overhang = 0.22
+Proud = 0.03
+HullThickness = 0.12
+Stations = 40
+CollisionSegments = 14
+RailMaterial = SubResource("Grey_trim")

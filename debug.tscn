@@ -1,10 +1,10 @@
 [gd_scene format=3 uid="uid://cx6vlwtdgkpxm"]
 
 [ext_resource type="Script" uid="uid://dvl3k7wgixvcx" path="res://scripts/ocean/OceanSurface.cs" id="1_surface"]
+[ext_resource type="PackedScene" uid="uid://drik7re75csan" path="res://character.tscn" id="17_character"]
 [ext_resource type="Script" uid="uid://0keon78qo6xi" path="res://scripts/ocean/SeaDepthField.cs" id="2_seadepth"]
 [ext_resource type="Script" uid="uid://lkd4cyvlw54e" path="res://scripts/sky/SkyController.cs" id="4_skyctl"]
 [ext_resource type="Shader" uid="uid://cwls1kmf1fiyw" path="res://shaders/sky.gdshader" id="5_skyshader"]
-[ext_resource type="Script" uid="uid://c3dq4aen6k1cf" path="res://scripts/debug/EagleCamera.cs" id="7_eagle"]
 [ext_resource type="Script" uid="uid://cyemm0pt8ya88" path="res://scripts/debug/DebugWindHud.cs" id="8_windhud"]
 [ext_resource type="Script" uid="uid://d1m8n7tkenvog" path="res://scripts/ui/WindCompass.cs" id="9_compass"]
 [ext_resource type="Script" uid="uid://c1x8afgu1pksx" path="res://scripts/debug/DebugNoon.cs" id="10_noon"]
@@ -94,13 +94,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 112, 33, 8)
 [node name="CargoCrateLarge" parent="." unique_id=700000006 instance=ExtResource("14_crately")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 100, 33, -12)
 
-[node name="EagleCamera" type="Camera3D" parent="." unique_id=190562316]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 86, 22)
-far = 12000.0
-script = ExtResource("7_eagle")
-Height = 38.0
-Astern = 16.0
-
 [node name="map" parent="." unique_id=915755695 instance=ExtResource("15_kbklh")]
 
 [node name="BoatCutter" parent="." unique_id=889448396 instance=ExtResource("16_nhvwh")]
@@ -112,3 +105,6 @@ center_of_mass = Vector3(0, -0.6, 0)
 can_sleep = false
 linear_damp_mode = 1
 angular_damp_mode = 1
+
+[node name="Character" parent="." instance=ExtResource("17_character")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 58.4, 1.8)
