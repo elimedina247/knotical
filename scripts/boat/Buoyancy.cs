@@ -47,6 +47,12 @@ public partial class Buoyancy : Node3D
     [Export(PropertyHint.Range, "0,8,0.05")]
     public float AngularDrag { get; set; } = 0.8f;
 
+    [Export(PropertyHint.Range, "0,1,0.01")]
+    public float TiltResponse { get; set; } = 1f;
+
+    [Export(PropertyHint.Range, "0,3,0.05")]
+    public float ShortWaveFilter { get; set; }
+
     [Export] public bool ApplyWaveNormal { get; set; }
 
     [Export(PropertyHint.Range, "0,20,0.1")]
@@ -60,9 +66,11 @@ public partial class Buoyancy : Node3D
     private RigidBody3D _body;
     private Vector3[] _local = System.Array.Empty<Vector3>();
     private Vector3[] _world = System.Array.Empty<Vector3>();
+    private float[] _water = System.Array.Empty<float>();
     private float[] _wet = System.Array.Empty<float>();
     private Vector3[] _force = System.Array.Empty<Vector3>();
     private float _lever = 0.5f;
+    private float _footprint;
     private bool _snapDone;
 
     public RigidBody3D Body => _body;
@@ -103,12 +111,24 @@ public partial class Buoyancy : Node3D
 
         _local = locals.ToArray();
         _world = new Vector3[_local.Length];
+        _water = new float[_local.Length];
         _wet = new float[_local.Length];
         _force = new Vector3[_local.Length];
 
         float spread = 0f;
         foreach (Vector3 p in _local) spread += new Vector2(p.X, p.Z).Length();
         _lever = Mathf.Max(spread / _local.Length, 0.25f);
+
+        float reach = 0f;
+        for (int i = 0; i < _local.Length; i++)
+        {
+            var a = new Vector2(_local[i].X, _local[i].Z);
+            for (int j = i + 1; j < _local.Length; j++)
+            {
+                reach = Mathf.Max(reach, a.DistanceTo(new Vector2(_local[j].X, _local[j].Z)));
+            }
+        }
+        _footprint = reach + 2f * Radius;
 
         _snapDone = !SnapToWaterOnActivation;
     }
@@ -130,15 +150,25 @@ public partial class Buoyancy : Node3D
         float capacity = WaterDensity * pontoonVolume * Coefficient;
 
         float wetSum = 0f;
+        float cutoff = ShortWaveFilter * _footprint;
+        float mean = 0f;
 
         for (int i = 0; i < count; i++)
         {
             Vector3 p = xform * _local[i];
-            float wasWet = _wet[i];
             _world[i] = p;
+            _water[i] = ocean.GetHeight(new Vector2(p.X, p.Z), cutoff);
+            mean += _water[i];
+        }
 
-            var flat = new Vector2(p.X, p.Z);
-            float water = ocean.GetHeight(flat);
+        mean /= count;
+
+        for (int i = 0; i < count; i++)
+        {
+            Vector3 p = _world[i];
+            float wasWet = _wet[i];
+
+            float water = mean + (_water[i] - mean) * TiltResponse;
             float s = Mathf.Clamp((water - (p.Y - Radius)) / (2f * Radius), 0f, 1f);
             _wet[i] = s;
 
@@ -186,8 +216,9 @@ public partial class Buoyancy : Node3D
         if (ApplyWaveNormal && WaveNormalGain > 0f)
         {
             Vector3 up = _body.GlobalBasis.Y.Normalized();
-            Vector3 normal = ocean.GetNormal(new Vector2(origin.X, origin.Z));
-            _body.ApplyTorque(up.Cross(normal) * (WaveNormalGain * Wetness * inertia));
+            Vector3 normal = ocean.GetNormal(new Vector2(origin.X, origin.Z), cutoff);
+            Vector3 lean = Vector3.Up.Lerp(normal, TiltResponse).Normalized();
+            _body.ApplyTorque(up.Cross(lean) * (WaveNormalGain * Wetness * inertia));
         }
     }
 

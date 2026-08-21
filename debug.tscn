@@ -1,21 +1,22 @@
 [gd_scene format=3 uid="uid://cx6vlwtdgkpxm"]
 
 [ext_resource type="Script" uid="uid://dvl3k7wgixvcx" path="res://scripts/ocean/OceanSurface.cs" id="1_surface"]
-[ext_resource type="PackedScene" uid="uid://drik7re75csan" path="res://character.tscn" id="17_character"]
 [ext_resource type="Script" uid="uid://0keon78qo6xi" path="res://scripts/ocean/SeaDepthField.cs" id="2_seadepth"]
 [ext_resource type="Script" uid="uid://lkd4cyvlw54e" path="res://scripts/sky/SkyController.cs" id="4_skyctl"]
 [ext_resource type="Shader" uid="uid://cwls1kmf1fiyw" path="res://shaders/sky.gdshader" id="5_skyshader"]
 [ext_resource type="Script" uid="uid://cyemm0pt8ya88" path="res://scripts/debug/DebugWindHud.cs" id="8_windhud"]
 [ext_resource type="Script" uid="uid://d1m8n7tkenvog" path="res://scripts/ui/WindCompass.cs" id="9_compass"]
 [ext_resource type="Script" uid="uid://c1x8afgu1pksx" path="res://scripts/debug/DebugNoon.cs" id="10_noon"]
-[ext_resource type="Resource" path="res://ocean_settings.tres" id="11_seasettings"]
+[ext_resource type="Resource" uid="uid://h0eh8586p1kp" path="res://ocean_settings.tres" id="11_seasettings"]
 [ext_resource type="Script" uid="uid://cnmwsm8ediaw3" path="res://scripts/debug/BuoyancyGizmos.cs" id="12_gizmos"]
 [ext_resource type="PackedScene" path="res://cargo_crate.tscn" id="13_crate"]
 [ext_resource type="PackedScene" path="res://cargo_crate_large.tscn" id="14_crately"]
 [ext_resource type="PackedScene" uid="uid://xx8i2fj8gtmd" path="res://map.tscn" id="15_kbklh"]
 [ext_resource type="Script" uid="uid://bwi13kd85b2gh" path="res://scripts/vfx/SplashEmitter.cs" id="15_splash"]
 [ext_resource type="Script" uid="uid://o36a7vpnmo74" path="res://scripts/vfx/FoamCapture.cs" id="16_foam"]
-[ext_resource type="PackedScene" path="res://boat_cutter.tscn" id="16_nhvwh"]
+[ext_resource type="PackedScene" path="res://boat_sloop.tscn" id="16_nhvwh"]
+[ext_resource type="PackedScene" uid="uid://drik7re75csan" path="res://character.tscn" id="17_character"]
+[ext_resource type="Script" uid="uid://dlwkiv27hy8xj" path="res://scripts/debug/RopeRig.cs" id="18_roperig"]
 
 [sub_resource type="ShaderMaterial" id="SkyShaderMaterial_1"]
 shader = ExtResource("5_skyshader")
@@ -47,6 +48,10 @@ tonemap_mode = 2
 tonemap_white = 3.0
 ssr_enabled = true
 ssr_max_steps = 48
+
+[sub_resource type="BoxMesh" id="BoxMesh_uupup"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_u1mjs"]
 
 [node name="Debug" type="Node3D" unique_id=559908110]
 
@@ -96,15 +101,58 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 100, 33, -12)
 
 [node name="map" parent="." unique_id=915755695 instance=ExtResource("15_kbklh")]
 
-[node name="BoatCutter" parent="." unique_id=889448396 instance=ExtResource("16_nhvwh")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 56.295418, 0)
-mass = 35722.758
-gravity_scale = 0.0
-center_of_mass_mode = 1
-center_of_mass = Vector3(0, -0.6, 0)
-can_sleep = false
-linear_damp_mode = 1
-angular_damp_mode = 1
+[node name="Character" parent="." unique_id=557116909 instance=ExtResource("17_character")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -321.58203, 36.44962, 1.8)
 
-[node name="Character" parent="." instance=ExtResource("17_character")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 58.4, 1.8)
+[node name="BoatSloop" parent="." unique_id=230206060 instance=ExtResource("16_nhvwh")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 48.81998, 0)
+mass = 21075.04
+DeckThickness = 0.14
+
+[node name="Test_area_floor" type="StaticBody3D" parent="." unique_id=820151687]
+transform = Transform3D(45, 0, 0, 0, 45, 0, 0, 0, 45, -313.88104, 12.669453, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Test_area_floor" unique_id=1934064459]
+transform = Transform3D(0.99999994, 0, 0, 0, 0.99999994, 0, 0, 0, 0.99999994, 0, 0, 0)
+mesh = SubResource("BoxMesh_uupup")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Test_area_floor" unique_id=1417439805]
+transform = Transform3D(0.9999999, 0, 0, 0, 0.9999999, 0, 0, 0, 0.9999999, 0, 0, 0)
+shape = SubResource("BoxShape3D_u1mjs")
+
+[node name="RopeTest" type="Node3D" parent="." unique_id=411002001]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -317, 35.17, 0)
+
+[node name="PostA" type="StaticBody3D" parent="RopeTest" unique_id=411002002]
+transform = Transform3D(0.25, 0, 0, 0, 3.2, 0, 0, 0, 0.25, 0, 1.6, -2.5)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="RopeTest/PostA" unique_id=411002003]
+mesh = SubResource("BoxMesh_uupup")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="RopeTest/PostA" unique_id=411002004]
+shape = SubResource("BoxShape3D_u1mjs")
+
+[node name="PostB" type="StaticBody3D" parent="RopeTest" unique_id=411002005]
+transform = Transform3D(0.25, 0, 0, 0, 3.2, 0, 0, 0, 0.25, 0, 1.6, 2.5)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="RopeTest/PostB" unique_id=411002006]
+mesh = SubResource("BoxMesh_uupup")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="RopeTest/PostB" unique_id=411002007]
+shape = SubResource("BoxShape3D_u1mjs")
+
+[node name="Beam" type="StaticBody3D" parent="RopeTest" unique_id=411002008]
+transform = Transform3D(1.4, 0, 0, 0, 0.3, 0, 0, 0, 7, 0, 3.35, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="RopeTest/Beam" unique_id=411002009]
+mesh = SubResource("BoxMesh_uupup")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="RopeTest/Beam" unique_id=411002010]
+shape = SubResource("BoxShape3D_u1mjs")
+
+[node name="Ropes" type="Node3D" parent="RopeTest" unique_id=411002011]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.2, 0)
+script = ExtResource("18_roperig")
+AnchorPath = NodePath("../Beam")
+Length = 2.0
+LengthStep = 0.4

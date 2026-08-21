@@ -42,6 +42,8 @@ public partial class RopeCarrier : Node3D
 
     public bool IsBusy => _rope != null || _coil != null;
 
+    public bool Enabled { get; set; } = true;
+
     public override void _Ready()
     {
         _grabMapped = InputMap.HasAction("grab");
@@ -92,6 +94,13 @@ public partial class RopeCarrier : Node3D
     public override void _PhysicsProcess(double delta)
     {
         if (_body == null || _pivot == null) return;
+
+        if (!Enabled)
+        {
+            _wasPressed = true;
+            if (_marker != null) _marker.Visible = false;
+            return;
+        }
 
         float dt = (float)delta;
 

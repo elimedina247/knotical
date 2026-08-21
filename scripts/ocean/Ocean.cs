@@ -141,6 +141,9 @@ public partial class Ocean : Node
 	private float WaveScale(float field, int i) =>
 		field == 1f ? 1f : Mathf.Pow(field, _depthResponse[i]);
 
+	private static float Cutoff(float wavelength, float minWavelength) =>
+		minWavelength <= 0f ? 1f : Mathf.SmoothStep(minWavelength * 0.5f, minWavelength, wavelength);
+
 	/// <summary>
 	/// Per-wave horizontal pinch amplitude. The GPU-Gems normalisation — steepness
 	/// divided by k and the wave count — keeps the summed displacement below the
@@ -158,33 +161,37 @@ public partial class Ocean : Node
 	/// are also the crests physics feels. Four fixed-point iterations; convergence
 	/// slows as summed steepness approaches 1, and near-limit chop needs the margin.
 	/// </summary>
-	public float GetHeight(Vector2 worldXZ)
+	public float GetHeight(Vector2 worldXZ, float minWavelength = 0f)
 	{
 		float field = Field(worldXZ);
-		Vector2 p = Undisplace(worldXZ, field);
+		Vector2 p = Undisplace(worldXZ, field, minWavelength);
 		float y = 0f;
 		float t = (float)Time;
 
 		for (int i = 0; i < _waves.Length; i++)
 		{
 			Vector4 w = _waves[i];
+			float weight = Cutoff(w.W, minWavelength);
+			if (weight <= 0f) continue;
+
 			var dir = new Vector2(w.X, w.Y);
 			float k = Mathf.Tau / w.W;
 			float omega = Mathf.Sqrt(Gravity * k);
 
-			y += w.Z * WaveScale(field, i) * Mathf.Sin(k * dir.Dot(p) - omega * t + _phases[i]);
+			y += w.Z * weight * WaveScale(field, i) * Mathf.Sin(k * dir.Dot(p) - omega * t + _phases[i]);
 		}
 
 		return SeaLevel + y;
 	}
 
-	public float GetHeight(Vector3 worldPos) => GetHeight(new Vector2(worldPos.X, worldPos.Z));
+	public float GetHeight(Vector3 worldPos, float minWavelength = 0f) =>
+		GetHeight(new Vector2(worldPos.X, worldPos.Z), minWavelength);
 
 	public float GetRenderedHeight(Vector2 worldXZ) => GetHeight(worldXZ);
 
 	public float GetRenderedHeight(Vector3 worldPos) => GetHeight(new Vector2(worldPos.X, worldPos.Z));
 
-	private Vector2 Undisplace(Vector2 worldXZ, float field)
+	private Vector2 Undisplace(Vector2 worldXZ, float field, float minWavelength = 0f)
 	{
 		float t = (float)Time;
 		Vector2 p = worldXZ;
@@ -196,11 +203,14 @@ public partial class Ocean : Node
 			for (int i = 0; i < _waves.Length; i++)
 			{
 				Vector4 w = _waves[i];
+				float weight = Cutoff(w.W, minWavelength);
+				if (weight <= 0f) continue;
+
 				var dir = new Vector2(w.X, w.Y);
 				float k = Mathf.Tau / w.W;
 				float omega = Mathf.Sqrt(Gravity * k);
 
-				pinch += dir * (PinchAmplitude(i, WaveScale(field, i))
+				pinch += dir * (PinchAmplitude(i, WaveScale(field, i)) * weight
 					* Mathf.Cos(k * dir.Dot(p) - omega * t + _phases[i]));
 			}
 
@@ -214,7 +224,7 @@ public partial class Ocean : Node
 	/// Analytic surface normal. Derived from the wave derivatives rather than sampled
 	/// neighbours, so it stays exact no matter how coarse the mesh is.
 	/// </summary>
-	public Vector3 GetNormal(Vector2 worldXZ)
+	public Vector3 GetNormal(Vector2 worldXZ, float minWavelength = 0f)
 	{
 		float dx = 0f;
 		float dz = 0f;
@@ -227,6 +237,9 @@ public partial class Ocean : Node
 		for (int i = 0; i < _waves.Length; i++)
 		{
 			Vector4 w = _waves[i];
+			float weight = Cutoff(w.W, minWavelength);
+			if (weight <= 0f) continue;
+
 			var dir = new Vector2(w.X, w.Y);
 			float scale = WaveScale(field, i);
 			float k = Mathf.Tau / w.W;
@@ -234,12 +247,12 @@ public partial class Ocean : Node
 			float phase = k * dir.Dot(worldXZ) - omega * t + _phases[i];
 
 			float s = Mathf.Sin(phase);
-			float c = Mathf.Cos(phase) * w.Z * scale * k;
+			float c = Mathf.Cos(phase) * w.Z * scale * k * weight;
 
 			dx += c * dir.X;
 			dz += c * dir.Y;
 
-			float qak = PinchAmplitude(i, scale) * k * s;
+			float qak = PinchAmplitude(i, scale) * k * s * weight;
 			jxx += qak * dir.X * dir.X;
 			jxz += qak * dir.X * dir.Y;
 			jzz += qak * dir.Y * dir.Y;
@@ -251,13 +264,14 @@ public partial class Ocean : Node
 		return tangentZ.Cross(tangentX).Normalized();
 	}
 
-	public Vector3 GetNormal(Vector3 worldPos) => GetNormal(new Vector2(worldPos.X, worldPos.Z));
+	public Vector3 GetNormal(Vector3 worldPos, float minWavelength = 0f) =>
+		GetNormal(new Vector2(worldPos.X, worldPos.Z), minWavelength);
 
 	/// <summary>
 	/// Vertical velocity of the surface. Useful for drag that should not fight a wave
 	/// lifting a hull, and for spray thresholds.
 	/// </summary>
-	public float GetVerticalVelocity(Vector2 worldXZ)
+	public float GetVerticalVelocity(Vector2 worldXZ, float minWavelength = 0f)
 	{
 		float v = 0f;
 		float t = (float)Time;
@@ -266,11 +280,14 @@ public partial class Ocean : Node
 		for (int i = 0; i < _waves.Length; i++)
 		{
 			Vector4 w = _waves[i];
+			float weight = Cutoff(w.W, minWavelength);
+			if (weight <= 0f) continue;
+
 			var dir = new Vector2(w.X, w.Y);
 			float k = Mathf.Tau / w.W;
 			float omega = Mathf.Sqrt(Gravity * k);
 
-			v += -w.Z * WaveScale(field, i) * omega
+			v += -w.Z * weight * WaveScale(field, i) * omega
 				* Mathf.Cos(k * dir.Dot(worldXZ) - omega * t + _phases[i]);
 		}
 
@@ -284,7 +301,7 @@ public partial class Ocean : Node
 	/// depth as exp(k*y). Drag should be measured against this rather than against still
 	/// water, or a hull fights a current that is not there.
 	/// </summary>
-	public Vector3 GetFlow(Vector3 worldPos)
+	public Vector3 GetFlow(Vector3 worldPos, float minWavelength = 0f)
 	{
 		var flat = new Vector2(worldPos.X, worldPos.Z);
 		var flow = Vector3.Zero;
@@ -294,11 +311,14 @@ public partial class Ocean : Node
 		for (int i = 0; i < _waves.Length; i++)
 		{
 			Vector4 w = _waves[i];
+			float weight = Cutoff(w.W, minWavelength);
+			if (weight <= 0f) continue;
+
 			var dir = new Vector2(w.X, w.Y);
 			float k = Mathf.Tau / w.W;
 			float omega = Mathf.Sqrt(Gravity * k);
 			float phase = k * dir.Dot(flat) - omega * t + _phases[i];
-			float amplitude = w.Z * WaveScale(field, i) * omega
+			float amplitude = w.Z * weight * WaveScale(field, i) * omega
 				* Mathf.Exp(k * Mathf.Min(worldPos.Y - SeaLevel, 0f));
 			float swing = Mathf.Sin(phase);
 

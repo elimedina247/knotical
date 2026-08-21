@@ -117,7 +117,7 @@ public partial class Footsteps : Node3D
 
     private void Climb()
     {
-        int beat = Mathf.FloorToInt(_grab.HandPhase / Mathf.Pi);
+        int beat = _grab.HandBeat;
 
         if (!_climbing)
         {

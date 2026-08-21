@@ -21,6 +21,7 @@ public partial class BoatHull : RigidBody3D
     private float[] _probeReserve = System.Array.Empty<float>();
     private float[] _probeArea = System.Array.Empty<float>();
     private Vector3[] _probeWorld = System.Array.Empty<Vector3>();
+    private float[] _probeWater = System.Array.Empty<float>();
     private float[] _probeWet = System.Array.Empty<float>();
     private Vector3[] _probeForce = System.Array.Empty<Vector3>();
     private float _lateralArea;
@@ -110,6 +111,40 @@ public partial class BoatHull : RigidBody3D
     [Export(PropertyHint.Range, "0,2.5,0.005")]
     public float SurfaceOffset { get => _surfaceOffset; set { _surfaceOffset = value; Rebuild(); } }
 
+    private bool _hollowHull;
+
+    [Export] public bool HollowHull { get => _hollowHull; set { _hollowHull = value; Rebuild(); } }
+
+    private float _hullThickness = 0.12f;
+
+    [Export(PropertyHint.Range, "0.02,2,0.01")]
+    public float HullThickness { get => _hullThickness; set { _hullThickness = value; Rebuild(); } }
+
+    private float _holdFloor;
+
+    [Export(PropertyHint.Range, "-20,20,0.05")]
+    public float HoldFloor { get => _holdFloor; set { _holdFloor = value; Rebuild(); } }
+
+    private float _deckThickness = 0.14f;
+
+    [Export(PropertyHint.Range, "0.02,1,0.01")]
+    public float DeckThickness { get => _deckThickness; set { _deckThickness = value; Rebuild(); } }
+
+    private float _hatchFrom;
+
+    [Export(PropertyHint.Range, "-150,150,0.05")]
+    public float HatchFrom { get => _hatchFrom; set { _hatchFrom = value; Rebuild(); } }
+
+    private float _hatchTo;
+
+    [Export(PropertyHint.Range, "-150,150,0.05")]
+    public float HatchTo { get => _hatchTo; set { _hatchTo = value; Rebuild(); } }
+
+    private float _hatchWidth;
+
+    [Export(PropertyHint.Range, "0,30,0.05")]
+    public float HatchWidth { get => _hatchWidth; set { _hatchWidth = value; Rebuild(); } }
+
     private float _comHeight = -0.8f;
     private float _comLength = 0.13f;
 
@@ -156,6 +191,12 @@ public partial class BoatHull : RigidBody3D
 
     [Export(PropertyHint.Range, "0,1,0.01")]
     public float SlopePush { get; set; } = 0.25f;
+
+    [Export(PropertyHint.Range, "0,1,0.01")]
+    public float TiltResponse { get; set; } = 0.4f;
+
+    [Export(PropertyHint.Range, "0,3,0.05")]
+    public float ShortWaveFilter { get; set; } = 1f;
 
     [Export(PropertyHint.Range, "1,10,0.1")]
     public float RudderAuthority { get; set; } = 3f;
@@ -305,6 +346,8 @@ public partial class BoatHull : RigidBody3D
                 case "fwddrag": ForwardDrag = value; break;
                 case "latdrag": LateralDrag = value; break;
                 case "slopepush": SlopePush = value; break;
+                case "tiltresponse": TiltResponse = value; break;
+                case "wavefilter": ShortWaveFilter = value; break;
                 case "heellever": HeelLever = value; break;
                 case "maxheel": MaxHeelDegrees = value; break;
                 case "keellever": KeelLever = value; break;
@@ -418,6 +461,7 @@ public partial class BoatHull : RigidBody3D
         _probeReserve = new float[count];
         _probeArea = new float[count];
         _probeWorld = new Vector3[count];
+        _probeWater = new float[count];
         _probeWet = new float[count];
         _probeForce = new Vector3[count];
 
@@ -491,6 +535,7 @@ public partial class BoatHull : RigidBody3D
         int levels = Mathf.Max(2, _solidRings);
         int slices = Mathf.Clamp(_collisionSlices, 1, stations - 1);
         int span = Mathf.CeilToInt((float)(stations - 1) / slices);
+        float solidTop = SolidTop;
 
         var points = new List<Vector3>();
 
@@ -504,7 +549,7 @@ public partial class BoatHull : RigidBody3D
             for (int j = start; j <= end; j++)
             {
                 float t = (float)j / (stations - 1);
-                float top = _form.VAtHeight(t, DeckHeight);
+                float top = _form.VAtHeight(t, solidTop);
                 for (int r = 0; r < levels; r++)
                 {
                     Vector3 p = _form.Shell(t, top * r / (levels - 1), _surfaceOffset, 1f);
@@ -513,6 +558,11 @@ public partial class BoatHull : RigidBody3D
                 }
             }
             AddSlice($"HullSlice{s}", points);
+
+            if (_hollowHull && DeckHeight > solidTop)
+            {
+                AddSideBand("HullSliceWall", s, start, end, stations, solidTop, DeckHeight, HullThickness);
+            }
 
             for (int side = -1; side <= 1; side += 2)
             {
@@ -532,13 +582,72 @@ public partial class BoatHull : RigidBody3D
             }
         }
 
+        if (_hollowHull) BuildDecks(stations);
+
         AddEndWall("HullSliceTransom", 0f);
         AddEndWall("HullSliceStem", 1f);
     }
 
+    private float SolidTop => _hollowHull ? Mathf.Min(HoldFloor, DeckHeight) : DeckHeight;
+
+    private void AddSideBand(string name, int s, int start, int end, int stations,
+        float from, float to, float thickness)
+    {
+        var points = new List<Vector3>();
+
+        for (int side = -1; side <= 1; side += 2)
+        {
+            points.Clear();
+            for (int j = start; j <= end; j++)
+            {
+                float t = (float)j / (stations - 1);
+                for (int r = 0; r < 2; r++)
+                {
+                    float v = _form.VAtHeight(t, Mathf.Lerp(from, to, r));
+                    points.Add(_form.Shell(t, v, _surfaceOffset, side));
+                    points.Add(_form.Shell(t, v, _surfaceOffset - thickness, side));
+                }
+            }
+            AddSlice($"{name}{(side < 0 ? "P" : "S")}{s}", points);
+        }
+    }
+
+    private void BuildDecks(int stations)
+    {
+        float low = DeckHeight - DeckThickness;
+        float open = HatchWidth * 0.5f;
+        float front = Mathf.Min(HatchFrom, HatchTo);
+        float back = Mathf.Max(HatchFrom, HatchTo);
+        var points = new List<Vector3>();
+
+        for (int j = 0; j < stations - 1; j++)
+        {
+            float t0 = (float)j / (stations - 1);
+            float t1 = (float)(j + 1) / (stations - 1);
+            float z = (_form.ZAt(t0) + _form.ZAt(t1)) * 0.5f;
+            float inner = HatchWidth > 0f && z >= front && z <= back ? open : 0f;
+
+            for (int side = -1; side <= 1; side += 2)
+            {
+                points.Clear();
+                for (int k = 0; k < 4; k++)
+                {
+                    float t = k < 2 ? t0 : t1;
+                    float h = (k & 1) == 0 ? low : DeckHeight;
+                    Vector3 edge = _form.Shell(t, _form.VAtHeight(t, h), _surfaceOffset - HullThickness, side);
+                    if (Mathf.Abs(edge.X) <= inner + 0.02f) continue;
+                    points.Add(edge);
+                    points.Add(new Vector3(inner * side, edge.Y, edge.Z));
+                }
+
+                if (points.Count >= 8) AddSlice($"HullSliceDeck{(side < 0 ? "P" : "S")}{j}", points);
+            }
+        }
+    }
+
     private void AddEndWall(string name, float t)
     {
-        float low = _form.VAtHeight(t, DeckHeight);
+        float low = _form.VAtHeight(t, SolidTop);
         float inward = t < 0.5f ? -BulwarkThickness : BulwarkThickness;
         var points = new List<Vector3>();
 
@@ -600,9 +709,23 @@ public partial class BoatHull : RigidBody3D
 
         if (_ocean != null)
         {
+            float cutoff = ShortWaveFilter * _form.Length;
+            float mean = 0f;
+
             for (int i = 0; i < _probeLocal.Length; i++)
             {
-                Probe(i, xform, level);
+                Vector3 p = xform * _probeLocal[i];
+                _probeWorld[i] = p;
+                _probeWater[i] = _ocean.GetHeight(new Vector2(p.X, p.Z), cutoff);
+                mean += _probeWater[i];
+            }
+
+            mean /= _probeLocal.Length;
+
+            for (int i = 0; i < _probeLocal.Length; i++)
+            {
+                _probeWater[i] = mean + (_probeWater[i] - mean) * TiltResponse;
+                Probe(i, level, cutoff);
             }
         }
 
@@ -662,16 +785,15 @@ public partial class BoatHull : RigidBody3D
         if (Trace) Log(state, xform, rig);
     }
 
-    private void Probe(int i, Transform3D xform, Basis level)
+    private void Probe(int i, Basis level, float cutoff)
     {
-        Vector3 p = xform * _probeLocal[i];
+        Vector3 p = _probeWorld[i];
         float wasWet = _probeWet[i];
-        _probeWorld[i] = p;
         _probeWet[i] = 0f;
         _probeForce[i] = Vector3.Zero;
 
         var flat = new Vector2(p.X, p.Z);
-        float depth = _ocean.GetHeight(flat) - p.Y;
+        float depth = _probeWater[i] - p.Y;
         float s = Mathf.Clamp(depth / _probeSpan[i], 0f, _probeReserve[i]);
         if (s <= 0f) return;
 
@@ -680,7 +802,7 @@ public partial class BoatHull : RigidBody3D
         SubmergedVolume += _probeVolume[i] * wet;
 
         Vector3 arm = p - _com;
-        Vector3 rel = _linear + _angular.Cross(arm) - _ocean.GetFlow(p);
+        Vector3 rel = _linear + _angular.Cross(arm) - _ocean.GetFlow(p, cutoff);
 
         if (wasWet <= 0f && rel.Y < -1.5f)
         {
@@ -689,7 +811,7 @@ public partial class BoatHull : RigidBody3D
         }
 
         Vector3 lift = SlopePush > 0f
-            ? Vector3.Up.Lerp(_ocean.GetNormal(flat), SlopePush).Normalized()
+            ? Vector3.Up.Lerp(_ocean.GetNormal(flat, cutoff), SlopePush).Normalized()
             : Vector3.Up;
 
         Vector3 f = lift * (WaterDensity * Gravity * _probeVolume[i] * s);

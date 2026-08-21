@@ -28,20 +28,32 @@ public partial class PlayerGrab : Node3D
 
     [Export] public bool Breaks { get; set; }
 
-    [Export(PropertyHint.Range, "0.05,1,0.01")]
-    public float MinSpan { get; set; } = 0.4f;
+    [Export(PropertyHint.Range, "0.1,1.2,0.01")]
+    public float ClimbStride { get; set; } = 0.42f;
 
-    [Export(PropertyHint.Range, "0.05,3,0.01")]
-    public float ClimbSpeed { get; set; } = 0.9f;
+    [Export(PropertyHint.Range, "0.08,1,0.01")]
+    public float ClimbSwing { get; set; } = 0.32f;
+
+    [Export(PropertyHint.Range, "0,0.5,0.005")]
+    public float ClimbBulge { get; set; } = 0.14f;
+
+    [Export(PropertyHint.Range, "0.2,1,0.01")]
+    public float ClimbPull { get; set; } = 0.55f;
+
+    [Export(PropertyHint.Range, "0.1,6,0.05")]
+    public float ClimbPullSpeed { get; set; } = 1.1f;
+
+    [Export(PropertyHint.Range, "0.05,1.5,0.01")]
+    public float ClimbSnap { get; set; } = 0.35f;
+
+    [Export(PropertyHint.Range, "0,1,0.01")]
+    public float ClimbRise { get; set; } = 0.05f;
 
     [Export(PropertyHint.Range, "0.05,1,0.01")]
-    public float ClimbBite { get; set; } = 0.25f;
+    public float ClimbBite { get; set; } = 0.3f;
 
     [Export(PropertyHint.Range, "1,100,0.5")]
     public float ClimbMassRatio { get; set; } = 8f;
-
-    [Export(PropertyHint.Range, "1,90,1")]
-    public float ClimbEdgeAngle { get; set; } = 50f;
 
     [Export(PropertyHint.Range, "0.4,2.5,0.01")]
     public float CarryDistance { get; set; } = 1.1f;
@@ -57,9 +69,6 @@ public partial class PlayerGrab : Node3D
 
     [Export(PropertyHint.Range, "0,0.3,0.005")]
     public float HangSpread { get; set; } = 0.05f;
-
-    [Export(PropertyHint.Range, "0.1,1.2,0.01")]
-    public float HandStride { get; set; } = 0.45f;
 
     [Export(PropertyHint.Range, "0,1,0.01")]
     public float VaultClearance { get; set; } = 0.35f;
@@ -100,6 +109,7 @@ public partial class PlayerGrab : Node3D
 
     [Export] public DangleArm ArmRight { get; set; }
 
+    private readonly HandOverHand _climb = new();
     private RigidBody3D _body;
     private Node3D _pivot;
     private ShapeCast3D _cast;
@@ -115,16 +125,9 @@ public partial class PlayerGrab : Node3D
     private Vector3 _normal = Vector3.Up;
     private Vector3 _lastAnchor;
     private Vector3 _lastChest;
-    private Vector3 _step;
     private float _span;
-    private float _phase;
     private float _pause;
     private float _load;
-    private Vector3 _holdLeft;
-    private Vector3 _holdRight;
-    private Node3D _holdNode;
-    private int _stride;
-    private bool _wasClimbing;
     private bool _engaged;
     private float _hang;
 
@@ -138,7 +141,7 @@ public partial class PlayerGrab : Node3D
 
     public bool IsClimbing => _climbing;
 
-    public float HandPhase => _phase;
+    public int HandBeat => _climb.Beat;
 
     public override void _Ready()
     {
@@ -169,6 +172,9 @@ public partial class PlayerGrab : Node3D
         AddChild(_cast);
         if (_body != null) _cast.AddException(_body);
 
+        _climb.Attach(_cast, _body);
+        Tune();
+
         _marker = new MeshInstance3D
         {
             Name = "GrabMarker",
@@ -189,6 +195,22 @@ public partial class PlayerGrab : Node3D
         };
 
         AddChild(_marker);
+    }
+
+    private void Tune()
+    {
+        _climb.Reach = Grasp();
+        _climb.Stride = ClimbStride;
+        _climb.SwingTime = ClimbSwing;
+        _climb.Bulge = ClimbBulge;
+        _climb.Spread = HandSpread;
+        _climb.Pull = ClimbPull;
+        _climb.PullSpeed = ClimbPullSpeed;
+        _climb.Snap = ClimbSnap;
+        _climb.Bite = ClimbBite;
+        _climb.Damping = SwingDamping;
+        _climb.Correction = Correction;
+        _climb.MaxPullSpeed = MaxPullSpeed;
     }
 
     public override void _PhysicsProcess(double delta)
@@ -220,21 +242,50 @@ public partial class PlayerGrab : Node3D
         }
 
         _engaged = true;
+        Tune();
 
         if (!_attached) Catch();
 
         Vector2 move = Input.GetVector("move_left", "move_right", "move_forward", "move_back");
 
-        _climbing = _attached && Climbable() && move.LengthSquared() > 0.01f;
-        _step = _climbing ? Surface(move) : Vector3.Zero;
+        if (_climb.Active)
+        {
+            Frame(out Vector3 along, out Vector3 across);
+            Vector3 step = across * move.X - along * move.Y;
+            if (step.LengthSquared() > 1e-6f) step = step.Normalized();
+            else step = Vector3.Zero;
 
-        if (_step != Vector3.Zero && !Crawl(dt))
+            _climb.Step(dt, step, across);
+            _climbing = _climb.Climbing;
+        }
+        else
         {
             _climbing = false;
-            _step = Vector3.Zero;
         }
 
         Pose(true, dt);
+    }
+
+    private void Frame(out Vector3 along, out Vector3 across)
+    {
+        Basis view = _pivot.GlobalBasis;
+
+        if (_climb.OnHolds)
+        {
+            along = Vector3.Up;
+            across = Flatten(view.X, Vector3.Up);
+            if (across == Vector3.Zero) across = view.X;
+            return;
+        }
+
+        Vector3 normal = _climb.Normal;
+
+        along = Flatten(Vector3.Up, normal);
+        if (along == Vector3.Zero) along = Flatten(-view.Z, normal);
+        if (along == Vector3.Zero) along = Vector3.Up;
+
+        across = Flatten(view.X, normal);
+        if (across == Vector3.Zero) across = along.Cross(normal);
     }
 
     private void Catch()
@@ -242,6 +293,13 @@ public partial class PlayerGrab : Node3D
         float reach = Grasp();
         Vector3 chest = ChestWorld();
         Vector3 tip = chest + Aim(chest) * reach;
+
+        if (_climb.Offer(chest, tip, out Vector3 rigging, out Node3D holder))
+        {
+            Anchor(holder, rigging, Vector3.Up, chest, reach);
+            _climb.Begin(holder, rigging, Vector3.Up, Flatten(_pivot.GlobalBasis.X, Vector3.Up));
+            return;
+        }
 
         bool found = Sweep(chest, tip, true, out Node3D node, out Vector3 point, out Vector3 normal);
 
@@ -261,6 +319,18 @@ public partial class PlayerGrab : Node3D
             _body?.AddCollisionExceptionWith(rigid);
         }
 
+        Anchor(node, point, normal, chest, reach);
+
+        if (_handle == null && _carried == null && Rises(point, chest))
+        {
+            Vector3 across = Flatten(_pivot.GlobalBasis.X, normal);
+            if (across == Vector3.Zero) across = _pivot.GlobalBasis.X;
+            _climb.Begin(node, point, normal, across);
+        }
+    }
+
+    private void Anchor(Node3D node, Vector3 point, Vector3 normal, Vector3 chest, float reach)
+    {
         _attached = true;
         _node = node;
         _normal = normal;
@@ -271,28 +341,20 @@ public partial class PlayerGrab : Node3D
         _load = 0f;
     }
 
-    private bool Crawl(float dt)
-    {
-        if (!IsInstanceValid(_node)) return false;
-
-        Vector3 goal = _node.GlobalTransform * _local + _step * (ClimbSpeed * dt);
-        Vector3 lift = _normal * ClimbBite;
-
-        if (!Sweep(goal + lift, goal - lift, out Node3D node, out Vector3 point, out Vector3 normal)) return false;
-        if (normal.Dot(_normal) < Mathf.Cos(Mathf.DegToRad(ClimbEdgeAngle))) return false;
-
-        _node = node;
-        _normal = normal;
-        _local = node.GlobalTransform.AffineInverse() * point;
-        return true;
-    }
+    private bool Rises(Vector3 point, Vector3 chest) =>
+        point.Y - chest.Y > ClimbRise || _body is PlayerBody { IsGrounded: false };
 
     private void Pose(bool held, float dt)
     {
+        if (_climb.Active)
+        {
+            Mark(_climb.Anchor);
+            _climb.Pose(ArmLeft, ArmRight);
+            return;
+        }
+
         if (!_attached || !IsInstanceValid(_node))
         {
-            _wasClimbing = false;
-
             if (!held)
             {
                 Mark(null);
@@ -317,44 +379,9 @@ public partial class PlayerGrab : Node3D
         Vector3 across = Flatten(_pivot.GlobalBasis.X, _normal);
         if (across == Vector3.Zero) across = _pivot.GlobalBasis.X;
 
-        if (!_climbing)
-        {
-            _wasClimbing = false;
-            float spread = Mathf.Lerp(HandSpread, HangSpread, Hanging(anchor, dt));
-            ArmLeft?.Grip(anchor - across * spread);
-            ArmRight?.Grip(anchor + across * spread);
-            return;
-        }
-
-        if (!_wasClimbing || _holdNode != _node) Rebase(anchor, across);
-        _wasClimbing = true;
-
-        _phase += Mathf.Tau * ClimbSpeed * dt / Mathf.Max(HandStride, 1e-3f);
-        int half = (int)(_phase / Mathf.Pi);
-
-        if (half != _stride)
-        {
-            _stride = half;
-            bool left = (half & 1) == 0;
-            Vector3 ahead = anchor
-                + _step * (HandStride * 0.5f)
-                + across * (left ? -HandSpread : HandSpread);
-            Vector3 local = _node.GlobalTransform.AffineInverse() * ahead;
-
-            if (left)
-            {
-                _holdLeft = local;
-                ArmLeft?.Release();
-            }
-            else
-            {
-                _holdRight = local;
-                ArmRight?.Release();
-            }
-        }
-
-        ArmLeft?.Grip(_node.GlobalTransform * _holdLeft);
-        ArmRight?.Grip(_node.GlobalTransform * _holdRight);
+        float spread = Mathf.Lerp(HandSpread, HangSpread, Hanging(anchor, dt));
+        ArmLeft?.Grip(anchor - across * spread);
+        ArmRight?.Grip(anchor + across * spread);
     }
 
     private float Hanging(Vector3 anchor, float dt)
@@ -369,17 +396,6 @@ public partial class PlayerGrab : Node3D
         return _hang;
     }
 
-    private void Rebase(Vector3 anchor, Vector3 across)
-    {
-        _phase = 0f;
-        _stride = 0;
-        _holdNode = _node;
-
-        Transform3D inverse = _node.GlobalTransform.AffineInverse();
-        _holdLeft = inverse * (anchor - across * HandSpread);
-        _holdRight = inverse * (anchor + across * HandSpread);
-    }
-
     private void Mark(Vector3? at)
     {
         if (_marker == null) return;
@@ -390,29 +406,7 @@ public partial class PlayerGrab : Node3D
         if (show) _marker.GlobalPosition = at.Value;
     }
 
-    private bool Climbable()
-    {
-        if (_handle != null) return _handle.Anchors;
-        return _carried == null;
-    }
-
     private float OwnMass() => _body != null && _body.Mass > 0f ? _body.Mass : 70f;
-
-    private Vector3 Surface(Vector2 move)
-    {
-        Basis view = _pivot.GlobalBasis;
-
-        Vector3 along = Flatten(view.Y, _normal);
-        if (along == Vector3.Zero) along = Flatten(-view.Z, _normal);
-        if (along == Vector3.Zero) return Vector3.Zero;
-
-        Vector3 across = Flatten(view.X, _normal);
-        if (across == Vector3.Zero) across = along.Cross(_normal);
-
-        Vector3 step = across * move.X - along * move.Y;
-
-        return step.LengthSquared() > 1e-6f ? step.Normalized() : Vector3.Zero;
-    }
 
     private static Vector3 Flatten(Vector3 axis, Vector3 normal)
     {
@@ -430,7 +424,7 @@ public partial class PlayerGrab : Node3D
     private void Release()
     {
         _climbing = false;
-        _step = Vector3.Zero;
+        _climb.End();
 
         if (!_attached) return;
 
@@ -451,7 +445,15 @@ public partial class PlayerGrab : Node3D
     private bool Hold(out Vector3 anchor)
     {
         anchor = _lastAnchor;
-        if (!_attached || !IsInstanceValid(_node)) return false;
+        if (!_attached) return false;
+
+        if (_climb.Active)
+        {
+            anchor = _climb.Anchor;
+            return true;
+        }
+
+        if (!IsInstanceValid(_node)) return false;
 
         if (_handle == null) anchor = _node.GlobalTransform * _local;
         return true;
@@ -505,6 +507,17 @@ public partial class PlayerGrab : Node3D
 
         if (!_attached) return;
 
+        Vector3 chest = state.Transform * ChestLocal();
+
+        if (_climb.Active)
+        {
+            _climb.Apply(state, chest);
+            _load = _climb.Load;
+            _lastChest = chest;
+            _lastAnchor = _climb.Anchor;
+            return;
+        }
+
         if (!IsInstanceValid(_node))
         {
             Release();
@@ -512,7 +525,6 @@ public partial class PlayerGrab : Node3D
         }
 
         float dt = state.Step;
-        Vector3 chest = state.Transform * ChestLocal();
         Vector3 anchor;
 
         if (_handle != null)
@@ -541,8 +553,6 @@ public partial class PlayerGrab : Node3D
         }
 
         if (_handle != null && !_handle.Anchors) return;
-
-        if (_climbing) _span = Mathf.MoveToward(_span, Grasp() * MinSpan, ClimbSpeed * dt);
 
         Vector3 span = anchor - chest;
         float distance = span.Length();

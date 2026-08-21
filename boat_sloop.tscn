@@ -1,0 +1,134 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/boat/BoatHull.cs" id="1_hull"]
+[ext_resource type="Script" path="res://scripts/boat/Rudder.cs" id="2_rudder"]
+[ext_resource type="Script" path="res://scripts/boat/Sail.cs" id="7_sail"]
+[ext_resource type="Script" path="res://scripts/boat/Spar.cs" id="8_spar"]
+[ext_resource type="Shader" path="res://shaders/sail.gdshader" id="9_sailshader"]
+[ext_resource type="PackedScene" path="res://models/sloop/scene.gltf" id="10_model"]
+
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_deck"]
+friction = 0.2
+
+[sub_resource type="BoxShape3D" id="Box_companionway"]
+size = Vector3(1.2, 0.2, 2.4)
+
+[sub_resource type="StandardMaterial3D" id="Grey_spar"]
+albedo_color = Color(0.45, 0.36, 0.26, 1)
+roughness = 0.85
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_sail"]
+shader = ExtResource("9_sailshader")
+shader_parameter/deployment = 0.0
+shader_parameter/head_width = 7.0
+shader_parameter/foot_width = 6.6
+shader_parameter/drop = 5.0
+shader_parameter/phase = 0.0
+shader_parameter/pressure = 0.4
+shader_parameter/wind_strength = 0.75
+shader_parameter/camber = 0.3
+shader_parameter/belly_roundness = 0.6
+shader_parameter/draft_position = 0.45
+shader_parameter/draft_height = 0.55
+shader_parameter/fill_ease = 0.55
+shader_parameter/min_fill = 0.55
+shader_parameter/gust_depth = 0.22
+shader_parameter/foot_freedom = 0.8
+shader_parameter/foot_pinch = 0.45
+shader_parameter/foot_scallop = 0.55
+shader_parameter/clew_tension = 0.85
+shader_parameter/luff_knee = 0.45
+shader_parameter/luff_amplitude = 0.55
+shader_parameter/luff_speed = 5.0
+shader_parameter/leech_flutter = 0.55
+shader_parameter/furl_thickness = 0.55
+shader_parameter/canvas_color = Color(0.855, 0.816, 0.718, 1)
+shader_parameter/seam_color = Color(0.702, 0.655, 0.549, 1)
+shader_parameter/backlight_tint = Color(0.31, 0.267, 0.196, 1)
+shader_parameter/seams = 9.0
+shader_parameter/seam_width = 0.045
+shader_parameter/roughness_value = 0.86
+shader_parameter/wrinkle_depth = 0.75
+shader_parameter/wrinkle_scale = 7.0
+
+[node name="BoatSloop" type="RigidBody3D"]
+physics_material_override = SubResource("PhysicsMaterial_deck")
+gravity_scale = 0.0
+center_of_mass_mode = 1
+center_of_mass = Vector3(0, -0.7, 0.1)
+can_sleep = false
+linear_damp_mode = 1
+angular_damp_mode = 1
+script = ExtResource("1_hull")
+HullLength = 10.8
+Beam = 3.95
+Draft = 1.1
+Freeboard = 1.85
+BowSheerRise = 0.2
+SternSheerRise = 0.2
+SheerPower = 5.0
+Rocker = 0.7
+RockerPower = 1.25
+BowSharpness = 6.0
+SternSharpness = 6.0
+TransomWidth = 0.31
+TransomRake = 0.3
+StemRake = 1.0
+StemPower = 3.0
+BilgeFullness = 0.24
+DeckHeight = 1.05
+BulwarkThickness = 0.35
+SolidStations = 17
+CollisionSlices = 8
+HollowHull = true
+HullThickness = 0.25
+HoldFloor = -0.25
+DeckThickness = 0.4
+HatchFrom = 1.6
+HatchTo = 3.6
+HatchWidth = 2.0
+CenterOfMassHeight = -0.7
+CenterOfMassLength = 0.1
+RollDamping = 0.9
+KeelLever = 4.0
+Trace = true
+
+[node name="Model" parent="." instance=ExtResource("10_model")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.15, -1.3)
+
+[node name="Companionway" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.8387, 0.5446, 0, -0.5446, 0.8387, 0, 0.4, 2.6)
+shape = SubResource("Box_companionway")
+
+[node name="Rudder" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 5.3)
+material_override = SubResource("Grey_spar")
+script = ExtResource("2_rudder")
+Span = 1.3
+HeadChord = 0.7
+FootChord = 0.5
+HeadRise = 0.3
+
+[node name="YardBrace" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.15, -0.9)
+
+[node name="Yard" type="MeshInstance3D" parent="YardBrace"]
+visible = false
+material_override = SubResource("Grey_spar")
+script = ExtResource("8_spar")
+HalfLength = 3.5
+EndRadius = 0.06
+MidRadius = 0.11
+
+[node name="SailSquare" type="MeshInstance3D" parent="YardBrace" node_paths=PackedStringArray("Boom")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.2, 0)
+material_override = SubResource("ShaderMaterial_sail")
+script = ExtResource("7_sail")
+HeadWidth = 7.0
+FootWidth = 6.6
+Drop = 5.0
+PanelsAcross = 18
+PanelsDown = 14
+DriveArea = 33.0
+Deployment = 0.0
+Boom = NodePath("..")

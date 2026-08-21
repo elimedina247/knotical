@@ -1,0 +1,11 @@
+Model Information:
+* title:	Sea Of Thieves Sloop
+* source:	https://sketchfab.com/3d-models/sea-of-thieves-sloop-dfab2caa44dd40eb8440c3b64d8fb5ab
+* author:	J.D.Productions (https://sketchfab.com/J.D.Productions)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Sea Of Thieves Sloop" (https://sketchfab.com/3d-models/sea-of-thieves-sloop-dfab2caa44dd40eb8440c3b64d8fb5ab) by J.D.Productions (https://sketchfab.com/J.D.Productions) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

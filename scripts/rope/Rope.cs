@@ -1,9 +1,10 @@
 using Godot;
+using Knotical.Player;
 
 namespace Knotical.Rigging;
 
 [GlobalClass]
-public partial class Rope : Node3D
+public partial class Rope : Node3D, IClimbHolds
 {
     private const int Sides = 6;
     private static readonly float[] RingCos = new float[Sides];
@@ -17,6 +18,13 @@ public partial class Rope : Node3D
             RingCos[s] = Mathf.Cos(angle);
             RingSin[s] = Mathf.Sin(angle);
         }
+    }
+
+    private struct Wrap
+    {
+        public Node3D Body;
+        public Vector3 Local;
+        public Vector3 Point;
     }
 
     [Export(PropertyHint.Range, "8,64,1")]
@@ -56,11 +64,23 @@ public partial class Rope : Node3D
     [Export(PropertyHint.Layers3DPhysics)]
     public uint GroundMask { get; set; } = 3;
 
+    [Export(PropertyHint.Range, "0,8,1")]
+    public int MaxWraps { get; set; } = 6;
+
+    [Export(PropertyHint.Range, "0.05,1,0.05")]
+    public float WrapClearance { get; set; } = 0.25f;
+
     private Vector3[] _points;
     private Vector3[] _previous;
     private Vector3[] _trail;
     private Vector3[] _normals;
     private Vector3[] _binormals;
+    private bool[] _locked;
+    private Vector3[] _anchors;
+    private float[] _rest;
+    private Vector3[] _nodes;
+    private int[] _nodeIndex;
+    private float[] _spans;
     private Node3D _bodyA;
     private Node3D _bodyB;
     private Vector3 _localA;
@@ -80,6 +100,7 @@ public partial class Rope : Node3D
     private StandardMaterial3D _material;
     private SphereShape3D _probe;
     private PhysicsShapeQueryParameters3D _probeQuery;
+    private readonly System.Collections.Generic.List<Wrap> _wraps = new();
     private readonly Godot.Collections.Array<Rid> _excludes = new();
 
     public float WorkingLength
@@ -98,9 +119,41 @@ public partial class Rope : Node3D
 
     public bool BoundEnd => _boundB;
 
+    public int WrapCount => _wraps.Count;
+
+    RigidBody3D IClimbHolds.Carrier => null;
+
+    bool IClimbHolds.Hold(Vector3 near, out Vector3 hold)
+    {
+        hold = near;
+        if (!_boundA || _points == null || _points.Length < 2) return false;
+
+        float closest = float.MaxValue;
+
+        for (int i = 0; i < _points.Length - 1; i++)
+        {
+            Vector3 a = _points[i];
+            Vector3 span = _points[i + 1] - a;
+            float length = span.LengthSquared();
+
+            Vector3 on = length < 1e-8f
+                ? a
+                : a + span * Mathf.Clamp((near - a).Dot(span) / length, 0f, 1f);
+
+            float distance = near.DistanceSquaredTo(on);
+            if (distance >= closest) continue;
+
+            closest = distance;
+            hold = on;
+        }
+
+        return true;
+    }
+
     public override void _Ready()
     {
         AddToGroup("Ropes");
+        AddToGroup(HandOverHand.Group);
 
         _mesh = new ImmediateMesh();
         _material = new StandardMaterial3D
@@ -219,6 +272,8 @@ public partial class Rope : Node3D
             System.Array.Reverse(_previous);
         }
 
+        _wraps.Reverse();
+
         (_bodyA, _bodyB) = (_bodyB, _bodyA);
         (_localA, _localB) = (_localB, _localA);
         (_boundA, _boundB) = (_boundB, _boundA);
@@ -238,6 +293,7 @@ public partial class Rope : Node3D
         if (!haveA && !haveB)
         {
             _taut = false;
+            _wraps.Clear();
             Decay(dt);
             return;
         }
@@ -246,8 +302,13 @@ public partial class Rope : Node3D
         if (!haveA) from = _points[0];
         if (!haveB) to = _points[^1];
 
+        PhysicsDirectSpaceState3D space = GetWorld3D().DirectSpaceState;
+
+        if (haveA && haveB) Route(space, from, to);
+        else _wraps.Clear();
+
         Constrain(dt, haveA, haveB, from, to);
-        Simulate(dt, haveA, from, haveB, to);
+        Simulate(dt, space, haveA, from, haveB, to);
     }
 
     private void Validate()
@@ -291,6 +352,95 @@ public partial class Rope : Node3D
         _overload = 0;
     }
 
+    private void Route(PhysicsDirectSpaceState3D space, Vector3 from, Vector3 to)
+    {
+        for (int i = _wraps.Count - 1; i >= 0; i--)
+        {
+            if (_wraps[i].Body != null && !IsInstanceValid(_wraps[i].Body))
+            {
+                _wraps.RemoveAt(i);
+                continue;
+            }
+
+            Vector3 before = i == 0 ? from : WrapPoint(i - 1);
+            Vector3 after = i == _wraps.Count - 1 ? to : WrapPoint(i + 1);
+
+            if (Obstructed(space, before, after, out Vector3 point, out Vector3 normal, out Node3D body))
+                _wraps[i] = MakeWrap(body, point + normal * (Radius + 0.02f));
+            else
+                _wraps.RemoveAt(i);
+        }
+
+        for (int i = 0; i <= _wraps.Count && _wraps.Count < MaxWraps; i++)
+        {
+            Vector3 before = i == 0 ? from : WrapPoint(i - 1);
+            Vector3 after = i == _wraps.Count ? to : WrapPoint(i);
+
+            if (!Obstructed(space, before, after, out Vector3 point, out Vector3 normal, out Node3D body)) continue;
+
+            _wraps.Insert(i, MakeWrap(body, point + normal * (Radius + 0.02f)));
+        }
+    }
+
+    private bool Obstructed(
+        PhysicsDirectSpaceState3D space,
+        Vector3 from,
+        Vector3 to,
+        out Vector3 point,
+        out Vector3 normal,
+        out Node3D body)
+    {
+        point = Vector3.Zero;
+        normal = Vector3.Up;
+        body = null;
+
+        Vector3 span = to - from;
+        float distance = span.Length();
+        if (distance < WrapClearance * 2f) return false;
+
+        Vector3 inset = span * (Mathf.Min(WrapClearance * 0.5f, distance * 0.2f) / distance);
+        var query = PhysicsRayQueryParameters3D.Create(from + inset, to - inset, GroundMask, _excludes);
+        Godot.Collections.Dictionary hit = space.IntersectRay(query);
+        if (hit.Count == 0) return false;
+
+        normal = (Vector3)hit["normal"];
+        if (normal.LengthSquared() < 1e-6f) return false;
+
+        point = (Vector3)hit["position"];
+        if (point.DistanceTo(from) < WrapClearance || point.DistanceTo(to) < WrapClearance) return false;
+
+        body = hit["collider"].As<Node3D>();
+        return true;
+    }
+
+    private Wrap MakeWrap(Node3D body, Vector3 point) => new()
+    {
+        Body = body,
+        Local = body != null ? body.GlobalTransform.AffineInverse() * point : point,
+        Point = point,
+    };
+
+    private Vector3 WrapPoint(int i)
+    {
+        Wrap wrap = _wraps[i];
+        return wrap.Body != null && IsInstanceValid(wrap.Body) ? wrap.Body.GlobalTransform * wrap.Local : wrap.Point;
+    }
+
+    private float PathLength(Vector3 from, Vector3 to)
+    {
+        Vector3 previous = from;
+        float total = 0f;
+
+        for (int i = 0; i < _wraps.Count; i++)
+        {
+            Vector3 point = WrapPoint(i);
+            total += previous.DistanceTo(point);
+            previous = point;
+        }
+
+        return total + previous.DistanceTo(to);
+    }
+
     private void Constrain(float dt, bool haveA, bool haveB, Vector3 from, Vector3 to)
     {
         _taut = false;
@@ -303,7 +453,7 @@ public partial class Rope : Node3D
         }
 
         float span = Mathf.Max(_length, 1e-3f);
-        float distance = from.DistanceTo(to);
+        float distance = PathLength(from, to);
         _straight = Mathf.Clamp((distance - span * 0.97f) / (span * 0.03f), 0f, 1f);
 
         float error = distance - _length;
@@ -316,7 +466,17 @@ public partial class Rope : Node3D
 
         _taut = true;
 
-        Vector3 direction = (to - from) / distance;
+        Vector3 leadA = (_wraps.Count > 0 ? WrapPoint(0) : to) - from;
+        Vector3 leadB = to - (_wraps.Count > 0 ? WrapPoint(_wraps.Count - 1) : from);
+
+        if (leadA.LengthSquared() < 1e-8f || leadB.LengthSquared() < 1e-8f)
+        {
+            Decay(dt);
+            return;
+        }
+
+        Vector3 dirA = leadA.Normalized();
+        Vector3 dirB = leadB.Normalized();
         var rigidA = _bodyA as RigidBody3D;
         RigidBody3D rigidB = _held ? _holder : _bodyB as RigidBody3D;
 
@@ -337,12 +497,13 @@ public partial class Rope : Node3D
             return;
         }
 
-        Vector3 relative = Velocity(rigidB, to) - Velocity(rigidA, from);
-        float stretch = relative.Dot(direction);
+        Vector3 velocityA = Velocity(rigidA, from);
+        Vector3 velocityB = Velocity(rigidB, to);
+        float stretch = velocityB.Dot(dirB) - velocityA.Dot(dirA);
 
         if (SwayDamping > 0f)
         {
-            Vector3 sway = relative - direction * stretch;
+            Vector3 sway = velocityB - dirB * velocityB.Dot(dirB) - (velocityA - dirA * velocityA.Dot(dirA));
             Vector3 brake = sway * (Mathf.Min(SwayDamping * dt, 1f) / invSum);
             rigidA?.ApplyImpulse(brake, from - Center(rigidA));
             rigidB?.ApplyImpulse(-brake / grip, to - Center(rigidB));
@@ -359,8 +520,8 @@ public partial class Rope : Node3D
         }
 
         float impulse = excess / invSum;
-        rigidA?.ApplyImpulse(direction * impulse, from - Center(rigidA));
-        rigidB?.ApplyImpulse(direction * (-impulse / grip), to - Center(rigidB));
+        rigidA?.ApplyImpulse(dirA * impulse, from - Center(rigidA));
+        rigidB?.ApplyImpulse(dirB * (-impulse / grip), to - Center(rigidB));
 
         _tension = Mathf.Lerp(_tension, impulse / (dt * grip), Mathf.Min(dt * 10f, 1f));
 
@@ -411,6 +572,8 @@ public partial class Rope : Node3D
                 PullStrength = PullStrength,
                 PullScalesWithPlayers = PullScalesWithPlayers,
                 GroundMask = GroundMask,
+                MaxWraps = MaxWraps,
+                WrapClearance = WrapClearance,
                 WorkingLength = _length * cut / last,
                 _points = _points[..(cut + 1)],
                 _previous = _previous[..(cut + 1)],
@@ -425,11 +588,12 @@ public partial class Rope : Node3D
         _points = _points[cut..];
         _previous = _previous[cut..];
         _length = Mathf.Max(_length * (last - cut) / last, 0.5f);
+        _wraps.Clear();
         _boundA = false;
         _bodyA = null;
     }
 
-    private void Simulate(float dt, bool pinA, Vector3 from, bool pinB, Vector3 to)
+    private void Simulate(float dt, PhysicsDirectSpaceState3D space, bool pinA, Vector3 from, bool pinB, Vector3 to)
     {
         int last = _points.Length - 1;
         float retain = Mathf.Pow(Mathf.Clamp(Damping, 0.001f, 1f), dt);
@@ -438,6 +602,8 @@ public partial class Rope : Node3D
         if (_trail == null || _trail.Length != _points.Length) _trail = new Vector3[_points.Length];
         System.Array.Copy(_points, _trail, _points.Length);
 
+        Shape(pinA, from, pinB, to);
+
         for (int i = 0; i <= last; i++)
         {
             Vector3 velocity = (_points[i] - _previous[i]) * retain;
@@ -445,38 +611,112 @@ public partial class Rope : Node3D
             _points[i] += velocity + fall;
         }
 
-        Relax(Iterations, pinA, from, pinB, to);
+        Relax(Iterations);
 
-        if (_straight > 0f) Straighten(0.85f * _straight, from, to);
+        if (_straight > 0f && _wraps.Count == 0) Straighten(0.85f * _straight, from, to);
 
-        PhysicsDirectSpaceState3D space = GetWorld3D().DirectSpaceState;
-        Collide(space, pinA, pinB);
-        Depenetrate(space, pinA, pinB);
-        Relax(Mathf.Max(Iterations / 3, 2), pinA, from, pinB, to);
-        Depenetrate(space, pinA, pinB);
+        Collide(space);
+        Depenetrate(space);
+        Relax(Mathf.Max(Iterations / 3, 2));
+        Depenetrate(space);
     }
 
-    private void Relax(int iterations, bool pinA, Vector3 from, bool pinB, Vector3 to)
+    private void Shape(bool pinA, Vector3 from, bool pinB, Vector3 to)
+    {
+        int count = _points.Length;
+        int last = count - 1;
+
+        if (_locked == null || _locked.Length != count)
+        {
+            _locked = new bool[count];
+            _anchors = new Vector3[count];
+            _rest = new float[Mathf.Max(last, 1)];
+        }
+
+        System.Array.Clear(_locked, 0, count);
+
+        int wraps = Mathf.Min(_wraps.Count, Mathf.Max(last - 1, 0));
+        int nodes = wraps + 2;
+
+        if (_nodes == null || _nodes.Length < nodes)
+        {
+            _nodes = new Vector3[nodes + 4];
+            _nodeIndex = new int[nodes + 4];
+            _spans = new float[nodes + 4];
+        }
+
+        _nodes[0] = from;
+        for (int i = 0; i < wraps; i++) _nodes[i + 1] = WrapPoint(i);
+        _nodes[nodes - 1] = to;
+
+        float total = 0f;
+        for (int i = 0; i < nodes - 1; i++)
+        {
+            _spans[i] = _nodes[i].DistanceTo(_nodes[i + 1]);
+            total += _spans[i];
+        }
+
+        _nodeIndex[0] = 0;
+        _nodeIndex[nodes - 1] = last;
+
+        float travelled = 0f;
+        for (int i = 1; i < nodes - 1; i++)
+        {
+            travelled += _spans[i - 1];
+            int index = total > 1e-4f
+                ? Mathf.RoundToInt(last * travelled / total)
+                : i * last / (nodes - 1);
+            _nodeIndex[i] = Mathf.Clamp(index, _nodeIndex[i - 1] + 1, last - (nodes - 1 - i));
+        }
+
+        for (int i = 0; i < nodes - 1; i++)
+        {
+            int links = _nodeIndex[i + 1] - _nodeIndex[i];
+            if (links <= 0) continue;
+
+            float share = total > 1e-4f ? _length * _spans[i] / total : _length / (nodes - 1);
+            float rest = Mathf.Max(share / links, 1e-4f);
+            for (int k = _nodeIndex[i]; k < _nodeIndex[i + 1]; k++) _rest[k] = rest;
+        }
+
+        if (pinA)
+        {
+            _locked[0] = true;
+            _anchors[0] = from;
+        }
+
+        if (pinB)
+        {
+            _locked[last] = true;
+            _anchors[last] = to;
+        }
+
+        for (int i = 1; i < nodes - 1; i++)
+        {
+            _locked[_nodeIndex[i]] = true;
+            _anchors[_nodeIndex[i]] = _nodes[i];
+        }
+    }
+
+    private void Relax(int iterations)
     {
         int last = _points.Length - 1;
-        float segment = _length / last;
 
         for (int pass = 0; pass < iterations; pass++)
         {
-            if (pinA) _points[0] = from;
-            if (pinB) _points[last] = to;
+            Pin();
 
             for (int i = 0; i < last; i++)
             {
-                bool lockLow = i == 0 && pinA;
-                bool lockHigh = i + 1 == last && pinB;
+                bool lockLow = _locked[i];
+                bool lockHigh = _locked[i + 1];
                 if (lockLow && lockHigh) continue;
 
                 Vector3 link = _points[i + 1] - _points[i];
                 float distance = link.Length();
                 if (distance < 1e-5f) continue;
 
-                Vector3 push = link * ((distance - segment) / distance);
+                Vector3 push = link * ((distance - _rest[i]) / distance);
                 if (lockLow) _points[i + 1] -= push;
                 else if (lockHigh) _points[i] += push;
                 else
@@ -487,18 +727,22 @@ public partial class Rope : Node3D
             }
         }
 
-        if (pinA) _points[0] = from;
-        if (pinB) _points[last] = to;
+        Pin();
     }
 
-    private void Collide(PhysicsDirectSpaceState3D space, bool pinA, bool pinB)
+    private void Pin()
+    {
+        for (int i = 0; i < _points.Length; i++)
+            if (_locked[i]) _points[i] = _anchors[i];
+    }
+
+    private void Collide(PhysicsDirectSpaceState3D space)
     {
         int last = _points.Length - 1;
 
         for (int i = 0; i <= last; i++)
         {
-            if (i == 0 && pinA) continue;
-            if (i == last && pinB) continue;
+            if (_locked[i]) continue;
 
             Vector3 from = _trail[i];
             Vector3 motion = _points[i] - from;
@@ -526,7 +770,7 @@ public partial class Rope : Node3D
         }
     }
 
-    private void Depenetrate(PhysicsDirectSpaceState3D space, bool pinA, bool pinB)
+    private void Depenetrate(PhysicsDirectSpaceState3D space)
     {
         _probe.Radius = Radius;
         _probeQuery.CollisionMask = GroundMask;
@@ -536,8 +780,7 @@ public partial class Rope : Node3D
 
         for (int i = 0; i <= last; i++)
         {
-            if (i == 0 && pinA) continue;
-            if (i == last && pinB) continue;
+            if (_locked[i]) continue;
 
             _probeQuery.Transform = new Transform3D(Basis.Identity, _points[i]);
             Godot.Collections.Dictionary rest = space.GetRestInfo(_probeQuery);

@@ -1,11 +1,12 @@
 using System.Collections.Generic;
 using Godot;
+using Knotical.Player;
 
 namespace Knotical.Boat;
 
 [Tool]
 [GlobalClass]
-public partial class Ratlines : MeshInstance3D
+public partial class Ratlines : MeshInstance3D, IClimbHolds
 {
     private readonly List<CollisionShape3D> _mounted = new();
     private CollisionObject3D _body;
@@ -55,9 +56,37 @@ public partial class Ratlines : MeshInstance3D
 
     [Export] public bool RebuildNow { get => false; set { if (value) Rebuild(); } }
 
-    public override void _Ready() => Rebuild();
+    public override void _Ready()
+    {
+        if (!Engine.IsEditorHint()) AddToGroup(HandOverHand.Group);
+        Rebuild();
+    }
 
     public override void _EnterTree() => Rebuild();
+
+    public RigidBody3D Carrier => _body as RigidBody3D;
+
+    public bool Hold(Vector3 near, out Vector3 hold)
+    {
+        hold = near;
+
+        if (!IsInsideTree() || _head.Y < 0.01f || _rungSpacing < 0.05f) return false;
+
+        Vector3 local = GlobalTransform.AffineInverse() * near;
+        int top = Mathf.Max(1, Mathf.FloorToInt(_head.Y * _topFraction / _rungSpacing));
+        int rung = Mathf.Clamp(Mathf.RoundToInt(local.Y / _rungSpacing), 1, top);
+
+        float t = rung * _rungSpacing / _head.Y;
+        Vector3 fore = Foot(1f).Lerp(_head, t);
+        Vector3 span = Foot(-1f).Lerp(_head, t) - fore;
+
+        float width = span.LengthSquared();
+        if (width < 1e-6f) return false;
+
+        float along = Mathf.Clamp((local - fore).Dot(span) / width, 0.1f, 0.9f);
+        hold = GlobalTransform * (fore + span * along);
+        return true;
+    }
 
     private Vector3 Foot(float side) => new(_footSpread, 0f, side > 0f ? _footFore : _footAft);
 

@@ -15,12 +15,14 @@
 [ext_resource type="PackedScene" uid="uid://c3vb7k2p4qm8n" path="res://boat_3.tscn" id="14_boat3"]
 [ext_resource type="Script" path="res://scripts/debug/MapOverlay.cs" id="15_mapoverlay"]
 [ext_resource type="PackedScene" path="res://boat_cutter.tscn" id="22_cutter"]
+[ext_resource type="PackedScene" path="res://boat_sloop.tscn" id="23_sloop"]
 [ext_resource type="PackedScene" uid="uid://xx8i2fj8gtmd" path="res://map.tscn" id="16_map"]
 [ext_resource type="Resource" path="res://ocean_settings.tres" id="18_seasettings"]
 [ext_resource type="Script" path="res://scripts/ocean/SeaDepthField.cs" id="17_seadepth"]
 [ext_resource type="Script" path="res://scripts/debug/BuoyancyGizmos.cs" id="19_gizmos"]
 [ext_resource type="Script" path="res://scripts/vfx/SplashEmitter.cs" id="20_splash"]
 [ext_resource type="Script" path="res://scripts/vfx/FoamCapture.cs" id="21_foam"]
+[ext_resource type="Script" path="res://scripts/ui/ComfortSlider.cs" id="24_comfort"]
 
 [sub_resource type="ShaderMaterial" id="SkyShaderMaterial_1"]
 shader = ExtResource("6_skyshader")
@@ -95,6 +97,9 @@ script = ExtResource("4_windhud")
 [node name="WindCompass" type="CanvasLayer" parent="." unique_id=100000019]
 script = ExtResource("10_compass")
 
+[node name="ComfortSlider" type="CanvasLayer" parent="."]
+script = ExtResource("24_comfort")
+
 [node name="MapOverlay" type="CanvasLayer" parent="." unique_id=100000021]
 script = ExtResource("15_mapoverlay")
 
@@ -124,3 +129,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 46.55933, 76.97635)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 55, 30, 0)
 mass = 139846.62
 YawDamping = 0.5
+
+[node name="BoatSloop" parent="." instance=ExtResource("23_sloop")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 30.5, 4)

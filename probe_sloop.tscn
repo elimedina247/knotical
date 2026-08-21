@@ -1,0 +1,13 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://boat_sloop.tscn" id="1_boat"]
+[ext_resource type="Script" path="res://scripts/debug/DeckProbe.cs" id="2_probe"]
+
+[node name="Probe" type="Node3D"]
+
+[node name="BoatSloop" parent="." instance=ExtResource("1_boat")]
+freeze = true
+
+[node name="DeckProbe" type="Node3D" parent="." node_paths=PackedStringArray("Target")]
+script = ExtResource("2_probe")
+Target = NodePath("../BoatSloop")

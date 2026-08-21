@@ -13,6 +13,7 @@
 [ext_resource type="Resource" path="res://audio/emerges.tres" id="11_emerges"]
 [ext_resource type="AudioStream" uid="uid://dj25jpdhmjg56" path="res://assets/audio/underwater/underwater.mp3" id="12_underbed"]
 [ext_resource type="Script" path="res://scripts/rope/RopeCarrier.cs" id="13_ropes"]
+[ext_resource type="Script" path="res://scripts/rope/GrappleGun.cs" id="15_grapple"]
 [ext_resource type="Script" path="res://scripts/player/Gait.cs" id="14_gait"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_body"]
@@ -219,6 +220,9 @@ DefaultBus = "Master"
 
 [node name="RopeCarrier" type="Node3D" parent="."]
 script = ExtResource("13_ropes")
+
+[node name="GrappleGun" type="Node3D" parent="."]
+script = ExtResource("15_grapple")
 
 [node name="Gait" type="Node3D" parent="."]
 script = ExtResource("14_gait")

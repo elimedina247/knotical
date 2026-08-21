@@ -61,6 +61,8 @@ shape = SubResource("BoxShape_hull")
 [node name="Buoyancy" type="Node3D" parent="."]
 script = ExtResource("3_buoyancy")
 Radius = 0.55
+TiltResponse = 0.45
+ShortWaveFilter = 1.0
 DampingFactor1 = 1.0
 DampingFactor2 = 0.4
 DragCoefficient = 0.6

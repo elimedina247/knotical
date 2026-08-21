@@ -31,8 +31,10 @@ public partial class DangleArm : Node3D, IHand
     private float[] _rest = System.Array.Empty<float>();
     private Node3D _torso;
     private float _rigid;
+    private bool _gripping;
+    private Vector3 _target;
 
-    public bool IsGripping => false;
+    public bool IsGripping => _gripping;
 
     public Vector3 Tip => _chain.Tip;
 
@@ -42,10 +44,13 @@ public partial class DangleArm : Node3D, IHand
 
     public void Grip(Vector3 globalTarget)
     {
+        _gripping = true;
+        _target = globalTarget;
     }
 
     public void Release()
     {
+        _gripping = false;
     }
 
     public void Resize(float length)
@@ -89,7 +94,9 @@ public partial class DangleArm : Node3D, IHand
         if (_links.Length == 0) return;
 
         float dt = (float)delta;
-        _rigid = Mathf.Clamp(_rigid - dt / Mathf.Max(RelaxTime, 1e-3f), 0f, 1f);
+        _rigid = _gripping
+            ? Mathf.Clamp(_rigid + dt / Mathf.Max(ReachTime, 1e-3f), 0f, 1f)
+            : Mathf.Clamp(_rigid - dt / Mathf.Max(RelaxTime, 1e-3f), 0f, 1f);
 
         _chain.Gravity = Gravity * (1f - _rigid);
         _chain.Damping = Mathf.Lerp(Damping, RigidDamping, _rigid);
@@ -106,7 +113,7 @@ public partial class DangleArm : Node3D, IHand
                 Clearance * (1f - _rigid));
         }
 
-        _chain.Step(dt, GlobalPosition, false, Vector3.Zero);
+        _chain.Step(dt, GlobalPosition, _gripping, _target);
 
         for (int i = 0; i < _links.Length && i < _chain.Links; i++)
         {
