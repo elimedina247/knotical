@@ -30,13 +30,9 @@ public partial class DangleArm : Node3D, IHand
     private MeshInstance3D[] _joints = System.Array.Empty<MeshInstance3D>();
     private float[] _rest = System.Array.Empty<float>();
     private Node3D _torso;
-    private bool _pinned;
-    private Vector3 _target;
-    private Vector3 _reachFrom;
-    private float _reach;
     private float _rigid;
 
-    public bool IsGripping => _pinned;
+    public bool IsGripping => false;
 
     public Vector3 Tip => _chain.Tip;
 
@@ -46,17 +42,11 @@ public partial class DangleArm : Node3D, IHand
 
     public void Grip(Vector3 globalTarget)
     {
-        if (!_pinned)
-        {
-            _reachFrom = _chain.Tip;
-            _reach = 0f;
-        }
-
-        _pinned = true;
-        _target = globalTarget;
     }
 
-    public void Release() => _pinned = false;
+    public void Release()
+    {
+    }
 
     public void Resize(float length)
     {
@@ -99,16 +89,11 @@ public partial class DangleArm : Node3D, IHand
         if (_links.Length == 0) return;
 
         float dt = (float)delta;
-        float rate = _pinned ? dt / Mathf.Max(ReachTime, 1e-3f) : -dt / Mathf.Max(RelaxTime, 1e-3f);
-
-        _reach = Mathf.Clamp(_reach + (_pinned ? dt / Mathf.Max(ReachTime, 1e-3f) : 0f), 0f, 1f);
-        _rigid = Mathf.Clamp(_rigid + rate, 0f, 1f);
+        _rigid = Mathf.Clamp(_rigid - dt / Mathf.Max(RelaxTime, 1e-3f), 0f, 1f);
 
         _chain.Gravity = Gravity * (1f - _rigid);
         _chain.Damping = Mathf.Lerp(Damping, RigidDamping, _rigid);
         _chain.Stiffness = Mathf.Lerp(Stiffness, 1f, _rigid);
-
-        Vector3 target = _reachFrom.Lerp(_target, Mathf.SmoothStep(0f, 1f, _reach));
 
         _chain.Straighten(_rigid);
 
@@ -121,7 +106,7 @@ public partial class DangleArm : Node3D, IHand
                 Clearance * (1f - _rigid));
         }
 
-        _chain.Step(dt, GlobalPosition, _pinned, target);
+        _chain.Step(dt, GlobalPosition, false, Vector3.Zero);
 
         for (int i = 0; i < _links.Length && i < _chain.Links; i++)
         {

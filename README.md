@@ -83,6 +83,34 @@ unleash the events. When a player is airborne or ragdolled the filter is bypasse
 
 ---
 
+## Gameplay / Tools
+
+### Grapple Gun
+
+Rope is no longer something you pick up and carry — it is fired. Every crew member has a grapple
+gun: a line, a hook, and a winch. It replaces hand-thrown rope as the way players interact with
+every rope in the game.
+
+**Why a tool instead of hands.** Holding a rope means posing two arms against a moving target every
+frame, and the animation never quite lands. A gun is one held prop with one muzzle. Aim, fire, and
+the line does the rest — the hard part moves from character animation into rope physics, which is
+where the interesting simulation already is.
+
+**Reach.** A fired hook goes where a thrown coil cannot: the masthead, a passing hull, a rock
+twenty metres up the cliff. Anchor and swing, and the deck stops being the only place you can
+usefully stand.
+
+**Winch.** The line reels in under power, which is one mechanic doing three jobs:
+
+- **Lash** — hook the cargo, hook a cleat, reel until it stops sliding.
+- **Retrieve** — hook something floating away and drag it back rather than swimming after it.
+- **Ascend** — reel yourself toward the anchor instead of climbing hand over hand.
+
+**Still costs your hands.** The pillar holds: the gun occupies a hand, and a loaded winch is a hand
+you are not steering, hauling, or holding on with. Fire, or be useful.
+
+---
+
 ## Look
 
 Stylized and arcadey — closest reference is *Sail Forth*. Saturated, high-key, flat-shaded low-poly
@@ -130,6 +158,7 @@ well within single-precision float comfort.
 - [ ] Wind and sail produce movement
 - [ ] Second player joins
 - [ ] Grip system
+- [ ] Grapple gun: fire, anchor, winch
 - [ ] Cargo rigid bodies + lashing
 - [ ] Compass, sandglass, chart table
 - [ ] One storm
