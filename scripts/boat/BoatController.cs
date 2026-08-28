@@ -24,6 +24,12 @@ public partial class BoatController : RigidBody3D
     [Export(PropertyHint.Range, "0.1,1,0.05")]
     public float PropDepth { get; set; } = 0.4f;
 
+    [Export(PropertyHint.Range, "0.05,1,0.01")]
+    public float RudderBite { get; set; } = 0.4f;
+
+    [Export(PropertyHint.Range, "0,2,0.05")]
+    public float HeadingSpring { get; set; } = 0.6f;
+
     [Export] public bool Trace { get; set; }
 
     public float Throttle { get; set; }
@@ -78,8 +84,32 @@ public partial class BoatController : RigidBody3D
 
         if (Steer != 0f)
         {
-            float authority = Mathf.Clamp(headway / 2.5f, -1f, 1f);
+            float bite = Mathf.Max(MaxSpeed * RudderBite, 0.5f);
+            float authority = headway >= 0f
+                ? Mathf.SmoothStep(0f, 1f, Mathf.Min(headway / bite, 1f))
+                : -Mathf.SmoothStep(0f, 1f, Mathf.Min(-headway / bite, 1f));
+
             ApplyTorque(Vector3.Up * (-Steer * RudderStrength * authority));
+        }
+        else if (HeadingSpring > 0f)
+        {
+            Vector3 planar = new(LinearVelocity.X, 0f, LinearVelocity.Z);
+            float drift = planar.Length();
+
+            if (drift > 0.5f)
+            {
+                Vector3 bow = -GlobalBasis.Z;
+                bow.Y = 0f;
+
+                if (bow.LengthSquared() > 0.0001f)
+                {
+                    float error = bow.Normalized().Cross(planar / drift).Y;
+                    float ease = Mathf.SmoothStep(0f, 1f,
+                        Mathf.Min(drift / Mathf.Max(MaxSpeed * RudderBite, 0.5f), 1f));
+
+                    ApplyTorque(Vector3.Up * (error * RudderStrength * HeadingSpring * ease));
+                }
+            }
         }
 
         if (!Trace) return;

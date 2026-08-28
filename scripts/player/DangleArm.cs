@@ -25,11 +25,14 @@ public partial class DangleArm : Node3D, IHand
 
     [Export(PropertyHint.Range, "0.01,1,0.01")] public float RigidDamping { get; set; } = 0.04f;
 
+    [Export(PropertyHint.Range, "0,2,0.01")] public float ElbowOut { get; set; } = 0.6f;
+
     private readonly LimbChain _chain = new();
     private MeshInstance3D[] _links = System.Array.Empty<MeshInstance3D>();
     private MeshInstance3D[] _joints = System.Array.Empty<MeshInstance3D>();
     private float[] _rest = System.Array.Empty<float>();
     private Node3D _torso;
+    private float _side = 1f;
     private float _rigid;
     private bool _gripping;
     private Vector3 _target;
@@ -62,6 +65,7 @@ public partial class DangleArm : Node3D, IHand
     public override void _Ready()
     {
         _torso = GetParentOrNull<Node3D>();
+        _side = Position.X < 0f ? -1f : 1f;
         Collect();
         _chain.Build(_links.Length, Length, GlobalPosition, Vector3.Down);
     }
@@ -115,6 +119,12 @@ public partial class DangleArm : Node3D, IHand
 
         _chain.Step(dt, GlobalPosition, _gripping, _target);
 
+        if (_rigid > 0f && _chain.Points.Length == 3)
+        {
+            _chain.Points[1] = _chain.Points[1].Lerp(Elbow(_chain.Points[0], _chain.Points[2]), _rigid);
+            _chain.Previous[1] = _chain.Points[1];
+        }
+
         for (int i = 0; i < _links.Length && i < _chain.Links; i++)
         {
             Vector3 a = _chain.Points[i];
@@ -132,6 +142,34 @@ public partial class DangleArm : Node3D, IHand
         {
             _joints[i].GlobalPosition = _chain.Points[i + 1];
         }
+    }
+
+    private Vector3 Elbow(Vector3 root, Vector3 tip)
+    {
+        Vector3 span = tip - root;
+        float distance = span.Length();
+        float half = Length * 0.5f;
+        Vector3 pole = Pole();
+
+        if (distance < 1e-4f) return root + pole * half;
+
+        Vector3 direction = span / distance;
+        if (distance >= Length) return root + direction * (distance * 0.5f);
+
+        float along = distance * 0.5f;
+        float outward = Mathf.Sqrt(Mathf.Max(half * half - along * along, 0f));
+
+        pole -= direction * pole.Dot(direction);
+        if (pole.LengthSquared() < 1e-6f) pole = direction.Cross(Vector3.Up);
+        if (pole.LengthSquared() < 1e-6f) pole = Vector3.Down;
+
+        return root + direction * along + pole.Normalized() * outward;
+    }
+
+    private Vector3 Pole()
+    {
+        Basis body = _torso?.GlobalBasis ?? Basis.Identity;
+        return (body * new Vector3(_side * ElbowOut, -1f, 0f)).Normalized();
     }
 
     private static Basis Aim(Vector3 direction)

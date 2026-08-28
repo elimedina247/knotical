@@ -207,6 +207,23 @@ public partial class BoatHull : RigidBody3D
     [Export(PropertyHint.Range, "0.5,1,0.01")]
     public float WaveWallOnset { get; set; } = 0.85f;
 
+    [Export(PropertyHint.Range, "0,3,0.05")]
+    public float GovernorGain { get; set; } = 0.45f;
+
+    [Export(PropertyHint.Range, "0,30,0.25")]
+    public float GovernorSpeed { get; set; }
+
+    [Export] public bool TossBudget { get; set; } = true;
+
+    [Export(PropertyHint.Range, "0.2,2,0.05")]
+    public float TossCalm { get; set; } = 0.75f;
+
+    [Export(PropertyHint.Range, "0.2,3,0.05")]
+    public float TossStorm { get; set; } = 1.35f;
+
+    [Export(PropertyHint.Range, "1,3,0.05")]
+    public float TossFieldStorm { get; set; } = 1.6f;
+
     [Export(PropertyHint.Range, "0,3,0.01")]
     public float RollDamping { get; set; } = 0.6f;
 
@@ -259,6 +276,8 @@ public partial class BoatHull : RigidBody3D
     private float _knock;
     private float _startRoll;
     private float _bowPeak;
+    private float _toss = 1f;
+    private float _tossOverride;
     private Vector3 _wasLinear;
     private Vector3 _wasAngular;
 
@@ -356,6 +375,9 @@ public partial class BoatHull : RigidBody3D
                 case "rocker": Rocker = value; break;
                 case "flipangle": FlipAngle = value; break;
                 case "swamped": SwampedRighting = value; break;
+                case "governor": GovernorGain = value; break;
+                case "govspeed": GovernorSpeed = value; break;
+                case "toss": _tossOverride = value; break;
                 case "roll": _startRoll = Mathf.DegToRad(value); break;
                 case "trace": Trace = value > 0f; break;
             }
@@ -741,15 +763,30 @@ public partial class BoatHull : RigidBody3D
         RigForce = rig;
 
         var ahead = new Vector3(-level.Z.X, 0f, -level.Z.Z);
-        if (ahead.LengthSquared() > 0.0001f) ahead = ahead.Normalized();
+        bool hasAhead = ahead.LengthSquared() > 0.0001f;
+        if (hasAhead) ahead = ahead.Normalized();
 
-        if (WaveDragGain > 0f && ahead.LengthSquared() > 0.0001f)
+        UpdateToss(xform);
+
+        float headway = hasAhead ? _linear.Dot(ahead) : 0f;
+
+        if (hasAhead && WaveDragGain > 0f)
         {
-            float headway = _linear.Dot(ahead);
             float over = headway - WaveWallOnset * 1.25f * Mathf.Sqrt(_form.Length);
             if (over > 0f)
             {
                 _force -= ahead * (Mass * WaveDragGain * over * over);
+            }
+        }
+
+        if (hasAhead && GovernorGain > 0f && _rig != null)
+        {
+            float target = (GovernorSpeed > 0f ? GovernorSpeed
+                : WaveWallOnset * 1.25f * Mathf.Sqrt(_form.Length)) * _rig.Polar(level);
+            float excess = headway - target;
+            if (excess > 0f)
+            {
+                _force -= ahead * (Mass * GovernorGain * excess * excess);
             }
         }
 
@@ -763,7 +800,7 @@ public partial class BoatHull : RigidBody3D
 
         Damp(state, level);
 
-        float maxForce = Mass * MaxAcceleration;
+        float maxForce = Mass * MaxAcceleration * _toss;
         if (_force.LengthSquared() > maxForce * maxForce) _force = _force.Normalized() * maxForce;
 
         float maxTorque = maxForce * _form.Length * 0.5f;
@@ -825,7 +862,7 @@ public partial class BoatHull : RigidBody3D
         float relS = rel.Dot(side);
 
         Vector3 drag =
-            Vector3.Up * (-(HeaveDamping * share) * relY - SlamDrag * WaterDensity * _probeArea[i] * relY * Mathf.Abs(relY))
+            Vector3.Up * (-(HeaveDamping * share) * relY - SlamDrag * _toss * WaterDensity * _probeArea[i] * relY * Mathf.Abs(relY))
             + ahead * (-(ForwardDragLinear * share) * relF - ForwardDrag * WaterDensity * _frontalArea * relF * Mathf.Abs(relF))
             + side * (-(LateralDragLinear * share) * relS - LateralDrag * WaterDensity * _lateralArea * relS * Mathf.Abs(relS));
 
@@ -904,9 +941,28 @@ public partial class BoatHull : RigidBody3D
             $"a_want={_force.Dot(fwd) / Mass,6:0.000} a_real={measured.Dot(fwd),6:0.000} m/s2 | " +
             $"mass={Mass / 1e6f,5:0.00}M vol={SubmergedVolume,6:0} " +
             $"tilt={Tilt,5:0}° roll={Mathf.RadToDeg(-Mathf.Asin(Mathf.Clamp(level.X.Y, -1f, 1f))),6:0.0}° " +
-            $"bowg={_bowPeak / 9.81f,5:0.00} vY={velocity.Y,5:0.00} " +
+            $"bowg={_bowPeak / 9.81f,5:0.00} vY={velocity.Y,5:0.00} toss={_toss,4:0.00} " +
             $"trim={trim,5:0.0}° bow={clear,5:0.0}m{(clear < 0f ? " UNDER" : "")} " +
             $"steer={_steerTorque / 1e6f,6:0.00} totYaw={_torque.Dot(level.Y) / 1e6f,6:0.00}MNm");
+    }
+
+    private void UpdateToss(Transform3D xform)
+    {
+        if (_tossOverride > 0f)
+        {
+            _toss = _tossOverride;
+            return;
+        }
+
+        if (!TossBudget || _ocean == null)
+        {
+            _toss = 1f;
+            return;
+        }
+
+        float field = _ocean.Field(new Vector2(xform.Origin.X, xform.Origin.Z));
+        float t = Mathf.Clamp((field - 1f) / Mathf.Max(TossFieldStorm - 1f, 0.01f), 0f, 1f);
+        _toss = Mathf.Lerp(TossCalm, TossStorm, Mathf.SmoothStep(0f, 1f, t));
     }
 
     private void Damp(PhysicsDirectBodyState3D state, Basis basis)

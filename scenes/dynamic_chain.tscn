@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://ds54qangccw6i"]
 
 [ext_resource type="Script" uid="uid://d3hpu0cr72klm" path="res://scripts/dynamic_chain.gd" id="1_3rddp"]
-[ext_resource type="Script" path="res://scripts/rope/ChainGrip.cs" id="2_grip"]
+[ext_resource type="Script" uid="uid://d3l4dqnoue2vp" path="res://scripts/rope/ChainGrip.cs" id="2_grip"]
 
 [node name="DynamicChain" type="Node3D" unique_id=348872804 node_paths=PackedStringArray("anchor", "link_container")]
 script = ExtResource("1_3rddp")

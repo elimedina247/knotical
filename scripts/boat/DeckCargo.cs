@@ -20,6 +20,16 @@ public partial class DeckCargo : RigidBody3D
     {
         ContactMonitor = true;
         MaxContactsReported = Mathf.Max(MaxContactsReported, 8);
+
+        for (Node step = GetParent(); step != null; step = step.GetParent())
+        {
+            if (step is RigidBody3D)
+            {
+                TopLevel = true;
+                GD.PushWarning($"{Name}: cargo parented under a rigid body, detached to world space.");
+                break;
+            }
+        }
     }
 
     public override void _IntegrateForces(PhysicsDirectBodyState3D state)

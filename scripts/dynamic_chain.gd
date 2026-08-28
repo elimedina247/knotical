@@ -113,6 +113,7 @@ func _create_link(index: int) -> RigidBody3D:
 	link.set_collision_mask_value(2, true)
 	link.set_collision_mask_value(3, true)
 	link.set_collision_mask_value(4, true)
+	link.set_collision_mask_value(5, true)
 	
 	var collision_shape = CollisionShape3D.new()
 	var shape = CylinderShape3D.new()
@@ -234,13 +235,13 @@ func _chain_points() -> PackedVector3Array:
 		return spine
 
 	var smooth := PackedVector3Array()
-	var last := spine.size() - 1
+	var last: int = spine.size() - 1
 
 	for i in range(last):
-		var p0 := spine[max(i - 1, 0)]
-		var p1 := spine[i]
-		var p2 := spine[i + 1]
-		var p3 := spine[min(i + 2, last)]
+		var p0: Vector3 = spine[max(i - 1, 0)]
+		var p1: Vector3 = spine[i]
+		var p2: Vector3 = spine[i + 1]
+		var p3: Vector3 = spine[min(i + 2, last)]
 
 		for s in range(segments_per_link):
 			smooth.append(_catmull(p0, p1, p2, p3, float(s) / segments_per_link))
@@ -298,20 +299,20 @@ func _draw_rope() -> void:
 		binormals[i] = tangent.cross(normal)
 		arcs[i] = arc
 
-	var sides := max(3, rope_sides)
+	var sides: int = max(3, rope_sides)
 
 	_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _material)
 
 	for i in range(count - 1):
 		for s in range(sides):
-			var n := (s + 1) % sides
-			var ta := TAU * s / sides
-			var tb := TAU * n / sides
+			var n: int = (s + 1) % sides
+			var ta: float = TAU * s / sides
+			var tb: float = TAU * n / sides
 
-			var a := _ring_point(i, ta, normals, binormals, arcs)
-			var b := _ring_point(i, tb, normals, binormals, arcs)
-			var c := _ring_point(i + 1, ta, normals, binormals, arcs)
-			var d := _ring_point(i + 1, tb, normals, binormals, arcs)
+			var a: Array = _ring_point(i, ta, normals, binormals, arcs)
+			var b: Array = _ring_point(i, tb, normals, binormals, arcs)
+			var c: Array = _ring_point(i + 1, ta, normals, binormals, arcs)
+			var d: Array = _ring_point(i + 1, tb, normals, binormals, arcs)
 
 			_mesh.surface_set_normal(a[1])
 			_mesh.surface_add_vertex(a[0])
@@ -332,5 +333,5 @@ func _draw_rope() -> void:
 
 func _ring_point(i: int, theta: float, normals: PackedVector3Array, binormals: PackedVector3Array, arcs: PackedFloat32Array) -> Array:
 	var dir: Vector3 = normals[i] * cos(theta) + binormals[i] * sin(theta)
-	var ripple := 1.0 + strand_depth * cos(strand_count * (theta + arcs[i] * strand_twist))
+	var ripple: float = 1.0 + strand_depth * cos(strand_count * (theta + arcs[i] * strand_twist))
 	return [_points[i] + dir * rope_radius * ripple, dir]

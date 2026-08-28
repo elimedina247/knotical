@@ -230,7 +230,7 @@ public partial class RopeCarrier : Node3D
             Vector3 hand = Hand();
             if (hand.DistanceTo(point) > _coil.Capacity) return;
 
-            var rope = new Rope();
+            var rope = new Rope { Beads = Rope.BeadsFor(_coil.Capacity), MaxWraps = 24 };
             GetTree().CurrentScene.AddChild(rope);
             rope.BindStart(target, point);
 

@@ -415,7 +415,7 @@ public partial class PlayerBody : RigidBody3D
         ApplyUpright(state, 1f);
         ApplyYaw(state);
 
-        if (_grab == null || !_grab.IsClimbing) ApplyWalk(state);
+        ApplyWalk(state);
     }
 
     private void StepMantle(PhysicsDirectBodyState3D state, float dt)

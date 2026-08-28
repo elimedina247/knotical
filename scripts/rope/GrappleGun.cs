@@ -11,7 +11,7 @@ public partial class GrappleGun : Node3D
         Idle,
         Casting,
         Tethered,
-        CastingSecond,
+        Retracting,
     }
 
     [Export(PropertyHint.Range, "10,80,1")]
@@ -32,12 +32,22 @@ public partial class GrappleGun : Node3D
     [Export(PropertyHint.Range, "1,10,0.5")]
     public float FlightTimeout { get; set; } = 4f;
 
+    [Export(PropertyHint.Range, "5,80,1")]
+    public float RetractSpeed { get; set; } = 40f;
+
+    [Export(PropertyHint.Range, "0,150,1")]
+    public float LineTug { get; set; } = 40f;
+
+    [Export(PropertyHint.Range, "0.1,2,0.05")]
+    public float CastSlack { get; set; } = 0.35f;
+
     [Export] public Vector3 GunLocal { get; set; } = new(0.24f, -0.18f, -0.42f);
 
     private RigidBody3D _body;
     private Node3D _pivot;
     private PlayerGrab _grab;
     private RopeCarrier _carrier;
+    private DangleArm _armLeft;
     private DangleArm _armRight;
     private Node3D _gunRoot;
     private GrappleReticle _reticle;
@@ -50,7 +60,6 @@ public partial class GrappleGun : Node3D
     private bool _wasToggle;
     private float _flight;
     private float _payout;
-    private Vector3 _hookAt;
     private bool _fireMapped;
     private bool _dropMapped;
     private bool _toggleMapped;
@@ -70,6 +79,7 @@ public partial class GrappleGun : Node3D
         _pivot = _body?.GetNodeOrNull<Node3D>("CameraPivot");
         _grab = _body?.GetNodeOrNull<PlayerGrab>("Grab");
         _carrier = _body?.GetNodeOrNull<RopeCarrier>("RopeCarrier");
+        _armLeft = _body?.GetNodeOrNull<DangleArm>("ArmLeft");
         _armRight = _body?.GetNodeOrNull<DangleArm>("ArmRight");
 
         if (_body != null) _excludes.Add(_body.GetRid());
@@ -82,7 +92,6 @@ public partial class GrappleGun : Node3D
 
         BuildGun();
         BuildReticle();
-
     }
 
     private void BuildGun()
@@ -169,8 +178,8 @@ public partial class GrappleGun : Node3D
             case Mode.Tethered:
                 TetheredTick(dt, fire, drop, payout, winch);
                 break;
-            case Mode.CastingSecond:
-                CastingSecondTick(dt);
+            case Mode.Retracting:
+                RetractTick(dt);
                 break;
         }
     }
@@ -180,16 +189,19 @@ public partial class GrappleGun : Node3D
         _drawn = true;
         _gunRoot.Visible = true;
         _reticle.Visible = true;
+
         if (_carrier != null) _carrier.Enabled = false;
     }
 
     private void Holster()
     {
         _armRight?.Release();
-        Clear(dropRope: true);
+        _armLeft?.Release();
+        Clear(dropRope: false);
         _drawn = false;
         _gunRoot.Visible = false;
         _reticle.Visible = false;
+
         if (_grab != null) _grab.Locked = false;
         if (_carrier != null) _carrier.Enabled = true;
     }
@@ -203,13 +215,12 @@ public partial class GrappleGun : Node3D
         GetTree().CurrentScene.AddChild(_hook);
         _hook.Launch(muzzle, direction * HookSpeed, _body);
 
-        _rope = new Rope { Name = "GrappleLine", Breaks = false };
+        _rope = new Rope { Name = "GrappleLine", Breaks = false, Beads = Rope.BeadsFor(Capacity), MaxWraps = 24 };
         GetTree().CurrentScene.AddChild(_rope);
         _rope.WorkingLength = MinLength;
         _rope.BindStart(_hook, muzzle);
         _rope.Hold(muzzle, _body);
 
-        _hookAt = muzzle;
         _payout = MinLength;
         _flight = 0f;
         _mode = Mode.Casting;
@@ -236,8 +247,9 @@ public partial class GrappleGun : Node3D
         Vector3 muzzle = Muzzle();
         Vector3 at = _hook.GlobalPosition;
 
-        _payout = Mathf.Min(_payout + _hookAt.DistanceTo(at), Capacity);
-        _hookAt = at;
+        float feed = (_hook.LinearVelocity.Length() + 2f) * dt;
+        float demand = muzzle.DistanceTo(at) + CastSlack;
+        _payout = Mathf.Min(Mathf.Max(_payout, Mathf.Min(_payout + feed, demand)), Capacity);
 
         if (_flight > FlightTimeout || muzzle.DistanceTo(at) > Capacity * 1.2f)
         {
@@ -247,6 +259,34 @@ public partial class GrappleGun : Node3D
 
         _rope.Hold(muzzle, _body);
         _rope.WorkingLength = Mathf.Max(_payout, MinLength);
+        TugHook(at);
+    }
+
+    private void TugHook(Vector3 at)
+    {
+        int beads = _rope.BeadCount;
+        if (beads < 4) return;
+
+        float rest = _rope.WorkingLength / (beads - 1);
+        if (rest * 2f < 0.1f) return;
+
+        Vector3 previous = _rope.BeadAt(0);
+        float along = 0f;
+        for (int i = 1; i <= 2; i++)
+        {
+            Vector3 bead = _rope.BeadAt(i);
+            along += previous.DistanceTo(bead);
+            previous = bead;
+        }
+
+        float strain = along / (rest * 2f) - 1f;
+        if (strain <= 0f) return;
+
+        Vector3 direction = previous - at;
+        if (direction.LengthSquared() < 1e-8f) return;
+
+        float bite = Mathf.Min(strain * 20f, 1f);
+        _hook.ApplyCentralForce(direction.Normalized() * (bite * LineTug * _hook.Mass));
     }
 
     private void TetheredTick(float dt, bool fire, bool drop, bool payout, bool winch)
@@ -257,74 +297,80 @@ public partial class GrappleGun : Node3D
             return;
         }
 
+        if (fire || drop)
+        {
+            StartRetract();
+            return;
+        }
+
         _rope.Hold(Muzzle(), _body);
 
         if (payout && !winch)
             _rope.WorkingLength = Mathf.Min(_rope.WorkingLength + PayoutRate * dt, Capacity);
         else if (winch && !payout)
             _rope.WorkingLength = Mathf.Max(_rope.WorkingLength - WinchRate * dt, MinLength);
-
-        if (drop)
-        {
-            _rope.ReleaseHold();
-            _rope = null;
-            _mode = Mode.Idle;
-            return;
-        }
-
-        if (fire) FireSecond();
     }
 
-    private void FireSecond()
+    private void StartRetract()
     {
-        Vector3 muzzle = Muzzle();
-        Vector3 direction = AimDirection(muzzle);
-
-        _hook = new GrappleHook { Name = "GrappleHook" };
-        GetTree().CurrentScene.AddChild(_hook);
-        _hook.Launch(muzzle, direction * HookSpeed, _body);
-
-        _rope.Hold(muzzle, _hook);
-
-        _flight = 0f;
-        _mode = Mode.CastingSecond;
-    }
-
-    private void CastingSecondTick(float dt)
-    {
-        if (_rope == null || !_rope.BoundStart)
+        if (_rope == null)
         {
             Clear(dropRope: false);
             return;
         }
 
-        if (_hook == null)
+        Vector3 point = _rope.TryStart(out Vector3 anchor) ? anchor : Muzzle();
+
+        FreeHook();
+
+        _hook = new GrappleHook { Name = "RetractHook" };
+        GetTree().CurrentScene.AddChild(_hook);
+        _hook.Launch(point, Vector3.Zero, _body);
+        _hook.Freeze = true;
+
+        _rope.BindStart(_hook, point);
+        _mode = Mode.Retracting;
+    }
+
+    private void RetractTick(float dt)
+    {
+        if (_rope == null)
         {
-            _rope.Hold(Muzzle(), _body);
-            _mode = Mode.Tethered;
+            Clear(dropRope: false);
             return;
         }
 
-        if (_hook.Landed)
+        Vector3 muzzle = Muzzle();
+
+        if (_hook == null || !IsInstanceValid(_hook))
         {
-            _rope.BindEnd(_hook.Target, _hook.Point);
-            PlantHook();
-            _rope = null;
-            _mode = Mode.Idle;
+            FinishRetract();
             return;
         }
 
-        _flight += dt;
+        Vector3 toMuzzle = muzzle - _hook.GlobalPosition;
+        float travel = RetractSpeed * (float)dt;
 
-        if (_flight > FlightTimeout)
+        if (toMuzzle.Length() <= travel + 1.5f)
         {
-            FreeHook();
-            _rope.Hold(Muzzle(), _body);
-            _mode = Mode.Tethered;
+            FinishRetract();
             return;
         }
 
-        _rope.Hold(_hook.GlobalPosition, _hook);
+        _hook.GlobalPosition += toMuzzle.Normalized() * travel;
+
+        _rope.Hold(muzzle, _body);
+        _rope.BindStart(_hook, _hook.GlobalPosition);
+        _rope.WorkingLength = Mathf.Max(muzzle.DistanceTo(_hook.GlobalPosition), MinLength);
+    }
+
+    private void FinishRetract()
+    {
+        FreeHook();
+
+        if (_rope != null && IsInstanceValid(_rope)) _rope.QueueFree();
+        _rope = null;
+        _mode = Mode.Idle;
     }
 
     private void Clear(bool dropRope)

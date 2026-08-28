@@ -17,6 +17,8 @@
 [ext_resource type="PackedScene" path="res://boat_sloop.tscn" id="16_nhvwh"]
 [ext_resource type="PackedScene" uid="uid://drik7re75csan" path="res://character.tscn" id="17_character"]
 [ext_resource type="Script" uid="uid://dlwkiv27hy8xj" path="res://scripts/debug/RopeRig.cs" id="18_roperig"]
+[ext_resource type="PackedScene" uid="uid://ds54qangccw6i" path="res://scenes/dynamic_chain.tscn" id="19_chain"]
+[ext_resource type="PackedScene" path="res://cargo_crate_medium.tscn" id="20_cratemed"]
 
 [sub_resource type="ShaderMaterial" id="SkyShaderMaterial_1"]
 shader = ExtResource("5_skyshader")
@@ -156,3 +158,135 @@ script = ExtResource("18_roperig")
 AnchorPath = NodePath("../Beam")
 Length = 2.0
 LengthStep = 0.4
+
+[node name="ChainTest" type="Node3D" parent="." unique_id=411003001]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -327, 35.17, 11)
+
+[node name="PostNW" type="StaticBody3D" parent="ChainTest" unique_id=411003002]
+transform = Transform3D(0.35, 0, 0, 0, 9, 0, 0, 0, 0.35, -3.5, 4.5, -2.5)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="ChainTest/PostNW" unique_id=411003003]
+mesh = SubResource("BoxMesh_uupup")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ChainTest/PostNW" unique_id=411003004]
+shape = SubResource("BoxShape3D_u1mjs")
+
+[node name="PostNE" type="StaticBody3D" parent="ChainTest" unique_id=411003005]
+transform = Transform3D(0.35, 0, 0, 0, 9, 0, 0, 0, 0.35, 3.5, 4.5, -2.5)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="ChainTest/PostNE" unique_id=411003006]
+mesh = SubResource("BoxMesh_uupup")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ChainTest/PostNE" unique_id=411003007]
+shape = SubResource("BoxShape3D_u1mjs")
+
+[node name="PostSW" type="StaticBody3D" parent="ChainTest" unique_id=411003008]
+transform = Transform3D(0.35, 0, 0, 0, 9, 0, 0, 0, 0.35, -3.5, 4.5, 2.5)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="ChainTest/PostSW" unique_id=411003009]
+mesh = SubResource("BoxMesh_uupup")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ChainTest/PostSW" unique_id=411003010]
+shape = SubResource("BoxShape3D_u1mjs")
+
+[node name="PostSE" type="StaticBody3D" parent="ChainTest" unique_id=411003011]
+transform = Transform3D(0.35, 0, 0, 0, 9, 0, 0, 0, 0.35, 3.5, 4.5, 2.5)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="ChainTest/PostSE" unique_id=411003012]
+mesh = SubResource("BoxMesh_uupup")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ChainTest/PostSE" unique_id=411003013]
+shape = SubResource("BoxShape3D_u1mjs")
+
+[node name="BeamNorth" type="StaticBody3D" parent="ChainTest" unique_id=411003014]
+transform = Transform3D(7.7, 0, 0, 0, 0.35, 0, 0, 0, 0.35, 0, 8.82, -2.5)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="ChainTest/BeamNorth" unique_id=411003015]
+mesh = SubResource("BoxMesh_uupup")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ChainTest/BeamNorth" unique_id=411003016]
+shape = SubResource("BoxShape3D_u1mjs")
+
+[node name="BeamSouth" type="StaticBody3D" parent="ChainTest" unique_id=411003017]
+transform = Transform3D(7.7, 0, 0, 0, 0.35, 0, 0, 0, 0.35, 0, 8.82, 2.5)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="ChainTest/BeamSouth" unique_id=411003018]
+mesh = SubResource("BoxMesh_uupup")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ChainTest/BeamSouth" unique_id=411003019]
+shape = SubResource("BoxShape3D_u1mjs")
+
+[node name="Gantry" type="StaticBody3D" parent="ChainTest" unique_id=411003020]
+transform = Transform3D(7.7, 0, 0, 0, 0.3, 0, 0, 0, 0.3, 0, 8.82, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="ChainTest/Gantry" unique_id=411003021]
+mesh = SubResource("BoxMesh_uupup")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ChainTest/Gantry" unique_id=411003022]
+shape = SubResource("BoxShape3D_u1mjs")
+
+[node name="MidRail" type="StaticBody3D" parent="ChainTest" unique_id=411003023]
+transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 5.3, 2.2, 4.6, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="ChainTest/MidRail" unique_id=411003024]
+mesh = SubResource("BoxMesh_uupup")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ChainTest/MidRail" unique_id=411003025]
+shape = SubResource("BoxShape3D_u1mjs")
+
+[node name="ChainShort" parent="ChainTest" unique_id=411003030 instance=ExtResource("19_chain")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 8.65, 0)
+link_count = 6
+
+[node name="ChainMid" parent="ChainTest" unique_id=411003031 instance=ExtResource("19_chain")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.5, 8.65, 0)
+link_count = 12
+
+[node name="ChainFine" parent="ChainTest" unique_id=411003032 instance=ExtResource("19_chain")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.65, 0)
+link_count = 24
+link_length = 0.2
+link_radius = 0.035
+rope_radius = 0.03
+
+[node name="ChainLong" parent="ChainTest" unique_id=411003033 instance=ExtResource("19_chain")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 8.65, 0)
+link_count = 22
+
+[node name="ChainHeavy" parent="ChainTest" unique_id=411003034 instance=ExtResource("19_chain")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 8.65, 0)
+link_count = 20
+link_length = 0.45
+link_radius = 0.08
+link_mass = 1.2
+rope_radius = 0.07
+
+[node name="ChainFloor" parent="ChainTest" unique_id=411003035 instance=ExtResource("19_chain")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 4.45, 0)
+link_count = 34
+
+[node name="Cargo" type="Node3D" parent="." unique_id=411004000]
+
+[node name="CrateA" parent="Cargo" unique_id=411004001 instance=ExtResource("13_crate")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -320, 35.22, -4)
+
+[node name="CrateB" parent="Cargo" unique_id=411004002 instance=ExtResource("13_crate")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -319, 35.22, -5.6)
+
+[node name="CrateC" parent="Cargo" unique_id=411004003 instance=ExtResource("13_crate")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -320.6, 35.22, -6.9)
+
+[node name="CrateD" parent="Cargo" unique_id=411004004 instance=ExtResource("13_crate")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -331, 35.22, 5)
+
+[node name="CrateE" parent="Cargo" unique_id=411004005 instance=ExtResource("13_crate")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -323.5, 35.22, 7.5)
+
+[node name="CrateMediumA" parent="Cargo" unique_id=411004006 instance=ExtResource("20_cratemed")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -324, 35.22, -3)
+
+[node name="CrateMediumB" parent="Cargo" unique_id=411004007 instance=ExtResource("20_cratemed")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -332, 35.22, 14)
+
+[node name="CrateLargeA" parent="Cargo" unique_id=411004008 instance=ExtResource("14_crately")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -331, 35.22, -7)

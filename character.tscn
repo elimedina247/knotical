@@ -6,15 +6,15 @@
 [ext_resource type="Script" uid="uid://bv3sw1mc1e1io" path="res://scripts/player/PlayerGrab.cs" id="4_playergrab"]
 [ext_resource type="Script" uid="uid://02e4xxw8gwb1" path="res://scripts/audio/Footsteps.cs" id="5_footsteps"]
 [ext_resource type="Script" uid="uid://dtnyjdpej2oat" path="res://scripts/audio/SoundEmitter.cs" id="6_emitter"]
-[ext_resource type="Script" path="res://scripts/audio/WaterSplash.cs" id="7_splash"]
-[ext_resource type="Resource" path="res://audio/water_splash.tres" id="8_splashset"]
-[ext_resource type="Script" path="res://scripts/audio/UnderwaterSound.cs" id="9_underwater"]
-[ext_resource type="Resource" path="res://audio/submerges.tres" id="10_submerges"]
-[ext_resource type="Resource" path="res://audio/emerges.tres" id="11_emerges"]
+[ext_resource type="Script" uid="uid://drhkvemeqjafh" path="res://scripts/audio/WaterSplash.cs" id="7_splash"]
+[ext_resource type="Resource" uid="uid://b8xsuxay0lmhr" path="res://audio/water_splash.tres" id="8_splashset"]
+[ext_resource type="Script" uid="uid://j3ot8bvej73f" path="res://scripts/audio/UnderwaterSound.cs" id="9_underwater"]
+[ext_resource type="Resource" uid="uid://cmcgsvxi1dfsi" path="res://audio/submerges.tres" id="10_submerges"]
+[ext_resource type="Resource" uid="uid://cgkyrbybiigpf" path="res://audio/emerges.tres" id="11_emerges"]
 [ext_resource type="AudioStream" uid="uid://dj25jpdhmjg56" path="res://assets/audio/underwater/underwater.mp3" id="12_underbed"]
-[ext_resource type="Script" path="res://scripts/rope/RopeCarrier.cs" id="13_ropes"]
-[ext_resource type="Script" path="res://scripts/rope/GrappleGun.cs" id="15_grapple"]
-[ext_resource type="Script" path="res://scripts/player/Gait.cs" id="14_gait"]
+[ext_resource type="Script" uid="uid://dto7tcpcc6ib1" path="res://scripts/rope/RopeCarrier.cs" id="13_ropes"]
+[ext_resource type="Script" uid="uid://dwd40qgvtr2nt" path="res://scripts/player/Gait.cs" id="14_gait"]
+[ext_resource type="Script" uid="uid://jh6nbwdg2nyj" path="res://scripts/rope/GrappleGun.cs" id="15_grapple"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_body"]
 friction = 0.9
@@ -64,6 +64,8 @@ radial_segments = 10
 rings = 3
 
 [node name="Character" type="RigidBody3D" unique_id=1910387467]
+collision_layer = 4
+collision_mask = 31
 mass = 70.0
 physics_material_override = SubResource("PhysicsMaterial_body")
 can_sleep = false
@@ -81,6 +83,21 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.15, 0)
 [node name="Camera3D" type="Camera3D" parent="CameraPivot" unique_id=1063483447]
 current = true
 far = 12000.0
+
+[node name="UnderwaterSound" type="Node3D" parent="CameraPivot" unique_id=1073042912]
+script = ExtResource("9_underwater")
+Submerges = ExtResource("10_submerges")
+Emerges = ExtResource("11_emerges")
+
+[node name="Bed" type="AudioStreamPlayer" parent="CameraPivot/UnderwaterSound" unique_id=378538808]
+stream = ExtResource("12_underbed")
+
+[node name="SoundEmitter" type="AudioStreamPlayer3D" parent="CameraPivot/UnderwaterSound" unique_id=1301553001]
+unit_size = 1.0
+max_db = 0.0
+max_distance = 20.0
+script = ExtResource("6_emitter")
+DefaultBus = "Master"
 
 [node name="Torso" type="MeshInstance3D" parent="." unique_id=18217641]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
@@ -180,6 +197,7 @@ script = ExtResource("3_torsoshape")
 
 [node name="Grab" type="Node3D" parent="." unique_id=1053406108]
 script = ExtResource("4_playergrab")
+PushImpulse = 140.0
 
 [node name="Footsteps" type="Node3D" parent="." unique_id=978384498]
 script = ExtResource("5_footsteps")
@@ -191,38 +209,21 @@ max_db = 0.0
 max_distance = 30.0
 script = ExtResource("6_emitter")
 
-[node name="WaterSplash" type="Node3D" parent="."]
+[node name="WaterSplash" type="Node3D" parent="." unique_id=1316090991]
 script = ExtResource("7_splash")
 Splashes = ExtResource("8_splashset")
 
-[node name="SoundEmitter" type="AudioStreamPlayer3D" parent="WaterSplash"]
+[node name="SoundEmitter" type="AudioStreamPlayer3D" parent="WaterSplash" unique_id=1850086085]
 top_level = true
 unit_size = 8.0
 max_distance = 120.0
 script = ExtResource("6_emitter")
 
-[node name="UnderwaterSound" type="Node3D" parent="CameraPivot"]
-script = ExtResource("9_underwater")
-Submerges = ExtResource("10_submerges")
-Emerges = ExtResource("11_emerges")
-
-[node name="Bed" type="AudioStreamPlayer" parent="CameraPivot/UnderwaterSound"]
-stream = ExtResource("12_underbed")
-bus = &"Master"
-
-[node name="SoundEmitter" type="AudioStreamPlayer3D" parent="CameraPivot/UnderwaterSound"]
-unit_size = 1.0
-max_db = 0.0
-max_distance = 20.0
-bus = &"Master"
-script = ExtResource("6_emitter")
-DefaultBus = "Master"
-
-[node name="RopeCarrier" type="Node3D" parent="."]
+[node name="RopeCarrier" type="Node3D" parent="." unique_id=2006105717]
 script = ExtResource("13_ropes")
 
-[node name="GrappleGun" type="Node3D" parent="."]
+[node name="GrappleGun" type="Node3D" parent="." unique_id=999283111]
 script = ExtResource("15_grapple")
 
-[node name="Gait" type="Node3D" parent="."]
+[node name="Gait" type="Node3D" parent="." unique_id=277869839]
 script = ExtResource("14_gait")
