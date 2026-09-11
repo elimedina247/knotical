@@ -245,37 +245,14 @@ public partial class SplashEmitter : Node3D
             {
                 if (used >= SprayPool) break;
                 if (!IsInstanceValid(hull) || !hull.IsInsideTree()) continue;
+                used = SprayBow(hull, hull.BowWorld, hull.BeamWidth, ocean, used);
+            }
 
-                Basis level = hull.GlobalBasis.Orthonormalized();
-                Vector3 forward = -level.Z;
-                float headway = hull.LinearVelocity.Dot(forward);
-
-                Vector3 bow = hull.BowWorld;
-                float water = ocean.GetHeight(new Vector2(bow.X, bow.Z));
-                float clearance = bow.Y - water;
-
-                float ratio = Mathf.Clamp(
-                    (headway - SprayStartSpeed) / Mathf.Max(SprayFullSpeed - SprayStartSpeed, 0.1f), 0f, 1f);
-
-                if (clearance is > 2.5f or < -2f) ratio = 0f;
-
-                GpuParticles3D spray = _sprays[used++];
-                spray.AmountRatio = ratio;
-                spray.Emitting = ratio > 0.01f;
-
-                if (ratio <= 0.01f) continue;
-
-                spray.GlobalPosition = new Vector3(bow.X, water + 0.2f, bow.Z);
-                spray.GlobalBasis = level;
-
-                if (spray.ProcessMaterial is ParticleProcessMaterial process)
-                {
-                    process.InitialVelocityMin = 2f + headway * 0.5f;
-                    process.InitialVelocityMax = 3.5f + headway * 0.9f;
-                    process.EmissionBoxExtents = new Vector3(hull.BeamWidth * 0.35f, 0.2f, 0.6f);
-                }
-
-                FoamCapture.Stamp(new Vector2(bow.X, bow.Z), hull.BeamWidth * 0.6f, 0.12f * ratio);
+            foreach (SailController boat in SailController.Active)
+            {
+                if (used >= SprayPool) break;
+                if (!IsInstanceValid(boat) || !boat.IsInsideTree()) continue;
+                used = SprayBow(boat, boat.BowWorld, boat.BeamWidth, ocean, used);
             }
         }
 
@@ -284,6 +261,40 @@ public partial class SplashEmitter : Node3D
             _sprays[used].Emitting = false;
             _sprays[used].AmountRatio = 0f;
         }
+    }
+
+    private int SprayBow(RigidBody3D body, Vector3 bow, float beamWidth, OceanField ocean, int used)
+    {
+        Basis level = body.GlobalBasis.Orthonormalized();
+        Vector3 forward = -level.Z;
+        float headway = body.LinearVelocity.Dot(forward);
+
+        float water = ocean.GetHeight(new Vector2(bow.X, bow.Z));
+        float clearance = bow.Y - water;
+
+        float ratio = Mathf.Clamp(
+            (headway - SprayStartSpeed) / Mathf.Max(SprayFullSpeed - SprayStartSpeed, 0.1f), 0f, 1f);
+
+        if (clearance is > 2.5f or < -2f) ratio = 0f;
+
+        GpuParticles3D spray = _sprays[used++];
+        spray.AmountRatio = ratio;
+        spray.Emitting = ratio > 0.01f;
+
+        if (ratio <= 0.01f) return used;
+
+        spray.GlobalPosition = new Vector3(bow.X, water + 0.2f, bow.Z);
+        spray.GlobalBasis = level;
+
+        if (spray.ProcessMaterial is ParticleProcessMaterial process)
+        {
+            process.InitialVelocityMin = 2f + headway * 0.5f;
+            process.InitialVelocityMax = 3.5f + headway * 0.9f;
+            process.EmissionBoxExtents = new Vector3(beamWidth * 0.35f, 0.2f, 0.6f);
+        }
+
+        FoamCapture.Stamp(new Vector2(bow.X, bow.Z), beamWidth * 0.6f, 0.12f * ratio);
+        return used;
     }
 
     public override void _Process(double delta)

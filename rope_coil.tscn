@@ -1,5 +1,6 @@
 [gd_scene format=3]
 
+[ext_resource type="Shader" path="res://shaders/toon.gdshader" id="90_toon"]
 [ext_resource type="Script" path="res://scripts/rope/RopeCoil.cs" id="1_coil"]
 
 [sub_resource type="CylinderShape3D" id="Shape_coil"]
@@ -10,9 +11,10 @@ radius = 0.26
 inner_radius = 0.09
 outer_radius = 0.24
 
-[sub_resource type="StandardMaterial3D" id="Material_rope"]
-albedo_color = Color(0.72, 0.6, 0.42, 1)
-roughness = 1.0
+[sub_resource type="ShaderMaterial" id="Material_rope"]
+shader = ExtResource("90_toon")
+shader_parameter/albedo = Color(0.72, 0.6, 0.42, 1)
+shader_parameter/use_vertex_color = false
 
 [node name="RopeCoil" type="RigidBody3D"]
 mass = 6.0

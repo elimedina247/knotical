@@ -10,7 +10,7 @@ namespace Knotical.Vfx;
 ///
 /// The canvas covers the whole playable world at one fixed mapping, which is what lets
 /// the render target persist between frames without content shifting — a camera-chasing
-/// region would need a copy pass on every recentre. Roughly 6 m per texel: patches read
+/// region would need a copy pass on every recentre. Roughly 8 m per texel: patches read
 /// as soft lingering foam, and the crisp short-lived trail stays BoatWake's job.
 /// </summary>
 [GlobalClass]
@@ -20,7 +20,7 @@ public partial class FoamCapture : Node
 
     public static FoamCapture Instance { get; private set; }
 
-    [Export(PropertyHint.Range, "500,8000,100")]
+    [Export(PropertyHint.Range, "500,8192,100")]
     public float HalfExtent { get; set; } = Knotical.Ocean.Ocean.WorldHalfExtent;
 
     /// <summary>Seconds for a stamp to fade to ~37%.</summary>

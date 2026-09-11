@@ -7,7 +7,7 @@ namespace Knotical.Boat;
 
 [Tool]
 [GlobalClass]
-public partial class BoatHull : RigidBody3D
+public partial class BoatHull : RigidBody3D, IDeckBody
 {
     private const float Gravity = 9.81f;
 
@@ -257,14 +257,11 @@ public partial class BoatHull : RigidBody3D
     [Export(PropertyHint.Range, "5,200,1")]
     public float MaxAcceleration { get; set; } = 25f;
 
-    [Export(PropertyHint.Range, "0,4,0.05")]
-    public float SurfaceMaskMargin { get; set; } = 1.2f;
+    [Export(PropertyHint.Range, "0.5,1,0.01")]
+    public float SurfaceMaskInset { get; set; } = 0.88f;
 
-    [Export(PropertyHint.Range, "0,2,0.05")]
-    public float SurfaceMaskDepth { get; set; } = 0.4f;
-
-    [Export(PropertyHint.Range, "0.05,1,0.01")]
-    public float SurfaceMaskFeather { get; set; } = 0.35f;
+    [Export(PropertyHint.Range, "0.05,3,0.01")]
+    public float SurfaceMaskRing { get; set; } = 0.9f;
 
     [Export] public bool RebuildNow { get => false; set { if (value) Rebuild(); } }
 
@@ -702,17 +699,7 @@ public partial class BoatHull : RigidBody3D
         fwd = fwd.LengthSquared() > 0.0001f ? fwd.Normalized() : Vector2.Right;
 
         frame = new Vector4(xform.Origin.X, xform.Origin.Z, fwd.X, fwd.Y);
-
-        float keelBow = (xform * new Vector3(0f, _form.KeelY(1f), _form.ZAt(1f))).Y;
-        float keelMid = (xform * new Vector3(0f, _form.KeelY(0.5f), _form.ZAt(0.5f))).Y;
-        float keelStern = (xform * new Vector3(0f, _form.KeelY(0f), _form.ZAt(0f))).Y;
-        float sink = Mathf.Min(keelMid, Mathf.Min(keelBow, keelStern)) - SurfaceMaskDepth;
-
-        extents = new Vector4(
-            _form.Length * 0.5f + SurfaceMaskMargin,
-            _form.Beam * 0.5f + SurfaceMaskMargin,
-            sink,
-            SurfaceMaskFeather);
+        extents = new Vector4(_form.Length * 0.5f, _form.Beam * 0.5f, SurfaceMaskInset, SurfaceMaskRing);
     }
 
     public override void _IntegrateForces(PhysicsDirectBodyState3D state)

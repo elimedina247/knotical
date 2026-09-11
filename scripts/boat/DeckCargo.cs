@@ -11,10 +11,10 @@ public partial class DeckCargo : RigidBody3D
     [Export(PropertyHint.Range, "0,1,0.05")]
     public float CarryTime { get; set; } = 0.25f;
 
-    private BoatHull _hull;
+    private IDeckBody _hull;
     private float _held;
 
-    public BoatHull Hull => _hull;
+    public IDeckBody Hull => _hull;
 
     public override void _Ready()
     {
@@ -34,11 +34,11 @@ public partial class DeckCargo : RigidBody3D
 
     public override void _IntegrateForces(PhysicsDirectBodyState3D state)
     {
-        BoatHull touching = null;
+        IDeckBody touching = null;
 
         for (int i = 0; i < state.GetContactCount(); i++)
         {
-            if (state.GetContactColliderObject(i) is BoatHull hull)
+            if (state.GetContactColliderObject(i) is IDeckBody hull)
             {
                 touching = hull;
                 break;
@@ -57,7 +57,7 @@ public partial class DeckCargo : RigidBody3D
         {
             _held -= (float)state.Step;
 
-            if (_held <= 0f || _hull == null || !IsInstanceValid(_hull))
+            if (_held <= 0f || _hull is not GodotObject alive || !IsInstanceValid(alive))
             {
                 _hull = null;
                 return;

@@ -68,6 +68,9 @@ public partial class PlayerGrab : Node3D
 	[Export(PropertyHint.Range, "0,0.3,0.005")]
 	public float HangSpread { get; set; } = 0.05f;
 
+	[Export(PropertyHint.Range, "0,0.15,0.005")]
+	public float HangStack { get; set; } = 0.045f;
+
 	[Export(PropertyHint.Range, "0,1,0.01")]
 	public float VaultClearance { get; set; } = 0.35f;
 
@@ -322,7 +325,20 @@ public partial class PlayerGrab : Node3D
 		Vector3 across = Flatten(_pivot.GlobalBasis.X, normal);
 		if (across == Vector3.Zero) across = _pivot.GlobalBasis.X;
 
-		float spread = Mathf.Lerp(HandSpread, HangSpread, Hanging(anchor, dt));
+		float hang = Hanging(anchor, dt);
+
+		if (_handle != null)
+		{
+			Vector3 lift = anchor - ChestWorld();
+			lift = lift.LengthSquared() > 1e-6f ? lift.Normalized() : Vector3.Up;
+
+			Vector3 offset = across * (HandSpread * (1f - hang)) + lift * (HangStack * hang);
+			ArmLeft?.Grip(anchor - offset);
+			ArmRight?.Grip(anchor + offset);
+			return;
+		}
+
+		float spread = Mathf.Lerp(HandSpread, HangSpread, hang);
 		ArmLeft?.Grip(anchor - across * spread);
 		ArmRight?.Grip(anchor + across * spread);
 	}

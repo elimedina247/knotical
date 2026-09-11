@@ -1,5 +1,6 @@
 [gd_scene format=3 uid="uid://drik7re75csan"]
 
+[ext_resource type="Shader" path="res://shaders/toon.gdshader" id="90_toon"]
 [ext_resource type="Script" uid="uid://cflpge0jhysau" path="res://scripts/player/PlayerBody.cs" id="1_playerbody"]
 [ext_resource type="Script" uid="uid://c2ynfgi4xw37n" path="res://scripts/player/DangleArm.cs" id="2_danglearm"]
 [ext_resource type="Script" uid="uid://bi2q2qppuf82" path="res://scripts/player/TorsoShape.cs" id="3_torsoshape"]
@@ -29,9 +30,10 @@ height = 0.78218746
 radial_segments = 20
 rings = 6
 
-[sub_resource type="StandardMaterial3D" id="Material_skin"]
-albedo_color = Color(0.909804, 0.639216, 0.239216, 1)
-roughness = 0.95
+[sub_resource type="ShaderMaterial" id="Material_skin"]
+shader = ExtResource("90_toon")
+shader_parameter/albedo = Color(0.909804, 0.639216, 0.239216, 1)
+shader_parameter/use_vertex_color = false
 
 [sub_resource type="CapsuleMesh" id="Mesh_armsegment"]
 radius = 0.04

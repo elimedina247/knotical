@@ -141,6 +141,11 @@ public partial class OceanSurface : Node3D
 		}
 
 		_material.SetShaderParameter("wave_time", (float)(Ocean.Instance?.Time ?? 0.0));
+		_material.SetShaderParameter("wind_speed", Knotical.Weather.Wind.Instance?.Speed ?? 0f);
+		if (Knotical.Sky.DayCycle.Instance != null)
+		{
+			_material.SetShaderParameter("sun_direction", Knotical.Sky.DayCycle.Instance.LightDirection);
+		}
 
 		float submerged = 0f;
 		if (Ocean.Instance != null && eye.Y < Ocean.Instance.GetRenderedHeight(new Vector2(eye.X, eye.Z)))
@@ -191,6 +196,17 @@ public partial class OceanSurface : Node3D
 			if (!IsInstanceValid(hull) || !hull.IsInsideTree()) continue;
 
 			hull.GetSurfaceMask(out Vector4 frame, out Vector4 extents);
+			_packedMaskFrames[count] = frame;
+			_packedMaskExtents[count] = extents;
+			count++;
+		}
+
+		foreach (Knotical.Boat.SailController boat in Knotical.Boat.SailController.Active)
+		{
+			if (count >= MaxHullMasks) break;
+			if (!IsInstanceValid(boat) || !boat.IsInsideTree()) continue;
+
+			boat.GetSurfaceMask(out Vector4 frame, out Vector4 extents);
 			_packedMaskFrames[count] = frame;
 			_packedMaskExtents[count] = extents;
 			count++;

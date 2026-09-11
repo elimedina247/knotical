@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode cull_disabled, diffuse_burley, specular_schlick_ggx;
+render_mode cull_disabled, diffuse_lambert, specular_disabled;
 
 uniform float deployment : hint_range(0.0, 1.0, 0.001) = 1.0;
 uniform float head_width = 20.0;
@@ -162,9 +162,16 @@ void fragment() {
 
 	ALBEDO = mix(canvas_color.rgb, seam_color.rgb, max(line, tabling * 0.85)) * weave * shade;
 	NORMAL_MAP = wn * 0.5 + 0.5;
-	NORMAL_MAP_DEPTH = 1.0;
+	NORMAL_MAP_DEPTH = 0.35;
 	ROUGHNESS = clamp(roughness_value - 0.06 * line, 0.0, 1.0);
 	METALLIC = 0.0;
 	SPECULAR = 0.12;
 	BACKLIGHT = backlight_tint.rgb;
+}
+
+void light() {
+	float ndl = dot(NORMAL, LIGHT) * ATTENUATION;
+	float lit = smoothstep(0.08, 0.13, ndl);
+	float mid = smoothstep(0.5, 0.55, ndl);
+	DIFFUSE_LIGHT += ALBEDO * LIGHT_COLOR / PI * mix(0.35, 1.0, lit) * mix(0.8, 1.0, mid);
 }

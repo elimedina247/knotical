@@ -1,0 +1,146 @@
+[gd_scene load_steps=26 format=3]
+
+[ext_resource type="PackedScene" path="res://character.tscn" id="1_char"]
+[ext_resource type="PackedScene" path="res://ambience.tscn" id="2_ambience"]
+[ext_resource type="Script" path="res://scripts/ocean/OceanSurface.cs" id="3_surface"]
+[ext_resource type="Resource" path="res://ocean_settings.tres" id="4_seasettings"]
+[ext_resource type="PackedScene" path="res://playground_map.tscn" id="5_map"]
+[ext_resource type="Script" path="res://scripts/ocean/SeaDepthField.cs" id="6_seadepth"]
+[ext_resource type="Script" path="res://scripts/debug/BuoyancyGizmos.cs" id="7_gizmos"]
+[ext_resource type="Script" path="res://scripts/vfx/SplashEmitter.cs" id="8_splash"]
+[ext_resource type="Script" path="res://scripts/vfx/FoamCapture.cs" id="9_foam"]
+[ext_resource type="Script" path="res://scripts/wind/WindStreaks.cs" id="10_streaks"]
+[ext_resource type="Script" path="res://scripts/debug/DebugWindHud.cs" id="11_windhud"]
+[ext_resource type="Script" path="res://scripts/ui/WindCompass.cs" id="12_compass"]
+[ext_resource type="Script" path="res://scripts/ui/ComfortSlider.cs" id="13_comfort"]
+[ext_resource type="Script" path="res://scripts/debug/MapOverlay.cs" id="14_mapoverlay"]
+[ext_resource type="Script" path="res://scripts/sky/SkyController.cs" id="15_skyctl"]
+[ext_resource type="Shader" path="res://shaders/sky.gdshader" id="16_skyshader"]
+[ext_resource type="PackedScene" path="res://boat_toon.tscn" id="17_boat"]
+[ext_resource type="PackedScene" path="res://dock.tscn" id="18_dock"]
+[ext_resource type="PackedScene" path="res://cargo_crate.tscn" id="19_crate"]
+[ext_resource type="PackedScene" path="res://cargo_crate_medium.tscn" id="20_cratemed"]
+[ext_resource type="PackedScene" path="res://rope_coil.tscn" id="21_ropecoil"]
+[ext_resource type="Script" path="res://scripts/style/InkOutline.cs" id="22_ink"]
+
+[sub_resource type="ShaderMaterial" id="SkyShaderMaterial_pg"]
+shader = ExtResource("16_skyshader")
+shader_parameter/sun_direction = Vector3(1, 0, 0)
+shader_parameter/moon_direction = Vector3(-1, 0, 0)
+shader_parameter/cloud_offset = Vector2(0, 0)
+shader_parameter/day_zenith = Color(0.25, 0.52, 0.82, 1)
+shader_parameter/day_horizon = Color(0.74, 0.89, 0.95, 1)
+shader_parameter/dusk_zenith = Color(0.23, 0.18, 0.42, 1)
+shader_parameter/dusk_horizon = Color(0.98, 0.55, 0.28, 1)
+shader_parameter/night_zenith = Color(0.004, 0.007, 0.018, 1)
+shader_parameter/night_horizon = Color(0.012, 0.02, 0.04, 1)
+shader_parameter/sun_disc_color = Color(1, 0.93, 0.72, 1)
+shader_parameter/moon_disc_color = Color(0.82, 0.87, 0.95, 1)
+shader_parameter/sun_size = 0.045
+shader_parameter/moon_size = 0.035
+shader_parameter/cloud_coverage = 0.42
+shader_parameter/cloud_scale = 1.4
+
+[sub_resource type="Sky" id="Sky_pg"]
+sky_material = SubResource("SkyShaderMaterial_pg")
+
+[sub_resource type="Environment" id="Environment_pg"]
+background_mode = 2
+sky = SubResource("Sky_pg")
+ambient_light_source = 3
+reflected_light_source = 2
+tonemap_mode = 2
+tonemap_white = 3.0
+ssr_enabled = true
+ssr_max_steps = 48
+
+[node name="Playground" type="Node3D"]
+
+[node name="Character" parent="." instance=ExtResource("1_char")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1393.1, 31.6, -864.6)
+
+[node name="Ambience" parent="Character" instance=ExtResource("2_ambience")]
+
+[node name="OceanSurface" type="Node3D" parent="."]
+script = ExtResource("3_surface")
+Settings = ExtResource("4_seasettings")
+
+[node name="Map" parent="." instance=ExtResource("5_map")]
+
+[node name="SeaDepthField" type="Node" parent="."]
+script = ExtResource("6_seadepth")
+Resolution = 512
+
+[node name="BuoyancyGizmos" type="Node3D" parent="."]
+script = ExtResource("7_gizmos")
+
+[node name="SplashEmitter" type="Node3D" parent="."]
+script = ExtResource("8_splash")
+
+[node name="FoamCapture" type="Node" parent="."]
+script = ExtResource("9_foam")
+
+[node name="WindStreaks" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("10_streaks")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.642788, -0.766044, 0, 0.766044, 0.642788, 0, 60, 0)
+light_energy = 1.2
+shadow_enabled = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_pg")
+
+[node name="DebugWindHud" type="CanvasLayer" parent="."]
+script = ExtResource("11_windhud")
+
+[node name="WindCompass" type="CanvasLayer" parent="."]
+script = ExtResource("12_compass")
+
+[node name="ComfortSlider" type="CanvasLayer" parent="."]
+script = ExtResource("13_comfort")
+
+[node name="MapOverlay" type="CanvasLayer" parent="."]
+script = ExtResource("14_mapoverlay")
+
+[node name="InkOutline" type="Node3D" parent="."]
+script = ExtResource("22_ink")
+
+[node name="SkyController" type="Node" parent="."]
+script = ExtResource("15_skyctl")
+
+[node name="BoatToon" parent="." instance=ExtResource("17_boat")]
+transform = Transform3D(-0.81915, 0, 0.57358, 0, 1, 0, -0.57358, 0, -0.81915, -1408.6, 30.2, -849.4)
+
+[node name="DockGym" parent="." instance=ExtResource("18_dock")]
+transform = Transform3D(-0.81915, 0, 0.57358, 0, 1, 0, -0.57358, 0, -0.81915, -1396.5, 30.9, -859.7)
+
+[node name="DockCoast" parent="." instance=ExtResource("18_dock")]
+transform = Transform3D(-0.57358, 0, -0.81915, 0, 1, 0, 0.81915, 0, -0.57358, 3102.5, 30.9, 1611.9)
+
+[node name="DockIsleNW" parent="." instance=ExtResource("18_dock")]
+transform = Transform3D(-0.57358, 0, -0.81915, 0, 1, 0, 0.81915, 0, -0.57358, -4464.1, 30.9, -4064.8)
+
+[node name="DockIsleNE" parent="." instance=ExtResource("18_dock")]
+transform = Transform3D(-0.57358, 0, -0.81915, 0, 1, 0, 0.81915, 0, -0.57358, 4603.1, 30.9, -2587.8)
+
+[node name="DockIsleSW" parent="." instance=ExtResource("18_dock")]
+transform = Transform3D(-0.57358, 0, -0.81915, 0, 1, 0, 0.81915, 0, -0.57358, -3439.6, 30.9, 3652.4)
+
+[node name="DockIsleSE" parent="." instance=ExtResource("18_dock")]
+transform = Transform3D(-0.57358, 0, -0.81915, 0, 1, 0, 0.81915, 0, -0.57358, 5019.5, 30.9, 4523.7)
+
+[node name="CargoCrateA" parent="." instance=ExtResource("19_crate")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1400.0, 31.16, -856.1)
+
+[node name="CargoCrateB" parent="." instance=ExtResource("19_crate")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1400.35, 31.16, -852.63)
+
+[node name="CargoCrateMedium" parent="." instance=ExtResource("20_cratemed")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1403.95, 31.16, -850.27)
+
+[node name="RopeCoil" parent="." instance=ExtResource("21_ropecoil")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1397.4, 31.16, -856.67)
+
+[node name="CargoCrateCoast" parent="." instance=ExtResource("19_crate")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3108.6, 31.16, 1617.1)

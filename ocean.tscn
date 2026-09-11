@@ -23,6 +23,7 @@
 [ext_resource type="Script" path="res://scripts/vfx/SplashEmitter.cs" id="20_splash"]
 [ext_resource type="Script" path="res://scripts/vfx/FoamCapture.cs" id="21_foam"]
 [ext_resource type="Script" path="res://scripts/ui/ComfortSlider.cs" id="24_comfort"]
+[ext_resource type="Script" path="res://scripts/style/InkOutline.cs" id="25_ink"]
 
 [sub_resource type="ShaderMaterial" id="SkyShaderMaterial_1"]
 shader = ExtResource("6_skyshader")
@@ -102,6 +103,9 @@ script = ExtResource("24_comfort")
 
 [node name="MapOverlay" type="CanvasLayer" parent="." unique_id=100000021]
 script = ExtResource("15_mapoverlay")
+
+[node name="InkOutline" type="Node3D" parent="."]
+script = ExtResource("25_ink")
 
 [node name="SkyController" type="Node" parent="." unique_id=100000016]
 script = ExtResource("5_skyctl")

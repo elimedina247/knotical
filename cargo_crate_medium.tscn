@@ -1,5 +1,6 @@
 [gd_scene format=3]
 
+[ext_resource type="Shader" path="res://shaders/toon.gdshader" id="90_toon"]
 [ext_resource type="Script" path="res://scripts/boat/DeckCargo.cs" id="1_cargo"]
 [ext_resource type="Script" path="res://scripts/boat/Buoyancy.cs" id="2_buoyancy"]
 
@@ -9,13 +10,15 @@ friction = 0.7
 [sub_resource type="BoxShape3D" id="BoxShape_crate"]
 size = Vector3(2, 2, 2)
 
-[sub_resource type="StandardMaterial3D" id="Material_panel"]
-albedo_color = Color(0.62, 0.47, 0.29, 1)
-roughness = 0.9
+[sub_resource type="ShaderMaterial" id="Material_panel"]
+shader = ExtResource("90_toon")
+shader_parameter/albedo = Color(0.62, 0.47, 0.29, 1)
+shader_parameter/use_vertex_color = false
 
-[sub_resource type="StandardMaterial3D" id="Material_frame"]
-albedo_color = Color(0.35, 0.21, 0.15, 1)
-roughness = 0.95
+[sub_resource type="ShaderMaterial" id="Material_frame"]
+shader = ExtResource("90_toon")
+shader_parameter/albedo = Color(0.35, 0.21, 0.15, 1)
+shader_parameter/use_vertex_color = false
 
 [sub_resource type="BoxMesh" id="Mesh_panel"]
 size = Vector3(1.92, 1.92, 1.92)

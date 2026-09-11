@@ -11,7 +11,7 @@ public partial class MapOverlay : CanvasLayer
     private enum MapMode { Waves, Wind }
 
     private const float MinHalfExtent = 100f;
-    private const float MaxHalfExtent = 6000f;
+    private const float MaxHalfExtent = 8192f;
     private const float ZoomStep = 1.25f;
     private const int ArrowCells = 7;
 
@@ -311,27 +311,37 @@ public partial class MapOverlay : CanvasLayer
         foreach (BoatHull hull in BoatHull.Active)
         {
             if (!IsInstanceValid(hull) || !hull.IsInsideTree()) continue;
-
-            Vector3 pos = hull.GlobalPosition;
-            Vector2 local = MapToLocal(new Vector2(pos.X, pos.Z), size);
-            if (!bounds.HasPoint(local)) continue;
-
-            Vector3 forward = -hull.GlobalBasis.Z;
-            var dir = new Vector2(forward.X, forward.Z);
-            dir = dir.LengthSquared() > 0.0001f ? dir.Normalized() : Vector2.Down;
-            var perp = new Vector2(-dir.Y, dir.X);
-
-            var points = new[]
-            {
-                local + dir * 10f,
-                local - dir * 6f + perp * 5f,
-                local - dir * 6f - perp * 5f
-            };
-
-            c.DrawColoredPolygon(points, new Color(0.55f, 0.23f, 0.16f));
-            c.DrawPolyline(new[] { points[0], points[1], points[2], points[0] },
-                new Color(1f, 1f, 1f, 0.8f), 1.2f, true);
+            DrawBoatMarker(c, size, bounds, hull);
         }
+
+        foreach (SailController boat in SailController.Active)
+        {
+            if (!IsInstanceValid(boat) || !boat.IsInsideTree()) continue;
+            DrawBoatMarker(c, size, bounds, boat);
+        }
+    }
+
+    private void DrawBoatMarker(MarkerSurface c, float size, Rect2 bounds, Node3D boat)
+    {
+        Vector3 pos = boat.GlobalPosition;
+        Vector2 local = MapToLocal(new Vector2(pos.X, pos.Z), size);
+        if (!bounds.HasPoint(local)) return;
+
+        Vector3 forward = -boat.GlobalBasis.Z;
+        var dir = new Vector2(forward.X, forward.Z);
+        dir = dir.LengthSquared() > 0.0001f ? dir.Normalized() : Vector2.Down;
+        var perp = new Vector2(-dir.Y, dir.X);
+
+        var points = new[]
+        {
+            local + dir * 10f,
+            local - dir * 6f + perp * 5f,
+            local - dir * 6f - perp * 5f
+        };
+
+        c.DrawColoredPolygon(points, new Color(0.55f, 0.23f, 0.16f));
+        c.DrawPolyline(new[] { points[0], points[1], points[2], points[0] },
+            new Color(1f, 1f, 1f, 0.8f), 1.2f, true);
     }
 
     private void DrawCameraMarker(MarkerSurface c, float size)

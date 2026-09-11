@@ -76,11 +76,13 @@ void sky() {
     if (up > 0.01) {
         vec2 cuv = EYEDIR.xz / (up + 0.2) * cloud_scale + cloud_offset;
         float cn = fbm(cuv);
-        float cmask = smoothstep(cloud_coverage, cloud_coverage + 0.06, cn) * smoothstep(0.01, 0.12, up);
-        float ctop = smoothstep(cloud_coverage + 0.10, cloud_coverage + 0.30, cn);
+        float cmask = smoothstep(cloud_coverage, cloud_coverage + 0.012, cn) * smoothstep(0.01, 0.12, up);
+        float ctop = smoothstep(cloud_coverage + 0.09, cloud_coverage + 0.11, cn + 0.06 * up);
+        float cbelly = 1.0 - smoothstep(cloud_coverage + 0.02, cloud_coverage + 0.035, cn);
         vec3 lit = mix(vec3(0.028, 0.032, 0.05), mix(vec3(0.99, 0.99, 0.985), dusk_horizon, dusk * 0.65), sun_h);
-        vec3 shade = lit * vec3(0.62, 0.68, 0.80);
-        col = mix(col, mix(shade, lit, ctop), cmask);
+        vec3 shade = lit * vec3(0.70, 0.76, 0.88);
+        vec3 belly = lit * vec3(0.56, 0.62, 0.80);
+        col = mix(col, mix(mix(shade, belly, cbelly), lit, ctop), cmask);
     }
 
     COLOR = col;

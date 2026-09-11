@@ -1,0 +1,88 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Shader" path="res://shaders/toon.gdshader" id="90_toon"]
+
+[sub_resource type="ShaderMaterial" id="StandardMaterial3D_plank"]
+shader = ExtResource("90_toon")
+shader_parameter/albedo = Color(0.64, 0.49, 0.31, 1)
+shader_parameter/use_vertex_color = false
+
+[sub_resource type="ShaderMaterial" id="StandardMaterial3D_pile"]
+shader = ExtResource("90_toon")
+shader_parameter/albedo = Color(0.46, 0.34, 0.22, 1)
+shader_parameter/use_vertex_color = false
+
+[sub_resource type="BoxMesh" id="BoxMesh_deck"]
+size = Vector3(3, 0.18, 22)
+
+[sub_resource type="BoxMesh" id="BoxMesh_pile"]
+size = Vector3(0.24, 5, 0.24)
+
+[sub_resource type="BoxMesh" id="BoxMesh_cleat"]
+size = Vector3(0.34, 0.22, 0.18)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_deck"]
+size = Vector3(3, 0.18, 22)
+
+[sub_resource type="ConvexPolygonShape3D" id="ConvexPolygonShape3D_ramp"]
+points = PackedVector3Array(-1.5, 0.25, 1.0, 1.5, 0.25, 1.0, -1.5, 0.0, 2.2, 1.5, 0.0, 2.2, -1.5, 0.0, 1.0, 1.5, 0.0, 1.0)
+
+[node name="Dock" type="StaticBody3D"]
+
+[node name="Deck" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, -9)
+material_override = SubResource("StandardMaterial3D_plank")
+mesh = SubResource("BoxMesh_deck")
+
+[node name="DeckCol" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, -9)
+shape = SubResource("BoxShape3D_deck")
+
+[node name="RampCol" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1)
+shape = SubResource("ConvexPolygonShape3D_ramp")
+
+[node name="PileFL" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.35, -2.3, -2)
+material_override = SubResource("StandardMaterial3D_pile")
+mesh = SubResource("BoxMesh_pile")
+
+[node name="PileFR" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.35, -2.3, -2)
+material_override = SubResource("StandardMaterial3D_pile")
+mesh = SubResource("BoxMesh_pile")
+
+[node name="PileML" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.35, -2.3, -6.5)
+material_override = SubResource("StandardMaterial3D_pile")
+mesh = SubResource("BoxMesh_pile")
+
+[node name="PileMR" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.35, -2.3, -6.5)
+material_override = SubResource("StandardMaterial3D_pile")
+mesh = SubResource("BoxMesh_pile")
+
+[node name="PileBL" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.35, -2.3, -11)
+material_override = SubResource("StandardMaterial3D_pile")
+mesh = SubResource("BoxMesh_pile")
+
+[node name="PileBR" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.35, -2.3, -11)
+material_override = SubResource("StandardMaterial3D_pile")
+mesh = SubResource("BoxMesh_pile")
+
+[node name="PileEL" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.35, -2.3, -19.5)
+material_override = SubResource("StandardMaterial3D_pile")
+mesh = SubResource("BoxMesh_pile")
+
+[node name="PileER" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.35, -2.3, -19.5)
+material_override = SubResource("StandardMaterial3D_pile")
+mesh = SubResource("BoxMesh_pile")
+
+[node name="Cleat" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.3, 0.36, -18)
+material_override = SubResource("StandardMaterial3D_pile")
+mesh = SubResource("BoxMesh_cleat")

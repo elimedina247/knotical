@@ -19,8 +19,8 @@ namespace Knotical.Ocean;
 /// </summary>
 public partial class Ocean : Node
 {
-	/// <summary>Half-extent of the playable world in metres. Coordinates run -6000..+6000.</summary>
-	public const float WorldHalfExtent = 6000f;
+	/// <summary>Half-extent of the playable world in metres. Coordinates run -8192..+8192.</summary>
+	public const float WorldHalfExtent = 8192f;
 
 	/// <summary>
 	/// World Y of still water. Non-zero so terrain heightmaps, which start at zero and
