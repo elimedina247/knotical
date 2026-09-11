@@ -24,6 +24,7 @@ crashlytics-build.properties
 # Generated solution and project files
 *.csproj
 *.sln
+*.slnx
 *.suo
 *.user
 *.userprefs
@@ -31,6 +32,10 @@ crashlytics-build.properties
 *.booproj
 *.svd
 *.tmp
+
+# Test and batch output
+test-results.xml
+*.log
 
 # IDE
 .vs/

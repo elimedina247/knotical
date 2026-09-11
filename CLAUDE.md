@@ -16,6 +16,16 @@ The Unity CLI is `%LOCALAPPDATA%\Unity\bin\unity.exe` (not on PATH). Pass `--no-
 
 Without permission, finish the edits, say what to look for when it runs, and stop there.
 
+The headless loop, once permitted (about a minute per run, editor must not be open on the
+project at the same time):
+
+```
+%LOCALAPPDATA%\Unity\bin\unity.exe test <repo> --mode EditMode --output <repo>\test-results.xml --no-banner --non-interactive
+```
+
+Runtime code lives in the `Knotical` assembly (`Assets/Knotical/Knotical.asmdef`), tests in
+`Knotical.Tests` (`Assets/Knotical/Tests/`).
+
 ## Eli owns git
 
 Never commit, push, tag, or stage unprompted. Finish the edits and say what to commit.
