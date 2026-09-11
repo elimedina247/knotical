@@ -1,26 +1,43 @@
-# Godot 4+ specific ignores
-.godot/
-/android/
-.nomedia
+# Unity
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+/[Aa]ssets/AssetStoreTools*
+/[Aa]ssets/Plugins/Editor/JetBrains*
+/[Aa]ssets/StreamingAssets/aa/*
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+sysinfo.txt
+*.apk
+*.aab
+*.unitypackage
+*.app
+crashlytics-build.properties
 
-# Godot exports
-export.cfg
-export_credentials.cfg
-build/
-
-# Imported translations (automatically generated from CSV files)
-*.translation
-
-# .NET / C# build artifacts
-/bin/
-/obj/
+# Generated solution and project files
+*.csproj
+*.sln
+*.suo
 *.user
-.mono/
-data_*/
-mono_crash.*.json
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.tmp
 
-# macOS
-.DS_Store
-
-# Visual Studio
+# IDE
 .vs/
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

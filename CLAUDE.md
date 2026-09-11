@@ -2,20 +2,23 @@
 
 ## Ask before building or running
 
-Do not run `dotnet build`, `msbuild`, the Godot CLI, or anything else that compiles or
-launches the game without being given permission first. Ask, say what the run would
-measure, and wait.
+Do not launch the Unity editor, run `unity build`, `unity run`, `unity test`, `unity open`,
+`unity projects create`, or anything else that compiles the project or starts the game
+without being given permission first. Ask, say what the run would measure, and wait.
 
-Once permission is given, iterate freely for that task: build, run headless with
-`--quit-after`, read the trace, change, run again. Measured numbers beat predicted ones —
-predictions have been wrong here before.
+Once permission is given, iterate freely for that task: run, read the log, change, run
+again. Measured numbers beat predicted ones — predictions have been wrong here before.
 
-Godot lives at
-`C:\Users\elime\Downloads\Godot_v4.7.1-stable_mono_win64\Godot_v4.7.1-stable_mono_win64\Godot_v4.7.1-stable_mono_win64_console.exe`.
-Use the `_console` build or stdout is lost. `dotnet build` first or the run uses a stale
-assembly and the code appears not to have changed.
+The Unity CLI is `%LOCALAPPDATA%\Unity\bin\unity.exe` (not on PATH). Pass `--no-banner
+--non-interactive` in scripts. The editor is 6000.6.0f1 under
+`C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Unity.exe`. Batch-mode runs need
+`-logFile`; read the log, do not guess from exit codes.
 
 Without permission, finish the edits, say what to look for when it runs, and stop there.
+
+## Eli owns git
+
+Never commit, push, tag, or stage unprompted. Finish the edits and say what to commit.
 
 ## Ask when the design is ambiguous
 
@@ -24,16 +27,13 @@ share a button, which behavior wins when systems overlap — ask before building
 question listing the options. Do not invent a control scheme or pick an interaction model
 on Eli's behalf; a guessed design costs more to unwind than the question would have.
 
-This happened with grabbing cargo: "drag" was read as a second grab mode on another button
-when the intent was rope items pull, bare hands pick up.
+## Prefab and scene overrides outrank code defaults
 
-## Scene overrides outrank code defaults
+A value tuned on a prefab instance inside a scene is written into the `.unity` file as an
+override. It beats the prefab and the C# field initializer, silently. The same trap cost a
+session of tuning in the Godot version.
 
-`ocean.tscn` instances `boat_2.tscn`, and any property tuned while `ocean.tscn` is open is
-written there as an instance override. Those beat both `boat_2.tscn` and the C# defaults,
-silently. This has already cost a session's worth of tuning.
-
-Before concluding a value has no effect, grep `ocean.tscn` for it.
+Before concluding a value has no effect, search the `.unity` and `.prefab` files for it.
 
 ## Do not comment the code
 
@@ -67,8 +67,9 @@ Prefer the plain word where one exists. Say "width" not "beam" when nothing is l
 
 ## Project
 
-Godot 4.7, C# / .NET, Forward+, Jolt physics. Co-op physics sailing game.
+Unity 6000.6, C#, URP. Co-op physics sailing game. Ported from Godot on 2026-09-11; the
+Godot project is at git tag `godot-final`. The plan is `docs/plan-unity-port.md`.
 
 Ocean and wind are both pure functions of time, which is what keeps them off the network.
-`Ocean.cs` and `ocean.gdshader` implement the same wave maths on CPU and GPU — a change to
+`Ocean.cs` and the ocean shader implement the same wave maths on CPU and GPU — a change to
 one is a change to both, or buoyancy stops matching what is drawn.

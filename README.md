@@ -140,10 +140,13 @@ well within single-precision float comfort.
 
 ## Tech
 
-- **Godot 4.7**, C# / .NET, Forward+ renderer
-- **Jolt** physics, 90–120 Hz tick
+- **Unity 6000.6**, C#, URP
+- PhysX, fixed tick rate to be measured rather than assumed
 - Host-authoritative networking — clients send input, never forces
 - Steam lobbies and proximity voice (proximity voice is a core mechanic, not polish)
+
+Ported from Godot 4.7 on 2026-09-11. The Godot project is preserved at git tag `godot-final`;
+the port plan is `docs/plan-unity-port.md`.
 
 ---
 
@@ -183,8 +186,8 @@ Useful reading for anyone poking at the water code:
 
 ## Building
 
-Requires the **.NET build of Godot 4.7** and the .NET SDK. Open `project.godot` in the editor and
-build from there.
+Requires **Unity 6000.6.0f1**. Open the repo root as the project, or `unity open .` with the
+Unity CLI.
 
 ---
 
