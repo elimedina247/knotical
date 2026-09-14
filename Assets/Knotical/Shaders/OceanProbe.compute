@@ -1,0 +1,18 @@
+#pragma kernel Probe
+
+#include "OceanWaves.hlsl"
+
+StructuredBuffer<float2> _ProbePoints;
+RWStructuredBuffer<float3> _ProbeSurface;
+RWStructuredBuffer<float3> _ProbeNormals;
+uint _ProbeCount;
+
+[numthreads(64, 1, 1)]
+void Probe(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _ProbeCount) return;
+
+    float2 p = _ProbePoints[id.x];
+    _ProbeSurface[id.x] = OceanSurfacePoint(p, 0.0, 0.0, 0.0);
+    _ProbeNormals[id.x] = OceanNormal(p, 0.0, 0.0, 0.0);
+}

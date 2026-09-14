@@ -1,0 +1,97 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: OceanSurface
+  m_Shader: {fileID: 4800000, guid: 4fce76a438f273c45973b24b4aabb1ab, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _DetailFlipbook:
+        m_Texture: {fileID: 2800000, guid: d589653b4d10591428f688b077ade933, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _BandSlopeWeight: 0.65
+    - _BandSoftness: 0.08
+    - _CapSoftness: 0.07
+    - _CapTear: 0.12
+    - _CapThreshold: 0.3
+    - _CrestFoamOpacity: 0.9
+    - _CrestHeight: 0.35
+    - _CrestHeightSoft: 0.2
+    - _DebugView: 4
+    - _DepthContrast: 0.55
+    - _DepthFade: 6
+    - _DetailEnabled: 1
+    - _DetailFar: 600
+    - _DetailFps: 14
+    - _DetailStrength: 0.35
+    - _DetailTile: 22
+    - _FoamBlotch: 0.9
+    - _FoamCrestHeight: 1.1
+    - _FoamCrestJacobian: 0.85
+    - _FoamCut: 0.45
+    - _FoamCutSoft: 0.04
+    - _FoamDrift: 0.03
+    - _FoamEdge: 0.5
+    - _FoamFar: 1500
+    - _FoamHoleSize: 1.2
+    - _FoamNoiseCover: 0.12
+    - _FoamNoiseScale: 0.15
+    - _FoamScale: 0.03
+    - _FoamWarp: 0.35
+    - _FresnelMax: 0.16
+    - _FresnelPower: 4
+    - _FresnelStrength: 0.6
+    - _GlintSize: 160
+    - _GlintStrength: 0.5
+    - _InnerExtent: 0
+    - _LitBand: 0.2
+    - _ReflectionStrength: 0.8
+    - _ShadeDepth: 0.818
+    - _ShadeLevel: 0.82
+    - _ShoreGap: 0.35
+    - _ShoreLineDepth: 0.7
+    - _ShoreLineWidth: 0.14
+    - _ShoreSecondDepth: 1.6
+    - _ShoreSecondWidth: 0.1
+    - _ShoreWashDepth: 0.22
+    - _ShoreWobble: 0.3
+    - _SlopeRange: 0.22
+    - _SssPower: 4
+    - _SssStrength: 1
+    - _SunCutoff: 0.3
+    - _SunPower: 256
+    - _SunSoftness: 0.08
+    - _SurfaceFoamAmount: 0.5
+    - _SurfaceFoamOpacity: 0.12
+    - _TrailOpacity: 0.6
+    - _TrailSeconds: 3
+    m_Colors:
+    - _BaseColor: {r: 0.049999982, g: 0.31999996, b: 0.47999996, a: 1}
+    - _DeepColor: {r: 0.03, g: 0.21999997, b: 0.41999996, a: 1}
+    - _FoamColor: {r: 0.95, g: 0.97999996, b: 1, a: 1}
+    - _ShallowColor: {r: 0.19999996, g: 0.72, b: 0.68, a: 1}
+    - _SkyColor: {r: 0.62, g: 0.8, b: 0.92, a: 1}
+    - _SssColor: {r: 0.24999997, g: 0.85, b: 0.75, a: 1}
+    - _SunColor: {r: 1, g: 0.95, b: 0.8, a: 1}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1

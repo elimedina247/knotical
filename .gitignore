@@ -34,7 +34,7 @@ crashlytics-build.properties
 *.tmp
 
 # Test and batch output
-test-results.xml
+test-results*.xml
 *.log
 
 # IDE

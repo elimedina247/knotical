@@ -23,8 +23,13 @@ project at the same time):
 %LOCALAPPDATA%\Unity\bin\unity.exe test <repo> --mode EditMode --output <repo>\test-results.xml --no-banner --non-interactive
 ```
 
-Runtime code lives in the `Knotical` assembly (`Assets/Knotical/Knotical.asmdef`), tests in
-`Knotical.Tests` (`Assets/Knotical/Tests/`).
+`--mode PlayMode` runs `Tests/PlayMode/ShotTests`, which floats the boat for 6 s and writes
+`Logs/shot_main.png`: the way to see a change without opening the editor. Regenerating
+the scene or the boat is `-executeMethod Knotical.Editor.SceneBuilder.BuildMain`; the boat
+mesh comes from Blender via `tools/blender/build_boat.py` (see `docs/plan-unity-port.md`).
+
+Runtime code lives in the `Knotical` assembly (`Assets/Knotical/Knotical.asmdef`), editor
+tools in `Knotical.Editor`, tests in `Knotical.Tests` (EditMode) and `Knotical.PlayTests`.
 
 ## Eli owns git
 
