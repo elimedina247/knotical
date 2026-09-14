@@ -13,7 +13,7 @@ namespace Knotical
         private static readonly int DecayId = Shader.PropertyToID("_Decay");
 
         [SerializeField, Range(128, 2048)] private int resolution = 1024;
-        [SerializeField, Range(64f, 2048f)] private float extent = 384f;
+        [SerializeField, Range(64f, 2048f)] private float extent = 256f;
         [SerializeField, Range(0.5f, 30f)] private float fadeSeconds = 9f;
         [SerializeField, Range(0f, 2f)] private float strength = 1f;
         [SerializeField] private Transform follow;

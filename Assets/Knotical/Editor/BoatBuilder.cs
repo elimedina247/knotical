@@ -15,36 +15,33 @@ namespace Knotical.Editor
         private const string MaterialPath = "Assets/Knotical/Art/Models/BoatPlaceholder.mat";
         private const string ShaderName = "Knotical/VertexColorLit";
 
-        private const float Mass = 4000f;
-        private static readonly Vector3 CentreOfMass = new Vector3(0f, -0.35f, -0.2f);
-        private static readonly Vector3 MotorPosition = new Vector3(0f, -0.3f, -6.35f);
-
-        private static readonly Vector3[] PontoonPositions =
-        {
-            new Vector3(-1.022f, -0.05f, -4.64f),
-            new Vector3(1.022f, -0.05f, -4.64f),
-            new Vector3(-1.306f, -0.05f, -1.26f),
-            new Vector3(1.306f, -0.05f, -1.26f),
-            new Vector3(-1.276f, -0.05f, 2.12f),
-            new Vector3(1.276f, -0.05f, 2.12f),
-            new Vector3(-0.757f, -0.05f, 5.24f),
-            new Vector3(0.757f, -0.05f, 5.24f),
-        };
+        private const float ReferenceMass = 4000f;
+        private const float ReferenceCoefficient = 0.103f;
 
         [Serializable]
         private class Spec
         {
             public float stern_y, bow_y, bow_tip_y, half_beam, draft, main_deck, quarter_deck, qd_y, bulwark, wall;
             public float mast_y, mast_top, helm_y, length, beam;
-            public Cabin cabin;
             public Step[] steps;
             public Wall[] walls;
             public float[] hull_points_flat;
             public float[] deck_outline_flat;
             public float[] quarter_outline_flat;
+            public Definition definition;
         }
 
-        [Serializable] private class Cabin { public float y0, y1, half_w, h; }
+        [Serializable]
+        private class Definition
+        {
+            public float volume, mass, waterline_length, waterline_beam, pontoon_radius;
+            public float[] com;
+            public Attach[] pontoons;
+            public Attach[] attachments;
+        }
+
+        [Serializable] private class Attach { public string name; public float x, y, z, r; }
+
         [Serializable] private class Step { public float y, z_top, depth; }
         [Serializable] private class Wall { public float x, y, z0, z1, len, yaw; }
 
@@ -66,16 +63,20 @@ namespace Knotical.Editor
                 OrientModel(model, spec);
                 ApplyMaterial(model);
 
+                Definition def = spec.definition;
+                if (def == null || def.pontoons == null || def.pontoons.Length == 0) throw new InvalidOperationException("boat definition missing; rerun tools/blender/build_boat.py");
+
                 var body = root.AddComponent<Rigidbody>();
-                body.mass = Mass;
-                body.centerOfMass = CentreOfMass;
+                body.mass = def.mass;
+                body.centerOfMass = ToUnity(def.com[0], def.com[1], def.com[2]);
                 body.linearDamping = 0f;
                 body.angularDamping = 0f;
                 body.interpolation = RigidbodyInterpolation.Interpolate;
                 body.collisionDetectionMode = CollisionDetectionMode.Continuous;
 
                 BuildColliders(root, spec);
-                BuildPontoons(root);
+                BuildPontoons(root, def);
+                Transform attach = BuildAttachments(root, def);
 
                 var motor = root.AddComponent<BoatMotor>();
                 var foam = root.AddComponent<FoamEmitter>();
@@ -86,16 +87,17 @@ namespace Knotical.Editor
                 foam.Life = 3f;
                 foam.Strength = 0.6f;
                 foam.WakeWidth = 0.7f;
-                motor.MotorLocalPosition = MotorPosition;
-                motor.PropellerStrength = 8000f;
-                motor.RudderStrength = 6000f;
+                motor.MotorLocalPosition = attach.Find("rudder").localPosition;
+                foam.Stern = attach.Find("stern");
+                motor.PropellerStrength = def.mass * 2f;
+                motor.RudderStrength = def.mass * 1.5f;
 
                 var stand = new GameObject("HelmStand");
                 stand.transform.SetParent(root.transform, false);
                 stand.transform.localPosition = new Vector3(0f, spec.quarter_deck, spec.helm_y);
 
                 GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
-                Debug.Log($"BoatBuilder: wrote {PrefabPath} ({spec.length} x {spec.beam} m)");
+                Debug.Log($"BoatBuilder: wrote {PrefabPath} ({spec.length} x {spec.beam} m, {def.mass} kg from {def.volume} m3, {def.pontoons.Length} pontoons r={def.pontoon_radius})");
                 return prefab;
             }
             finally
@@ -181,10 +183,6 @@ namespace Knotical.Editor
                 ToUnity(-0.7f, spec.qd_y, spec.main_deck), ToUnity(0.7f, spec.qd_y, spec.main_deck),
             });
 
-            var cabin = AddBox(colliders, "Cabin",
-                ToUnity(0f, (spec.cabin.y0 + spec.cabin.y1) * 0.5f, spec.main_deck + spec.cabin.h * 0.5f),
-                new Vector3(spec.cabin.half_w * 2f, spec.cabin.h, spec.cabin.y1 - spec.cabin.y0));
-            cabin.transform.localRotation = Quaternion.identity;
 
             AddBox(colliders, "Mast", ToUnity(0f, spec.mast_y, (spec.main_deck + spec.mast_top) * 0.5f),
                 new Vector3(0.34f, spec.mast_top - spec.main_deck, 0.34f));
@@ -263,11 +261,24 @@ namespace Knotical.Editor
             return go;
         }
 
-        private static void BuildPontoons(GameObject root)
+        private static Transform BuildAttachments(GameObject root, Definition def)
+        {
+            var group = new GameObject("Attach");
+            group.transform.SetParent(root.transform, false);
+            foreach (Attach a in def.attachments)
+            {
+                var point = new GameObject(a.name);
+                point.transform.SetParent(group.transform, false);
+                point.transform.localPosition = ToUnity(a.x, a.y, a.z);
+            }
+            return group.transform;
+        }
+
+        private static void BuildPontoons(GameObject root, Definition def)
         {
             var buoyancy = root.AddComponent<Buoyancy>();
-            buoyancy.Radius = 1.0f;
-            buoyancy.Coefficient = 0.27f;
+            buoyancy.Radius = def.pontoon_radius;
+            buoyancy.Coefficient = ReferenceCoefficient * def.mass / ReferenceMass;
             buoyancy.DampingFactor1 = 1.0f;
             buoyancy.DampingFactor2 = 0.4f;
             buoyancy.DragCoefficient = 0.35f;
@@ -281,12 +292,11 @@ namespace Knotical.Editor
 
             var group = new GameObject("Pontoons");
             group.transform.SetParent(root.transform, false);
-            string[] names = { "AftL", "AftR", "MidL", "MidR", "ForeL", "ForeR", "BowL", "BowR" };
-            for (int i = 0; i < PontoonPositions.Length; i++)
+            foreach (Attach a in def.pontoons)
             {
-                var p = new GameObject(names[i]);
+                var p = new GameObject(a.name);
                 p.transform.SetParent(group.transform, false);
-                p.transform.localPosition = PontoonPositions[i];
+                p.transform.localPosition = ToUnity(a.x, a.y, a.z);
                 p.AddComponent<Pontoon>();
             }
         }

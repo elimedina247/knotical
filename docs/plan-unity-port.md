@@ -175,6 +175,21 @@ without dying".
 After Phase 5: choose netcode (FishNet + Steam transport is the default candidate), then
 sails, then grab and rope, each as its own plan.
 
+### Phase 5b — the boat, in sections
+
+Started 2026-09-14, before Phase 5, because everything else hangs off the boat. Standards are
+in `docs/units.md`. Sections: (1) units and player stand-ins, done; (2) boat definition
+emitted by `build_boat.py` and consumed by `BoatBuilder` (mass and centre of mass from the
+underwater volume, pontoons from hull sections, named attach points under `Attach/`), done;
+(3) hull shape rounds, first round done: 18 x 5.5 m, 2 m draft, 1.6 m freeboard so a player
+fits below the main deck, sterncastle 2.5 m above it for the chart room, ride height retuned
+(buoyancy scale 0.103 per reference tonne puts the hull on its design waterline); second round after Eli's
+Sea of Thieves sloop references: deckhouse removed, bow tapers over the front 42 percent with
+no kink, flare toward both ends, sheer up to a tall bow and stern, helm deck 1.3 m above the
+main deck with the chart room floor 1.2 m below it (`chart_floor` in the definition); (4) deck layout: sterncastle, chart room, cargo well, anchor deck;
+(5) one mechanic per section: wheel, sails, halyard, anchor. Each section ends with
+`Logs/shot_boat.png` for review before the next starts.
+
 ### Phase 6 — procedural levels
 
 The next goal after 3b. Not planned yet. Shoreline foam and shallow-water attenuation

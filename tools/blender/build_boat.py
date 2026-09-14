@@ -9,38 +9,42 @@ repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 models_dir = os.path.join(repo_root, "Assets", "Knotical", "Art", "Models")
 out_fbx = os.path.abspath(args[0] if args else os.path.join(models_dir, "boat_placeholder.fbx"))
 out_json = os.path.abspath(args[1] if len(args) > 1 else os.path.join(models_dir, "boat_placeholder.json"))
-MAST_Y = 1.2
-MAST_HEIGHT = 9.5
+MAST_Y = 1.5
+MAST_HEIGHT = 13.0
 
-STERN_Y = -6.2
-BOW_Y = 6.8
-HALF_BEAM = 2.2
-DRAFT = 1.5
-ROCKER = 1.15
+STERN_Y = -8.5
+BOW_Y = 9.5
+HALF_BEAM = 2.75
+DRAFT = 2.0
+ROCKER = 1.2
 ROCKER_POW = 2.6
-FREEBOARD = 1.35
-BOW_RISE = 1.0
-STERN_RISE = 0.9
-SHEER_POW = 2.4
-BOW_SHARP = 2.2
-STERN_SHARP = 3.0
+FREEBOARD = 1.6
+BOW_RISE = 2.0
+STERN_RISE = 1.3
+SHEER_POW = 2.2
 TRANSOM = 0.55
-TRANSOM_RAKE = 0.6
-STEM_RAKE = 1.4
-STEM_POW = 3.0
-BILGE = 0.42
-STEM_MIN = 0.06
-MAIN_DECK = 1.25
-QUARTER_DECK = 2.05
+TRANSOM_RAKE = 0.5
+STEM_RAKE = 2.4
+STEM_POW = 2.0
+STEM_MIN = 0.08
+BOW_TAPER = 0.42
+BOW_POINT = 2.6
+STERN_TAPER = 0.22
+FLARE_BOW = 0.35
+FLARE_STERN = 0.12
+SECTION_POWER = 2.1
+CHART_FLOOR = 0.4
+MAIN_DECK = 1.6
+QUARTER_DECK = 2.9
 QD_T = 0.30
-BULWARK = 0.55
+BULWARK = 1.05
 WALL = 0.15
 CAP_LIP = 0.07
 CAP_DROP = 0.12
-GANGWAY_T = 0.52
-GANGWAY_HALF = 0.75
-STRIPE_LO = -0.18
-STRIPE_HI = 0.14
+GANGWAY_T = 0.55
+GANGWAY_HALF = 1.0
+STRIPE_LO = -0.25
+STRIPE_HI = 0.2
 STATIONS = 28
 SIDE_SAMPLES = 7
 CAMBER = 0.06
@@ -64,16 +68,31 @@ def hex_to_rgb(h):
 
 
 def plan_factor(t):
-    m = abs(t * 2.0 - 1.0)
-    sharp = BOW_SHARP if t > 0.5 else STERN_SHARP
-    f = max(0.0, 1.0 - m ** sharp) ** 0.65
-    if t < 0.5:
-        f = f + (1.0 - f) * (TRANSOM * m * m)
-    return f
+    if t > 1.0 - BOW_TAPER:
+        u = (t - (1.0 - BOW_TAPER)) / BOW_TAPER
+        return max(0.0, 1.0 - u ** BOW_POINT)
+    if t < STERN_TAPER:
+        u = (STERN_TAPER - t) / STERN_TAPER
+        return 1.0 - (1.0 - TRANSOM) * u * u
+    return 1.0
 
 
 def half_width(t):
     return max(HALF_BEAM * plan_factor(t), STEM_MIN)
+
+
+def flare(t):
+    if t > 1.0 - BOW_TAPER:
+        u = (t - (1.0 - BOW_TAPER)) / BOW_TAPER
+        return FLARE_BOW * u * u
+    if t < STERN_TAPER:
+        u = (STERN_TAPER - t) / STERN_TAPER
+        return FLARE_STERN * u * u
+    return 0.0
+
+
+def top_half_width(t):
+    return half_width(t) * (1.0 + flare(t))
 
 
 def keel_z(t):
@@ -104,17 +123,21 @@ def deck_z(t):
 
 
 def rail_top(t):
-    return max(sheer_z(t) + BULWARK, deck_z(t) + 0.62)
+    return max(sheer_z(t) + BULWARK, deck_z(t) + BULWARK)
 
 
 def in_gangway(t):
     return abs(station_y(t) - station_y(GANGWAY_T)) < GANGWAY_HALF
 
 
+def section_fraction(v):
+    return (1.0 - (1.0 - min(v, 1.0)) ** SECTION_POWER) ** (1.0 / SECTION_POWER)
+
+
 def shell_point(t, u):
     v = abs(u)
-    w = half_width(t)
-    x = math.copysign(w * v ** BILGE, u) if v > 0 else 0.0
+    w = half_width(t) * (1.0 + flare(t) * v * v)
+    x = math.copysign(w * section_fraction(v), u) if v > 0 else 0.0
     k = keel_z(t)
     s = sheer_z(t)
     return (x, station_y(t) + rake_y(t, v), k + (s - k) * v)
@@ -191,6 +214,109 @@ def station_list():
     ts = sorted(set(round(t, 6) for t in ts if 0.0 <= t <= 1.0))
     return ts
 
+def clip_below(poly, level):
+    out = []
+    n = len(poly)
+    for i in range(n):
+        a = poly[i]
+        b = poly[(i + 1) % n]
+        a_in = a[1] <= level
+        b_in = b[1] <= level
+        if a_in:
+            out.append(a)
+        if a_in != b_in:
+            t = (level - a[1]) / (b[1] - a[1])
+            out.append((a[0] + (b[0] - a[0]) * t, level))
+    return out
+
+
+def polygon_area(poly):
+    area = 0.0
+    for i in range(len(poly)):
+        x0, z0 = poly[i]
+        x1, z1 = poly[(i + 1) % len(poly)]
+        area += x0 * z1 - x1 * z0
+    return abs(area) * 0.5
+
+
+def section_area_below(t, level, samples=24):
+    ring = []
+    for i in range(samples + 1):
+        v = i / samples
+        p = shell_point(t, -v)
+        ring.append((p[0], p[2]))
+    ring.reverse()
+    for i in range(1, samples + 1):
+        v = i / samples
+        p = shell_point(t, v)
+        ring.append((p[0], p[2]))
+    return polygon_area(clip_below(ring, level))
+
+
+def underwater_volume(level=0.0, stations=60):
+    volume = 0.0
+    moment_y = 0.0
+    prev_t = None
+    prev_a = None
+    for i in range(stations + 1):
+        t = i / stations
+        a = section_area_below(t, level)
+        if prev_t is not None:
+            dy = station_y(t) - station_y(prev_t)
+            slab = (a + prev_a) * 0.5 * dy
+            volume += slab
+            moment_y += slab * (station_y(t) + station_y(prev_t)) * 0.5
+        prev_t, prev_a = t, a
+    return volume, (moment_y / volume if volume > 0 else 0.0)
+
+
+def waterline_extent(level=0.0, stations=200):
+    ys = [station_y(i / stations) for i in range(stations + 1) if keel_z(i / stations) < level]
+    return (min(ys), max(ys)) if ys else (0.0, 0.0)
+
+
+def waterline_half_beam(t, level=0.0):
+    k = keel_z(t)
+    s = sheer_z(t)
+    v = (level - k) / (s - k)
+    return shell_point(t, max(v, 0.0))[0]
+
+
+def definition(spec_helm_y, spec_halyard, mast_top):
+    volume, cb_y = underwater_volume()
+    wl_min, wl_max = waterline_extent()
+    ridge = MAIN_DECK
+    radius = round((ridge - keel_z(0.5)) * 0.5 * 0.73, 3)
+    pontoons = []
+    for name, t in (("Aft", 0.12), ("Mid", 0.38), ("Fore", 0.62), ("Bow", 0.88)):
+        y = station_y(t)
+        z = (keel_z(t) + ridge) * 0.5
+        x = waterline_half_beam(t) * 0.75
+        for side, tag in ((-1, "L"), (1, "R")):
+            pontoons.append({"name": name + tag, "x": round(side * x, 3), "y": round(y, 3), "z": round(z, 3), "r": radius})
+    attachments = [
+        {"name": "wheel", "x": 0.0, "y": round(spec_helm_y, 3), "z": round(QUARTER_DECK + 1.05, 3)},
+        {"name": "rudder", "x": 0.0, "y": round(STERN_Y + 0.3, 3), "z": round(-DRAFT * 0.6, 3)},
+        {"name": "mast_base", "x": 0.0, "y": MAST_Y, "z": MAIN_DECK},
+        {"name": "boom", "x": 0.0, "y": MAST_Y, "z": round(MAIN_DECK + 2.6, 3)},
+        {"name": "halyard", "x": spec_halyard[0], "y": spec_halyard[1], "z": spec_halyard[2]},
+        {"name": "anchor", "x": 0.9, "y": round(BOW_Y - 0.9, 3), "z": round(sheer_z(0.93) + 0.62, 3)},
+        {"name": "cargo", "x": 0.0, "y": round(station_y(0.62), 3), "z": MAIN_DECK},
+        {"name": "stern", "x": 0.0, "y": round(STERN_Y - TRANSOM_RAKE * 0.3, 3), "z": 0.0},
+        {"name": "player_spawn", "x": 0.9, "y": round(spec_helm_y + 1.0, 3), "z": QUARTER_DECK},
+    ]
+    return {
+        "volume": round(volume, 3),
+        "chart_floor": CHART_FLOOR,
+        "mass": round(volume * 1025.0),
+        "com": [0.0, round(cb_y, 3), -0.35],
+        "waterline_length": round(wl_max - wl_min, 3),
+        "waterline_beam": round(waterline_half_beam(0.5) * 2.0, 3),
+        "pontoon_radius": radius,
+        "pontoons": pontoons,
+        "attachments": attachments,
+    }
+
 
 def build():
     paint = Part()
@@ -227,7 +353,7 @@ def build():
 
     bul = []
     for t in ts:
-        w = half_width(t)
+        w = top_half_width(t)
         y = station_y(t)
         y_top = y + rake_y(t, 1.0)
         s = sheer_z(t)
@@ -287,7 +413,7 @@ def build():
 
     deck_rows = []
     for i, t in enumerate(ts):
-        w = half_width(t)
+        w = top_half_width(t)
         inner = max(w - WALL, 0.03)
         y = station_y(t) + rake_y(t, 1.0)
         z = deck_z(t)
@@ -315,42 +441,14 @@ def build():
     qd_y = station_y(QD_T)
     step_w = 1.4
     steps = []
-    for k in range(3):
-        rise = (QUARTER_DECK - MAIN_DECK) / 3.0
-        depth = 0.34
+    step_count = int(math.ceil((QUARTER_DECK - MAIN_DECK) / 0.25))
+    for k in range(step_count):
+        rise = (QUARTER_DECK - MAIN_DECK) / step_count
+        depth = 0.36
         z_top = MAIN_DECK + rise * (k + 1)
-        y_c = qd_y + depth * (2 - k) + depth * 0.5
+        y_c = qd_y + depth * (step_count - 1 - k) + depth * 0.5
         paint.box((0.0, y_c, (MAIN_DECK + z_top) * 0.5), (step_w, depth, z_top - MAIN_DECK), wood_light)
         steps.append({"y": y_c, "z_top": z_top, "depth": depth})
-
-    cabin_t0, cabin_t1 = 0.70, 0.82
-    cabin_y0, cabin_y1 = station_y(cabin_t0), station_y(cabin_t1)
-    cabin_w = max(half_width(cabin_t1) - WALL - 0.64, 0.7)
-    cabin_h = 1.25
-    roof_r = 0.5
-    arch = []
-    n_arch = 7
-    for i in range(n_arch + 1):
-        a = math.pi * i / n_arch
-        arch.append((-math.cos(a), math.sin(a)))
-    profile = [(-cabin_w, 0.0)]
-    profile += [(x * cabin_w, cabin_h - roof_r + y * roof_r) for x, y in arch]
-    profile += [(cabin_w, 0.0)]
-    ring_a = [paint.add_vert((x, cabin_y0, MAIN_DECK + z)) for x, z in profile]
-    ring_b = [paint.add_vert((x, cabin_y1, MAIN_DECK + z)) for x, z in profile]
-    for i in range(len(profile) - 1):
-        z0 = profile[i][1]
-        z1 = profile[i + 1][1]
-        color = red if min(z0, z1) >= cabin_h - roof_r - 1e-6 else cream
-        if 0.55 <= max(z0, z1) <= 0.8:
-            color = teal
-        paint.add_face([ring_a[i], ring_a[i + 1], ring_b[i + 1], ring_b[i]], color, min(z0, z1) >= cabin_h - roof_r - 1e-6)
-    paint.add_face(list(reversed(ring_a)), cream, False)
-    paint.add_face(ring_b, cream, False)
-    band_z = MAIN_DECK + 0.62
-    paint.box((0.0, (cabin_y0 + cabin_y1) * 0.5, band_z), (cabin_w * 2 + 0.04, cabin_y1 - cabin_y0 + 0.04, 0.16), teal)
-    paint.box((0.0, cabin_y0 - 0.02, MAIN_DECK + 0.5), (0.7, 0.04, 1.0), wood)
-    paint.box((0.0, cabin_y0 - 0.03, MAIN_DECK + 0.5), (0.5, 0.03, 0.8), wood_light)
 
     bow_sheer = sheer_z(1.0)
     bow_tip_y = BOW_Y + rake_y(1.0, 1.0)
@@ -359,7 +457,7 @@ def build():
 
     for t in (0.22, 0.70):
         for side in (-1, 1):
-            w = half_width(t)
+            w = top_half_width(t)
             y = station_y(t) + rake_y(t, 1.0)
             z = rail_top(t)
             x = side * (w - WALL * 0.5)
@@ -421,7 +519,7 @@ def build():
         if in_gangway((ta + tb) * 0.5):
             continue
         for side in (-1, 1):
-            wa, wb = half_width(ta), half_width(tb)
+            wa, wb = top_half_width(ta), top_half_width(tb)
             ya = station_y(ta) + rake_y(ta, 1.0)
             yb = station_y(tb) + rake_y(tb, 1.0)
             xa, xb = side * (wa - WALL * 0.5), side * (wb - WALL * 0.5)
@@ -447,7 +545,6 @@ def build():
         "bulwark": BULWARK, "wall": WALL, "gangway_y": round(station_y(GANGWAY_T), 3), "gangway_half": GANGWAY_HALF,
         "mast_y": MAST_Y, "mast_top": round(mast_top, 3), "helm_y": round(helm_y, 3), "halyard": [0.55, 1.5, MAIN_DECK + 1.6],
         "length": round(BOW_Y - STERN_Y, 3), "beam": round(HALF_BEAM * 2.0, 3),
-        "cabin": {"y0": round(cabin_y0, 3), "y1": round(cabin_y1, 3), "half_w": round(cabin_w, 3), "h": cabin_h},
         "steps": steps, "hull_points": hull_unique, "walls": walls,
         "deck_outline": deck_outline, "quarter_outline": quarter_outline,
         "hull_points_flat": [c for pt in hull_unique for c in pt],
@@ -457,6 +554,7 @@ def build():
         "stations": [{"t": t, "y": round(station_y(t), 3), "w": round(half_width(t), 3),
                       "keel": round(keel_z(t), 3), "sheer": round(sheer_z(t), 3), "deck": deck_z(t)} for t in ts],
     }
+    spec["definition"] = definition(helm_y, spec["halyard"], mast_top)
     return paint, deck, spec
 
 
@@ -525,6 +623,8 @@ def main():
         json.dump(spec, f, indent=1)
     print("boat: hull verts %d faces %d, deck verts %d faces %d" % (len(paint.verts), len(paint.faces), len(deck.verts), len(deck.faces)))
     print("boat: wrote %s and %s" % (out_fbx, out_json))
+    d = spec["definition"]
+    print("boat: underwater volume %.2f m3, mass %d kg, waterline %.1f x %.1f m, pontoon radius %.2f" % (d["volume"], d["mass"], d["waterline_length"], d["waterline_beam"], d["pontoon_radius"]))
 
 
 main()

@@ -15,6 +15,7 @@ namespace Knotical.Editor
         private const string CrateMaterialPath = "Assets/Knotical/World/Crate.mat";
         private const string RockMaterialPath = "Assets/Knotical/World/Rock.mat";
         private const string SkyMaterialPath = "Assets/Knotical/World/Sky.mat";
+        private const string StandInMaterialPath = "Assets/Knotical/World/StandIn.mat";
         private const string WindSettingsPath = "Assets/Knotical/Wind/WindSettings.asset";
         private const string MaterialPath = "Assets/Knotical/Shaders/OceanSurface.mat";
         private const string ProbePath = "Assets/Knotical/Shaders/OceanProbe.compute";
@@ -50,6 +51,8 @@ namespace Knotical.Editor
             var boat = (GameObject)PrefabUtility.InstantiatePrefab(boatPrefab);
             boat.name = "Boat";
             boat.transform.position = new Vector3(0f, 1f, 0f);
+            PlaceStandIn(boat, "player_spawn");
+            PlaceStandIn(boat, "cargo");
 
             new GameObject("FoamCapture").AddComponent<FoamCapture>();
             BuildCrates();
@@ -123,11 +126,12 @@ namespace Knotical.Editor
                 }
                 var emitter = crate.AddComponent<FoamEmitter>();
                 emitter.Points = 12;
-                emitter.Size = 0.6f;
+                emitter.Size = 0.9f;
                 emitter.RingRate = 1.2f;
-                emitter.WakeRate = 3f;
-                emitter.Life = 4f;
-                emitter.Strength = 0.35f;
+                emitter.WakeRate = 6f;
+                emitter.Life = 2f;
+                emitter.Strength = 0.55f;
+                emitter.WakeWidth = 0.8f;
             }
         }
 
@@ -149,6 +153,23 @@ namespace Knotical.Editor
             emitter.WakeRate = 0f;
             emitter.Life = 6f;
             emitter.Drift = 0.8f;
+        }
+
+        private static void PlaceStandIn(GameObject boat, string attachName)
+        {
+            Transform attach = boat.transform.Find("Attach/" + attachName);
+            if (attach == null)
+            {
+                Debug.LogWarning($"SceneBuilder: boat has no attach point {attachName}");
+                return;
+            }
+            GameObject capsule = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            capsule.name = "PlayerStandIn_" + attachName;
+            Object.DestroyImmediate(capsule.GetComponent<CapsuleCollider>());
+            capsule.transform.SetParent(boat.transform, false);
+            capsule.transform.localScale = new Vector3(0.8f, 0.9f, 0.8f);
+            capsule.transform.localPosition = attach.localPosition + new Vector3(0f, 0.9f, 0f);
+            capsule.GetComponent<MeshRenderer>().sharedMaterial = LoadOrCreateTinted(StandInMaterialPath, new Color(0.25f, 0.55f, 0.95f));
         }
 
         private static Material LoadOrCreateSky()

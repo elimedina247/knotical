@@ -12,6 +12,7 @@ namespace Knotical
         [Range(0f, 1f)] public float Strength = 0.35f;
         [Range(0f, 3f)] public float Drift = 0.25f;
         [Range(0.2f, 1.5f)] public float WakeWidth = 0.9f;
+        public Transform Stern;
 
         private ParticleSystem stamps;
         private Collider[] colliders;
@@ -77,7 +78,7 @@ namespace Knotical
             Vector3 side = Vector3.Cross(Vector3.up, forward);
             float halfLength = Mathf.Abs(bounds.extents.x * forward.x) + Mathf.Abs(bounds.extents.z * forward.z);
             float halfWidth = (Mathf.Abs(bounds.extents.x * side.x) + Mathf.Abs(bounds.extents.z * side.z)) * WakeWidth;
-            Vector3 stern = bounds.center - forward * (halfLength * 0.85f);
+            Vector3 stern = Stern != null ? Stern.position : bounds.center - forward * (halfLength * 0.85f);
 
             wakeAccumulator += WakeRate * speed * dt;
             int count = Mathf.FloorToInt(wakeAccumulator);

@@ -63,6 +63,17 @@ namespace Knotical.PlayTests
 
             Capture(Camera.main, "shot_main.png");
 
+            Transform cam = Camera.main.transform;
+            Vector3 savedPosition = cam.position;
+            Quaternion savedRotation = cam.rotation;
+            cam.position = body.position + body.transform.TransformDirection(new Vector3(19f, 6f, -9f));
+            cam.LookAt(body.position + Vector3.up * 2f);
+            Capture(Camera.main, "shot_boat.png");
+            cam.position = body.position + body.transform.TransformDirection(new Vector3(-13f, 6f, 17f));
+            cam.LookAt(body.position + Vector3.up * 2f);
+            Capture(Camera.main, "shot_bow.png");
+            cam.SetPositionAndRotation(savedPosition, savedRotation);
+
             var surface = Object.FindAnyObjectByType<OceanSurface>();
             Assert.IsNotNull(surface, "no OceanSurface in Main scene");
             foreach ((OceanDebugView view, string file) in new[] { (OceanDebugView.Grey, "shot_grey.png"), (OceanDebugView.Height, "shot_height.png"), (OceanDebugView.Foam, "shot_foam.png"), (OceanDebugView.Normals, "shot_normals.png"), (OceanDebugView.Depth, "shot_depth.png") })
