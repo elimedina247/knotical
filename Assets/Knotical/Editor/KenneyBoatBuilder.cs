@@ -9,7 +9,7 @@ namespace Knotical.Editor
     public static class KenneyBoatBuilder
     {
         public const string PrefabPath = "Assets/Knotical/Boat/Boat.prefab";
-        public const string ModelPath = "Assets/Knotical/Art/Models/Kenney/ship-large.fbx";
+        public const string ModelPath = "Assets/Knotical/Art/Models/Ship/ship.fbx";
         public const string MaterialPath = "Assets/Knotical/World/KenneyShip.mat";
         public const string ColormapPath = "Assets/Knotical/Art/Models/Kenney/Textures/colormap.png";
 
@@ -49,8 +49,8 @@ namespace Knotical.Editor
                 float length = bounds.size.z;
                 float width = bounds.size.x;
                 float mass = length * width * Draft * BlockCoefficient * WaterDensity;
-                Func<float, float> deckAt = DeckSampler(hull, length);
-                float mainDeck = deckAt(0f);
+                float mainDeck = Marker(root, model, "Deck_Main").y;
+                float aftDeck = Marker(root, model, "Deck_Quarter").y;
 
                 var body = root.AddComponent<Rigidbody>();
                 body.mass = mass;
@@ -62,7 +62,7 @@ namespace Knotical.Editor
 
                 BuildHullCollider(root, hull, mainDeck + 0.3f);
                 BuildPontoons(root, length, width, mass);
-                Transform attach = BuildAttachments(root, length, deckAt);
+                Transform attach = BuildAttachments(root, model);
 
                 var motor = root.AddComponent<BoatMotor>();
                 motor.RudderLocalPosition = attach.Find("rudder").localPosition;
@@ -90,8 +90,18 @@ namespace Knotical.Editor
                 stand.transform.SetParent(root.transform, false);
                 stand.transform.localPosition = attach.Find("wheel").localPosition;
 
+                var helm = root.AddComponent<Helm>();
+                helm.Wheel = FindChild(model, "Wheel");
+                helm.Rudder = FindChild(model, "Rudder");
+                helm.Stand = stand.transform;
+
                 GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
-                Debug.Log($"KenneyBoatBuilder: wrote {PrefabPath} ({length:F1} x {width:F1} m, {mass:F0} kg, main deck y={mainDeck:F2}, aft deck y={deckAt(-length * 0.3f):F2})");
+                AssetDatabase.SaveAssets();
+                AssetDatabase.ImportAsset(PrefabPath, ImportAssetOptions.ForceUpdate);
+                prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
+                MeshCollider check = prefab.GetComponentInChildren<MeshCollider>(true);
+                if (check == null || check.sharedMesh == null) throw new InvalidOperationException("prefab hull collider lost its mesh");
+                Debug.Log($"KenneyBoatBuilder: wrote {PrefabPath} ({length:F1} x {width:F1} m, {mass:F0} kg, main deck y={mainDeck:F2}, aft deck y={aftDeck:F2})");
                 return prefab;
             }
             finally
@@ -143,10 +153,25 @@ namespace Knotical.Editor
             foreach (MeshFilter filter in model.GetComponentsInChildren<MeshFilter>())
             {
                 if (filter.sharedMesh == null || IsCanvas(filter.name)) continue;
+                if (filter.name.Equals("Hull", StringComparison.OrdinalIgnoreCase)) return filter;
                 if (best == null || filter.sharedMesh.vertexCount > best.sharedMesh.vertexCount) best = filter;
             }
             if (best == null) throw new InvalidOperationException("no hull mesh in model");
             return best;
+        }
+
+        private static Transform FindChild(GameObject model, string name)
+        {
+            foreach (Transform t in model.GetComponentsInChildren<Transform>(true))
+            {
+                if (t.name == name) return t;
+            }
+            throw new InvalidOperationException($"model has no child named {name}");
+        }
+
+        private static Vector3 Marker(GameObject root, GameObject model, string name)
+        {
+            return root.transform.InverseTransformPoint(FindChild(model, name).position);
         }
 
         private static bool BowAtNegativeZ(MeshFilter hull)
@@ -165,40 +190,6 @@ namespace Knotical.Editor
             bool bowNegative = aftWidth / aft < foreWidth / fore;
             Debug.Log($"KenneyBoatBuilder: mean half width fore {foreWidth / fore:F2} aft {aftWidth / aft:F2}, bow at {(bowNegative ? "-Z, rotating 180" : "+Z")}");
             return bowNegative;
-        }
-
-        private static Func<float, float> DeckSampler(MeshFilter hull, float length)
-        {
-            var probe = hull.gameObject.AddComponent<MeshCollider>();
-            Physics.SyncTransforms();
-
-            var samples = new List<(float z, float y)>();
-            foreach (float z in new[] { -0.45f, -0.3f, -0.15f, 0f, 0.15f, 0.3f, 0.45f })
-            {
-                float best = float.MaxValue;
-                foreach (float x in new[] { -0.9f, 0f, 0.9f })
-                {
-                    var ray = new Ray(new Vector3(x, 50f, z * length), Vector3.down);
-                    foreach (RaycastHit hit in Physics.RaycastAll(ray, 100f))
-                    {
-                        if (hit.collider == probe && hit.point.y > 0.2f) best = Mathf.Min(best, hit.point.y);
-                    }
-                }
-                if (best < float.MaxValue) samples.Add((z, best));
-            }
-
-            UnityEngine.Object.DestroyImmediate(probe);
-            if (samples.Count == 0) throw new InvalidOperationException("no deck found above the waterline");
-
-            return fractionZ =>
-            {
-                (float z, float y) nearest = samples[0];
-                foreach ((float z, float y) s in samples)
-                {
-                    if (Mathf.Abs(s.z - fractionZ) < Mathf.Abs(nearest.z - fractionZ)) nearest = s;
-                }
-                return nearest.y;
-            };
         }
 
         private static void ApplyMaterial(GameObject model, Material material)
@@ -235,6 +226,10 @@ namespace Knotical.Editor
             mesh.RecalculateBounds();
             Directory.CreateDirectory(Path.GetDirectoryName(HullMeshPath));
             AssetDatabase.CreateAsset(mesh, HullMeshPath);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.ImportAsset(HullMeshPath, ImportAssetOptions.ForceUpdate);
+            mesh = AssetDatabase.LoadAssetAtPath<Mesh>(HullMeshPath);
+            if (mesh == null) throw new InvalidOperationException($"failed to reload {HullMeshPath}");
 
             var go = new GameObject("HullCollider");
             go.transform.SetParent(root.transform, false);
@@ -276,17 +271,17 @@ namespace Knotical.Editor
             }
         }
 
-        private static Transform BuildAttachments(GameObject root, float length, Func<float, float> deckAt)
+        private static Transform BuildAttachments(GameObject root, GameObject model)
         {
-            float half = length * 0.5f;
             var group = new GameObject("Attach");
             group.transform.SetParent(root.transform, false);
 
-            Add(group, "stern", new Vector3(0f, 0f, -half));
-            Add(group, "rudder", new Vector3(0f, -0.6f, -half + 0.6f));
-            Add(group, "wheel", new Vector3(0f, deckAt(-0.3f), -half + 2.2f));
-            Add(group, "player_spawn", new Vector3(0.9f, deckAt(-0.15f), -half + 3.6f));
-            Add(group, "cargo", new Vector3(0f, deckAt(0.15f), 0.8f));
+            Add(group, "stern", Marker(root, model, "Attach_Stern"));
+            Add(group, "rudder", Marker(root, model, "Attach_Rudder"));
+            Add(group, "wheel", Marker(root, model, "Attach_Wheel"));
+            Add(group, "player_spawn", Marker(root, model, "Attach_PlayerSpawn"));
+            Add(group, "cargo", Marker(root, model, "Attach_Cargo"));
+            Add(group, "map_table", Marker(root, model, "Attach_MapTable"));
             return group.transform;
         }
 
