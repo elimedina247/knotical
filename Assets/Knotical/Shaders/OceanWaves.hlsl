@@ -13,6 +13,35 @@ float _OceanFadeStart;
 float _OceanFadeEnd;
 float4 _OceanWaveA[OCEAN_MAX_WAVES];
 float4 _OceanWaveB[OCEAN_MAX_WAVES];
+Texture2D<float> _OceanDepthField;
+float4 _OceanDepthBounds;
+float4 _OceanDepthSize;
+float _OceanDepthEnabled;
+
+float OceanField(float2 p)
+{
+    if (_OceanDepthEnabled < 0.5) return 1.0;
+
+    float2 t = (p - _OceanDepthBounds.xy) * _OceanDepthBounds.zw * _OceanDepthSize.xy - 0.5;
+    t = clamp(t, 0.0, _OceanDepthSize.xy - 1.0);
+    float2 i = floor(t);
+    float2 f = t - i;
+    int2 i0 = (int2)i;
+    int2 i1 = min(i0 + 1, (int2)_OceanDepthSize.xy - 1);
+
+    float a = _OceanDepthField.Load(int3(i0.x, i0.y, 0));
+    float b = _OceanDepthField.Load(int3(i1.x, i0.y, 0));
+    float c = _OceanDepthField.Load(int3(i0.x, i1.y, 0));
+    float d = _OceanDepthField.Load(int3(i1.x, i1.y, 0));
+
+    return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
+}
+
+float OceanWaveScale(float field, float response)
+{
+    if (field >= 1.0 || response <= 0.0) return 1.0;
+    return pow(field, response);
+}
 
 float OceanWeight(float wavelength, float dist, float fadeStart, float fadeEnd)
 {
@@ -24,6 +53,7 @@ float3 OceanSurfacePoint(float2 p, float dist, float fadeStart, float fadeEnd)
 {
     float2 pinch = 0.0;
     float height = 0.0;
+    float field = OceanField(p);
 
     [loop]
     for (int i = 0; i < _OceanWaveCount; i++)
@@ -34,10 +64,11 @@ float3 OceanSurfacePoint(float2 p, float dist, float fadeStart, float fadeEnd)
         float k = OCEAN_TAU / a.w;
         float omega = b.w;
         float phase = k * dot(a.xy, p) - omega * _OceanTime + b.y;
-        float q = b.x / (k * _OceanWaveCount);
+        float scale = OceanWaveScale(field, b.z);
+        float q = b.x / (k * _OceanWaveCount) * min(scale, 1.0);
 
         pinch += a.xy * (q * weight * cos(phase));
-        height += a.z * weight * sin(phase);
+        height += a.z * weight * scale * sin(phase);
     }
 
     return float3(p.x + pinch.x, _OceanSeaLevel + height, p.y + pinch.y);
@@ -50,6 +81,7 @@ void OceanFrame(float2 p, float dist, float fadeStart, float fadeEnd, out float3
     float jxx = 0.0;
     float jxz = 0.0;
     float jzz = 0.0;
+    float field = OceanField(p);
 
     [loop]
     for (int i = 0; i < _OceanWaveCount; i++)
@@ -60,10 +92,11 @@ void OceanFrame(float2 p, float dist, float fadeStart, float fadeEnd, out float3
         float k = OCEAN_TAU / a.w;
         float omega = b.w;
         float phase = k * dot(a.xy, p) - omega * _OceanTime + b.y;
-        float q = b.x / (k * _OceanWaveCount);
+        float scale = OceanWaveScale(field, b.z);
+        float q = b.x / (k * _OceanWaveCount) * min(scale, 1.0);
 
         float s = sin(phase);
-        float c = cos(phase) * a.z * k * weight;
+        float c = cos(phase) * a.z * scale * k * weight;
 
         dx += c * a.x;
         dz += c * a.y;
@@ -94,6 +127,7 @@ float OceanFoldAgo(float2 p, float dist, float fadeStart, float fadeEnd, float s
     float jxx = 0.0;
     float jxz = 0.0;
     float jzz = 0.0;
+    float field = OceanField(p);
 
     [loop]
     for (int i = 0; i < _OceanWaveCount; i++)
@@ -104,7 +138,7 @@ float OceanFoldAgo(float2 p, float dist, float fadeStart, float fadeEnd, float s
         float k = OCEAN_TAU / a.w;
         float omega = b.w;
         float phase = k * dot(a.xy, p) - omega * (_OceanTime - secondsAgo) + b.y;
-        float q = b.x / (k * _OceanWaveCount);
+        float q = b.x / (k * _OceanWaveCount) * min(OceanWaveScale(field, b.z), 1.0);
 
         float qak = q * k * sin(phase) * weight;
         jxx += qak * a.x * a.x;

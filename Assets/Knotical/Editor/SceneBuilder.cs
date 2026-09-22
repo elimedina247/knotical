@@ -13,14 +13,19 @@ namespace Knotical.Editor
         private const string OceanSettingsPath = "Assets/Knotical/Ocean/OceanSettings.asset";
         private const string VolumePath = "Assets/Knotical/World/MainVolume.asset";
         private const string CrateMaterialPath = "Assets/Knotical/World/Crate.mat";
-        private const string RockMaterialPath = "Assets/Knotical/World/Rock.mat";
         private const string SkyMaterialPath = "Assets/Knotical/World/Sky.mat";
         private const string StandInMaterialPath = "Assets/Knotical/World/StandIn.mat";
+        private const string FillerModelFolder = "Assets/Knotical/Art/Models/Kenney/";
         private const string WindSettingsPath = "Assets/Knotical/Wind/WindSettings.asset";
         private const string MaterialPath = "Assets/Knotical/Shaders/OceanSurface.mat";
         private const string ProbePath = "Assets/Knotical/Shaders/OceanProbe.compute";
         private const string ShaderName = "Knotical/OceanSurface";
         private const string FlipbookPath = "Assets/Knotical/Art/Textures/fft_water_normals_8x8.png";
+        private const string LevelSettingsPath = "Assets/Knotical/Level/LevelSettings.asset";
+        private const string TerrainMaterialPath = "Assets/Knotical/World/Terrain.mat";
+        private const string CliffMaterialPath = "Assets/Knotical/World/Cliff.mat";
+        private const string CloudMaterialPath = "Assets/Knotical/World/Cloud.mat";
+        private const string DayNightSettingsPath = "Assets/Knotical/World/DayNightSettings.asset";
 
         [MenuItem("Knotical/Build Main Scene")]
         public static void BuildMain()
@@ -46,8 +51,9 @@ namespace Knotical.Editor
             renderer.receiveShadows = false;
             var surface = surfaceObject.AddComponent<OceanSurface>();
             SetReference(surface, "probeShader", probe);
+            surfaceObject.AddComponent<PlanarReflection>();
 
-            GameObject boatPrefab = BoatBuilder.BuildPrefab();
+            GameObject boatPrefab = KenneyBoatBuilder.BuildPrefab();
             var boat = (GameObject)PrefabUtility.InstantiatePrefab(boatPrefab);
             boat.name = "Boat";
             boat.transform.position = new Vector3(0f, 1f, 0f);
@@ -55,8 +61,12 @@ namespace Knotical.Editor
             PlaceStandIn(boat, "cargo");
 
             new GameObject("FoamCapture").AddComponent<FoamCapture>();
+            BuildLevel();
+            BuildClouds();
             BuildCrates();
-            BuildRock();
+            BuildFillerShips();
+            new GameObject("Hud").AddComponent<Hud>();
+            new GameObject("Map").AddComponent<MapView>();
 
             Camera camera = Camera.main;
             if (camera != null)
@@ -76,6 +86,7 @@ namespace Knotical.Editor
             {
                 light.transform.rotation = Quaternion.Euler(16f, 160f, 0f);
                 RenderSettings.sun = light;
+                BuildDayNight(light);
             }
 
             RenderSettings.skybox = LoadOrCreateSky();
@@ -99,6 +110,44 @@ namespace Knotical.Editor
             EditorSceneManager.SaveScene(scene, ScenePath);
             AssetDatabase.SaveAssets();
             Debug.Log($"SceneBuilder: wrote {ScenePath}");
+        }
+
+        internal static LevelGenerator BuildLevel()
+        {
+            LevelSettings settings = LoadOrCreate<LevelSettings>(LevelSettingsPath);
+            Material terrain = LoadOrCreateTinted(TerrainMaterialPath, Color.white);
+            Material cliff = LoadOrCreateCliff();
+
+            var generator = new GameObject("Level").AddComponent<LevelGenerator>();
+            SetReference(generator, "settings", settings);
+            SetReference(generator, "terrainMaterial", terrain);
+            SetReference(generator, "blockMaterial", cliff);
+            return generator;
+        }
+
+        internal static DayNightCycle BuildDayNight(Light sun)
+        {
+            DayNightSettings settings = LoadOrCreate<DayNightSettings>(DayNightSettingsPath);
+            sun.name = "Sun";
+
+            var moon = new GameObject("Moon").AddComponent<Light>();
+            moon.type = LightType.Directional;
+            moon.shadows = LightShadows.None;
+            moon.intensity = 0f;
+            moon.color = settings.MoonColor;
+
+            var cycle = new GameObject("DayNight").AddComponent<DayNightCycle>();
+            SetReference(cycle, "settings", settings);
+            SetReference(cycle, "sun", sun);
+            SetReference(cycle, "moon", moon);
+            return cycle;
+        }
+
+        internal static CloudField BuildClouds()
+        {
+            var clouds = new GameObject("Clouds").AddComponent<CloudField>();
+            clouds.Material = LoadOrCreateTinted(CloudMaterialPath, Color.white);
+            return clouds;
         }
 
         private static void BuildCrates()
@@ -135,24 +184,48 @@ namespace Knotical.Editor
             }
         }
 
-        private static void BuildRock()
+        private static void BuildFillerShips()
         {
-            Material material = LoadOrCreateTinted(RockMaterialPath, new Color(0.45f, 0.42f, 0.36f));
-            GameObject rock = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            rock.name = "Rock";
-            rock.transform.position = new Vector3(70f, -3f, 90f);
-            rock.transform.localScale = new Vector3(34f, 9f, 26f);
-            rock.GetComponent<MeshRenderer>().sharedMaterial = material;
-            Object.DestroyImmediate(rock.GetComponent<SphereCollider>());
-            rock.AddComponent<MeshCollider>();
-            var emitter = rock.AddComponent<FoamEmitter>();
-            emitter.Points = 64;
-            emitter.Size = 3f;
-            emitter.RingRate = 0.8f;
-            emitter.Strength = 0.35f;
-            emitter.WakeRate = 0f;
-            emitter.Life = 6f;
-            emitter.Drift = 0.8f;
+            Material material = KenneyBoatBuilder.LoadOrCreateMaterial();
+            PlaceFillerShip("ship-large", new Vector3(38f, 0f, 55f), 115f, material);
+            PlaceFillerShip("ship-small", new Vector3(-42f, 0f, 72f), -35f, material);
+        }
+
+        private static void PlaceFillerShip(string model, Vector3 position, float yaw, Material material)
+        {
+            string path = FillerModelFolder + model + ".fbx";
+            var asset = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (asset == null)
+            {
+                Debug.LogWarning($"SceneBuilder: filler model missing at {path}");
+                return;
+            }
+
+            var ship = (GameObject)PrefabUtility.InstantiatePrefab(asset);
+            ship.name = "Filler_" + model;
+            ship.transform.position = position;
+            ship.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+
+            foreach (MeshRenderer renderer in ship.GetComponentsInChildren<MeshRenderer>())
+            {
+                var materials = new Material[renderer.sharedMaterials.Length];
+                for (int i = 0; i < materials.Length; i++) materials[i] = material;
+                renderer.sharedMaterials = materials;
+            }
+
+            foreach (MeshFilter filter in ship.GetComponentsInChildren<MeshFilter>())
+            {
+                if (KenneyBoatBuilder.IsCanvas(filter.name)) continue;
+                filter.gameObject.AddComponent<MeshCollider>();
+            }
+
+            Bounds bounds = KenneyBoatBuilder.ModelBounds(ship);
+            var body = ship.AddComponent<Rigidbody>();
+            body.isKinematic = true;
+            var follower = ship.AddComponent<OceanFollower>();
+            follower.Length = bounds.size.z;
+            follower.Width = bounds.size.x;
+            Debug.Log($"SceneBuilder: {ship.name} bounds {bounds.min} .. {bounds.max} ({bounds.size.z:F1} x {bounds.size.x:F1} m)");
         }
 
         private static void PlaceStandIn(GameObject boat, string attachName)
@@ -178,6 +251,23 @@ namespace Knotical.Editor
             if (material != null) return material;
             material = new Material(Shader.Find("Knotical/Sky"));
             AssetDatabase.CreateAsset(material, SkyMaterialPath);
+            return material;
+        }
+
+        internal static Material LoadOrCreateCliff()
+        {
+            var material = AssetDatabase.LoadAssetAtPath<Material>(CliffMaterialPath);
+            Shader shader = Shader.Find("Knotical/Cliff");
+            if (material == null)
+            {
+                material = new Material(shader);
+                AssetDatabase.CreateAsset(material, CliffMaterialPath);
+            }
+            if (material.shader != shader)
+            {
+                material.shader = shader;
+                EditorUtility.SetDirty(material);
+            }
             return material;
         }
 

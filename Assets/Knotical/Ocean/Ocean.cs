@@ -14,7 +14,28 @@ namespace Knotical
         public static WaveSet WaveSet { get; private set; } = WaveSet.Empty;
         public static double Time { get; private set; }
         public static int Version { get; private set; }
-        public static Func<Vector2, float> DepthField { get; set; }
+        private static Func<Vector2, float> depthField;
+        private static DepthMap depthMap;
+
+        public static Func<Vector2, float> DepthField
+        {
+            get => depthField;
+            set
+            {
+                depthField = value;
+                depthMap = null;
+            }
+        }
+
+        public static DepthMap DepthMap
+        {
+            get => depthMap;
+            set
+            {
+                depthMap = value;
+                depthField = value != null ? value.Sample : (Func<Vector2, float>)null;
+            }
+        }
 
         public static float SignificantHeight => WaveSet.SignificantHeight;
         public static float PeakWavelength => WaveSet.PeakWavelength;

@@ -12,6 +12,10 @@ namespace Knotical
         public static readonly int FadeEndId = Shader.PropertyToID("_OceanFadeEnd");
         public static readonly int WaveAId = Shader.PropertyToID("_OceanWaveA");
         public static readonly int WaveBId = Shader.PropertyToID("_OceanWaveB");
+        public static readonly int DepthFieldId = Shader.PropertyToID("_OceanDepthField");
+        public static readonly int DepthBoundsId = Shader.PropertyToID("_OceanDepthBounds");
+        public static readonly int DepthSizeId = Shader.PropertyToID("_OceanDepthSize");
+        public static readonly int DepthEnabledId = Shader.PropertyToID("_OceanDepthEnabled");
 
         private static readonly Vector4[] WaveA = new Vector4[OceanSettings.MaxWaves];
         private static readonly Vector4[] WaveB = new Vector4[OceanSettings.MaxWaves];
@@ -26,6 +30,12 @@ namespace Knotical
             Shader.SetGlobalFloat(TimeId, (float)Ocean.Time);
             Shader.SetGlobalFloat(SeaLevelId, Ocean.SeaLevel);
             Shader.SetGlobalFloat(SignificantHeightId, Ocean.SignificantHeight);
+
+            DepthMap map = Ocean.DepthMap;
+            Shader.SetGlobalFloat(DepthEnabledId, map != null ? 1f : 0f);
+            Shader.SetGlobalTexture(DepthFieldId, map != null ? map.Texture : Texture2D.blackTexture);
+            Shader.SetGlobalVector(DepthBoundsId, map != null ? map.ShaderBounds : Vector4.zero);
+            Shader.SetGlobalVector(DepthSizeId, map != null ? map.ShaderSize : Vector4.one);
         }
 
         public static void SetFade(float startWavelengths, float endWavelengths)
@@ -34,7 +44,7 @@ namespace Knotical
             Shader.SetGlobalFloat(FadeEndId, endWavelengths);
         }
 
-        public static void Apply(ComputeShader shader)
+        public static void Apply(ComputeShader shader, int kernel)
         {
             Pack();
             shader.SetVectorArray(WaveAId, WaveA);
@@ -43,6 +53,12 @@ namespace Knotical
             shader.SetFloat(TimeId, (float)Ocean.Time);
             shader.SetFloat(SeaLevelId, Ocean.SeaLevel);
             shader.SetFloat(SignificantHeightId, Ocean.SignificantHeight);
+
+            DepthMap map = Ocean.DepthMap;
+            shader.SetFloat(DepthEnabledId, map != null ? 1f : 0f);
+            shader.SetTexture(kernel, DepthFieldId, map != null ? map.Texture : Texture2D.blackTexture);
+            shader.SetVector(DepthBoundsId, map != null ? map.ShaderBounds : Vector4.zero);
+            shader.SetVector(DepthSizeId, map != null ? map.ShaderSize : Vector4.one);
         }
 
         private static void Pack()

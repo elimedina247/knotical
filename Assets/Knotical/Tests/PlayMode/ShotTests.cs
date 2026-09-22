@@ -47,7 +47,7 @@ namespace Knotical.PlayTests
             Vector3 start = body.position;
             motor.PlayerControlled = false;
             motor.Throttle = 0.6f;
-            motor.Steer = 0.12f;
+            motor.SetRudder(0.12f);
             elapsed = 0f;
             float maxTilt = 0f;
             while (elapsed < 10f)
@@ -72,7 +72,30 @@ namespace Knotical.PlayTests
             cam.position = body.position + body.transform.TransformDirection(new Vector3(-13f, 6f, 17f));
             cam.LookAt(body.position + Vector3.up * 2f);
             Capture(Camera.main, "shot_bow.png");
+
+            bool savedFog = RenderSettings.fog;
+            RenderSettings.fog = false;
+            cam.SetPositionAndRotation(new Vector3(0f, 1800f, 0f), Quaternion.Euler(90f, 0f, 0f));
+            Capture(Camera.main, "shot_overhead.png");
+            cam.SetPositionAndRotation(body.position + new Vector3(0f, 60f, -120f), Quaternion.identity);
+            cam.LookAt(body.position + Vector3.forward * 150f);
+            Capture(Camera.main, "shot_high.png");
+            RenderSettings.fog = savedFog;
             cam.SetPositionAndRotation(savedPosition, savedRotation);
+
+            var cycle = Object.FindAnyObjectByType<DayNightCycle>();
+            if (cycle != null)
+            {
+                cycle.ClockDriven = false;
+                foreach ((float hour, string file) in new[] { (18.1f, "shot_dusk.png"), (23f, "shot_night.png") })
+                {
+                    cycle.Hour = hour;
+                    yield return null;
+                    yield return null;
+                    Capture(Camera.main, file);
+                }
+                cycle.ClockDriven = true;
+            }
 
             var surface = Object.FindAnyObjectByType<OceanSurface>();
             Assert.IsNotNull(surface, "no OceanSurface in Main scene");
@@ -84,6 +107,15 @@ namespace Knotical.PlayTests
                 Capture(Camera.main, file);
             }
             surface.DebugView = OceanDebugView.Off;
+
+            var mapView = Object.FindAnyObjectByType<MapView>();
+            if (mapView != null && mapView.Texture != null)
+            {
+                string mapPath = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Logs", "shot_map.png"));
+                File.WriteAllBytes(mapPath, mapView.Texture.EncodeToPNG());
+                Debug.Log($"Shot: wrote {mapPath}");
+            }
+
             Debug.Log($"Shot: sea significant height {Ocean.SignificantHeight:F2} m, {Ocean.WaveSet.Count} waves, peak wavelength {Ocean.PeakWavelength:F0} m");
         }
 
@@ -96,6 +128,7 @@ namespace Knotical.PlayTests
             var rt = new RenderTexture(width, height, 24);
             RenderTexture previous = camera.targetTexture;
             camera.targetTexture = rt;
+            Object.FindAnyObjectByType<PlanarReflection>()?.RenderNow();
             camera.Render();
             camera.targetTexture = previous;
 

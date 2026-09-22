@@ -6,22 +6,47 @@ namespace Knotical
     [RequireComponent(typeof(Rigidbody))]
     public class BoatMotor : MonoBehaviour
     {
-        [Min(0f)] public float PropellerStrength = 60000f;
-        [Min(0f)] public float RudderStrength = 40000f;
-        [Min(0f)] public float MaxSpeed = 8f;
-        public Vector3 MotorLocalPosition = new Vector3(0f, -0.8f, -6f);
+        public const int MinGear = -1;
+        public const int MaxGear = 3;
+
+        [Range(0f, 10f)] public float PropellerAcceleration = 2f;
+        [Range(0f, 1f)] public float PutterThrottle = 0.25f;
+        [Range(0f, 10f)] public float PropWash = 4f;
+        [Range(0.1f, 10f)] public float RudderSwingRate = 1.5f;
+        [Range(0f, 1f)] public float RudderLift = 0.08f;
+        [Range(1f, 30f)] public float RudderMaxFlow = 10f;
+        public Vector3 RudderLocalPosition = new Vector3(0f, -0.6f, -6f);
         public bool PlayerControlled = true;
 
+        public int Gear { get; private set; }
         public float Throttle { get; set; }
         public float Steer { get; set; }
+        public float RudderAngle { get; private set; }
         public float ForwardSpeed { get; private set; }
-        public bool MotorSubmerged { get; private set; }
+        public bool RudderSubmerged { get; private set; }
+
+        public float SailSetting => Gear switch
+        {
+            2 => 0.5f,
+            3 => 1f,
+            _ => 0f,
+        };
 
         private Rigidbody body;
 
         private void Awake()
         {
             body = GetComponent<Rigidbody>();
+        }
+
+        public void SetGear(int gear)
+        {
+            Gear = Mathf.Clamp(gear, MinGear, MaxGear);
+        }
+
+        public void SetRudder(float angle)
+        {
+            RudderAngle = Mathf.Clamp(angle, -1f, 1f);
         }
 
         private void Update()
@@ -31,38 +56,43 @@ namespace Knotical
             Keyboard k = Keyboard.current;
             if (k == null) return;
 
-            float throttle = 0f;
-            if (k.wKey.isPressed || k.upArrowKey.isPressed) throttle += 1f;
-            if (k.sKey.isPressed || k.downArrowKey.isPressed) throttle -= 1f;
+            if (k.wKey.wasPressedThisFrame || k.upArrowKey.wasPressedThisFrame) SetGear(Gear + 1);
+            if (k.sKey.wasPressedThisFrame || k.downArrowKey.wasPressedThisFrame) SetGear(Gear - 1);
 
             float steer = 0f;
             if (k.dKey.isPressed || k.rightArrowKey.isPressed) steer += 1f;
             if (k.aKey.isPressed || k.leftArrowKey.isPressed) steer -= 1f;
 
-            Throttle = throttle;
+            Throttle = Gear == 0 ? 0f : Mathf.Sign(Gear) * PutterThrottle;
             Steer = steer;
         }
 
         private void FixedUpdate()
         {
-            Vector3 motorWorld = transform.TransformPoint(MotorLocalPosition);
-            MotorSubmerged = motorWorld.y < Ocean.GetHeight(motorWorld);
-            ForwardSpeed = Vector3.Dot(body.linearVelocity, transform.forward);
+            RudderAngle = Mathf.Clamp(RudderAngle + Mathf.Clamp(Steer, -1f, 1f) * RudderSwingRate * Time.fixedDeltaTime, -1f, 1f);
 
-            if (!MotorSubmerged) return;
+            Vector3 ahead = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
+            if (ahead.sqrMagnitude < 0.0001f) return;
+            ahead.Normalize();
+            Vector3 side = Vector3.ProjectOnPlane(transform.right, Vector3.up).normalized;
 
-            bool underLimit = Mathf.Abs(ForwardSpeed) < MaxSpeed;
-            bool reversing = Throttle < 0f && ForwardSpeed > 0f;
-            if (Throttle != 0f && (underLimit || reversing))
+            Vector3 rudderWorld = transform.TransformPoint(RudderLocalPosition);
+            RudderSubmerged = rudderWorld.y < Ocean.GetHeight(rudderWorld);
+            ForwardSpeed = Vector3.Dot(body.linearVelocity, ahead);
+
+            if (!RudderSubmerged) return;
+
+            float mass = body.mass;
+            if (Throttle != 0f)
             {
-                Vector3 thrustDir = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
-                body.AddForceAtPosition(thrustDir * (PropellerStrength * Throttle), motorWorld, ForceMode.Force);
+                body.AddForceAtPosition(ahead * (mass * PropellerAcceleration * Throttle), rudderWorld, ForceMode.Force);
             }
 
-            if (Steer != 0f && Mathf.Abs(ForwardSpeed) > 0.2f)
+            if (RudderAngle != 0f)
             {
-                float authority = Mathf.Clamp(Mathf.Abs(ForwardSpeed) / MaxSpeed, 0.2f, 1f) * Mathf.Sign(ForwardSpeed);
-                body.AddTorque(Vector3.up * (RudderStrength * Steer * authority), ForceMode.Force);
+                float flow = Mathf.Clamp(ForwardSpeed + PropWash * Throttle, -RudderMaxFlow, RudderMaxFlow);
+                float lift = RudderLift * RudderAngle * flow * Mathf.Abs(flow);
+                body.AddForceAtPosition(-side * (mass * lift), rudderWorld, ForceMode.Force);
             }
         }
     }

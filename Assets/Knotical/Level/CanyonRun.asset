@@ -1,0 +1,102 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a19cd9fd142b460cbc37023cf5442e78, type: 3}
+  m_Name: CanyonRun
+  m_EditorClassIdentifier: Knotical::Knotical.LevelProfile
+  Ocean: {fileID: 11400000, guid: 1dbd1e928d1e494fba23856d54df98ef, type: 2}
+  Extent:
+    Min: 1000
+    Max: 1000
+  IslandScale:
+    Min: 190
+    Max: 250
+  Octaves:
+    Min: 4
+    Max: 5
+  Lacunarity:
+    Min: 2
+    Max: 2.3
+  Gain:
+    Min: 0.5
+    Max: 0.55
+  WarpStrength:
+    Min: 0.5
+    Max: 0.7
+  LandThreshold:
+    Min: 0.46
+    Max: 0.5
+  LandHeight:
+    Min: 35
+    Max: 50
+  LandRange:
+    Min: 0.08
+    Max: 0.12
+  IslandHeightVariation:
+    Min: 0.4
+    Max: 0.6
+  ReliefHeight:
+    Min: 15
+    Max: 25
+  ReliefScale:
+    Min: 50
+    Max: 90
+  BorderStart:
+    Min: 0.75
+    Max: 0.75
+  SpawnClearRadius:
+    Min: 70
+    Max: 70
+  ShelfDepth:
+    Min: 0
+    Max: 1
+  RampSlope:
+    Min: 0.1
+    Max: 0.2
+  MaxDepth:
+    Min: 22
+    Max: 30
+  DepthNoise:
+    Min: 0.3
+    Max: 0.45
+  CanyonScale:
+    Min: 140
+    Max: 200
+  CanyonDepth:
+    Min: 60
+    Max: 80
+  ShoalDepth:
+    Min: 12
+    Max: 16
+  BlockSpacing:
+    Min: 9
+    Max: 11
+  BlockJitter:
+    Min: 0.2
+    Max: 0.4
+  BlockWidthMin:
+    Min: 1.3
+    Max: 1.3
+  BlockWidthMax:
+    Min: 1.9
+    Max: 1.9
+  BlockTilt:
+    Min: 4
+    Max: 8
+  BlockSink:
+    Min: 3
+    Max: 3
+  BlockMinHeight:
+    Min: 0.5
+    Max: 0.5
+  RockHeight:
+    Min: 20
+    Max: 28

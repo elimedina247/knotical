@@ -13,15 +13,15 @@ MonoBehaviour:
   m_Name: OceanSettings
   m_EditorClassIdentifier: Knotical::Knotical.OceanSettings
   Seed: 7
-  Count: 10
+  Count: 14
   Speed: 1
   DirectionDeg: 20
   SpreadDeg: 93.4
-  Distribution: 0.6
-  MinWavelength: 50
+  Distribution: 0.7
+  MinWavelength: 10
   MaxWavelength: 163
-  MinAmplitude: 0.71
-  MaxAmplitude: 0.92
+  MinAmplitude: 0.05
+  MaxAmplitude: 0.9
   MinSteepness: 0.342
   MaxSteepness: 0.22
   ShallowResponse: 0.6

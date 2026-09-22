@@ -1,0 +1,50 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 114c0c700f0945b1833ad5a5a222c4a6, type: 3}
+  m_Name: Mixed
+  m_EditorClassIdentifier: Knotical::Knotical.OceanProfile
+  Count:
+    Min: 12
+    Max: 16
+  Speed:
+    Min: 1
+    Max: 1
+  DirectionDeg:
+    Min: 0
+    Max: 360
+  SpreadDeg:
+    Min: 60
+    Max: 100
+  Distribution:
+    Min: 0.6
+    Max: 0.8
+  MinWavelength:
+    Min: 8
+    Max: 12
+  MaxWavelength:
+    Min: 120
+    Max: 180
+  MinAmplitude:
+    Min: 0.04
+    Max: 0.06
+  MaxAmplitude:
+    Min: 0.7
+    Max: 1.0
+  MinSteepness:
+    Min: 0.34
+    Max: 0.34
+  MaxSteepness:
+    Min: 0.22
+    Max: 0.22
+  ShallowResponse:
+    Min: 0.6
+    Max: 0.6

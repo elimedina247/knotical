@@ -30,7 +30,7 @@ namespace Knotical
             int kernel = shader.FindKernel("Probe");
 
             OceanUniforms.Push();
-            OceanUniforms.Apply(shader);
+            OceanUniforms.Apply(shader, kernel);
 
             var pointBuffer = new ComputeBuffer(count, sizeof(float) * 2);
             var surfaceBuffer = new ComputeBuffer(count, sizeof(float) * 3);

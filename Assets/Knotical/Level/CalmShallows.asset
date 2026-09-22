@@ -1,0 +1,102 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a19cd9fd142b460cbc37023cf5442e78, type: 3}
+  m_Name: CalmShallows
+  m_EditorClassIdentifier: Knotical::Knotical.LevelProfile
+  Ocean: {fileID: 11400000, guid: 3943cd9d6bc44f4a9a9ea525fbe41314, type: 2}
+  Extent:
+    Min: 1000
+    Max: 1000
+  IslandScale:
+    Min: 420
+    Max: 520
+  Octaves:
+    Min: 3
+    Max: 4
+  Lacunarity:
+    Min: 2
+    Max: 2
+  Gain:
+    Min: 0.45
+    Max: 0.5
+  WarpStrength:
+    Min: 0.25
+    Max: 0.4
+  LandThreshold:
+    Min: 0.56
+    Max: 0.6
+  LandHeight:
+    Min: 10
+    Max: 16
+  LandRange:
+    Min: 0.2
+    Max: 0.3
+  IslandHeightVariation:
+    Min: 0.3
+    Max: 0.5
+  ReliefHeight:
+    Min: 4
+    Max: 8
+  ReliefScale:
+    Min: 100
+    Max: 140
+  BorderStart:
+    Min: 0.75
+    Max: 0.75
+  SpawnClearRadius:
+    Min: 80
+    Max: 100
+  ShelfDepth:
+    Min: 0.5
+    Max: 1.5
+  RampSlope:
+    Min: 0.03
+    Max: 0.06
+  MaxDepth:
+    Min: 12
+    Max: 18
+  DepthNoise:
+    Min: 0.1
+    Max: 0.2
+  CanyonScale:
+    Min: 283
+    Max: 283
+  CanyonDepth:
+    Min: 0
+    Max: 0
+  ShoalDepth:
+    Min: 8
+    Max: 12
+  BlockSpacing:
+    Min: 10
+    Max: 12
+  BlockJitter:
+    Min: 0.3
+    Max: 0.5
+  BlockWidthMin:
+    Min: 1.3
+    Max: 1.3
+  BlockWidthMax:
+    Min: 1.9
+    Max: 1.9
+  BlockTilt:
+    Min: 2
+    Max: 4
+  BlockSink:
+    Min: 3
+    Max: 3
+  BlockMinHeight:
+    Min: 0.5
+    Max: 0.5
+  RockHeight:
+    Min: 8
+    Max: 10

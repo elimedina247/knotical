@@ -1,0 +1,49 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 117563c1583b408499e7225404120342, type: 3}
+  m_Name: LevelSettings
+  m_EditorClassIdentifier: Knotical::Knotical.LevelSettings
+  Seed: 3520
+  Extent: 1000
+  Resolution: 256
+  IslandScale: 408
+  Octaves: 4
+  Lacunarity: 2.222
+  Gain: 0.5
+  WarpStrength: 0.638
+  LandThreshold: 0.55
+  LandHeight: 30
+  LandRange: 0.15
+  IslandHeightVariation: 0.4
+  ReliefHeight: 12
+  ReliefScale: 90
+  BorderStart: 0.75
+  SpawnClearRadius: 70
+  ShelfDepth: 0
+  RampSlope: 0.566
+  MaxDepth: 47.9
+  DepthNoise: 0.461
+  CanyonScale: 283
+  CanyonDepth: 3.5
+  ShoalDepth: 16.9
+  BlockSpacing: 8.8
+  BlockJitter: 0.245
+  BlockWidthMin: 1.3
+  BlockWidthMax: 1.9
+  BlockTilt: 4
+  BlockSink: 3
+  BlockMinHeight: 0.5
+  Sand: {r: 0.87, g: 0.8, b: 0.58, a: 1}
+  Grass: {r: 0.42, g: 0.62, b: 0.3, a: 1}
+  Rock: {r: 0.5, g: 0.47, b: 0.42, a: 1}
+  SeaFloor: {r: 0.16, g: 0.24, b: 0.3, a: 1}
+  RockHeight: 18

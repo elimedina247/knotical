@@ -16,6 +16,9 @@ Shader "Knotical/OceanSurface"
         _BandSlopeWeight ("Slope Weight", Range(0, 1)) = 0.65
         _FresnelPower ("Fresnel Power", Range(0.5, 8)) = 4
         _FresnelMax ("Fresnel Max", Range(0, 1)) = 0.16
+        _ReflectionStrength ("Planar Reflection Strength", Range(0, 1)) = 0.7
+        _ReflectionMax ("Planar Reflection Max", Range(0, 1)) = 0.5
+        _ReflectionDistortion ("Planar Reflection Distortion", Range(0, 0.2)) = 0.04
 
         [Header(Light)]
         _LitBand ("Lit Band", Range(0, 1)) = 0.2
@@ -93,6 +96,10 @@ Shader "Knotical/OceanSurface"
             TEXTURE2D(_FoamCapture);
             SAMPLER(sampler_FoamCapture);
             float4 _FoamCaptureParams;
+            TEXTURE2D(_PlanarReflection);
+            SAMPLER(sampler_PlanarReflection);
+            float _PlanarReflectionEnabled;
+            float _KnoticalNight;
 
             CBUFFER_START(UnityPerMaterial)
                 float _DebugView;
@@ -107,6 +114,9 @@ Shader "Knotical/OceanSurface"
                 float _BandSlopeWeight;
                 float _FresnelPower;
                 float _FresnelMax;
+                float _ReflectionStrength;
+                float _ReflectionMax;
+                float _ReflectionDistortion;
                 float _LitBand;
                 float _ShadeLevel;
                 float _GlintStrength;
@@ -158,6 +168,7 @@ Shader "Knotical/OceanSurface"
                 float fadeDist : TEXCOORD2;
                 float trail : TEXCOORD3;
                 float fogFactor : TEXCOORD4;
+                float4 mirrorPos : TEXCOORD5;
             };
 
             float2 FlipSample(float2 uv, float frame)
@@ -202,6 +213,7 @@ Shader "Knotical/OceanSurface"
 
                 OUT.positionWS = surface;
                 OUT.positionCS = TransformWorldToHClip(surface);
+                OUT.mirrorPos = ComputeScreenPos(TransformWorldToHClip(float3(surface.x, 2.0 * _OceanSeaLevel - surface.y, surface.z)));
                 OUT.param = p;
                 OUT.fadeDist = dist;
                 OUT.trail = trail;
@@ -276,10 +288,15 @@ Shader "Knotical/OceanSurface"
                 body *= lerp(0.94, 1.07, OceanFbm(IN.positionWS.xz * 0.0035));
 
                 float fres = pow(1.0 - saturate(dot(nDetail, view)), _FresnelPower);
-                float3 col = lerp(body, _SkyColor.rgb, clamp(fres, 0.0, _FresnelMax));
+                float2 mirrorUv = IN.mirrorPos.xy / max(IN.mirrorPos.w, 1e-4) + nDetail.xz * _ReflectionDistortion;
+                float3 mirror = SAMPLE_TEXTURE2D(_PlanarReflection, sampler_PlanarReflection, mirrorUv).rgb;
+                float planar = _PlanarReflectionEnabled * _ReflectionStrength;
+                float3 skyTint = lerp(_SkyColor.rgb * lerp(1.0, 0.12, _KnoticalNight), mirror, planar);
+                float fresCap = lerp(_FresnelMax, _ReflectionMax, _PlanarReflectionEnabled);
+                float3 col = lerp(body, skyTint, clamp(fres, 0.0, fresCap));
 
                 float towardSun = saturate(dot(view, -light.direction));
-                float sss = pow(towardSun, _SssPower) * saturate(rel) * _SssStrength;
+                float sss = pow(towardSun, _SssPower) * saturate(rel) * _SssStrength * lerp(1.0, 0.15, _KnoticalNight);
                 col = lerp(col, _SssColor.rgb, saturate(sss));
 
                 float2 drift = float2(_OceanTime * _FoamDrift, _OceanTime * _FoamDrift * -0.55);
@@ -323,7 +340,7 @@ Shader "Knotical/OceanSurface"
 
                 float ndl = dot(n, light.direction);
                 float lit = smoothstep(_LitBand - 0.03, _LitBand + 0.03, ndl);
-                float3 lighting = light.color * lerp(_ShadeLevel, 1.0, lit) + SampleSH(n) * 0.15;
+                float3 lighting = light.color * lerp(_ShadeLevel, 1.0, lit) + SampleSH(n) * (0.15 * lerp(1.0, 0.08, _KnoticalNight));
 
                 if (_DebugView > 0.5)
                 {
@@ -332,7 +349,9 @@ Shader "Knotical/OceanSurface"
                     if (_DebugView < 3.5) return half4(saturate(rel * 0.5 + 0.5).xxx, 1.0);
                     if (_DebugView < 4.5) return half4(crestFold, crestHigh, IN.trail * 2.0, 1.0);
                     if (_DebugView < 5.5) return half4(foam.xxx, 1.0);
-                    return half4(saturate(waterDepth / 20.0), atFar ? 1.0 : 0.0, saturate(waterDepth / 2.0), 1.0);
+                    if (_DebugView < 6.5) return half4(saturate(waterDepth / 20.0), atFar ? 1.0 : 0.0, saturate(waterDepth / 2.0), 1.0);
+                    if (_DebugView < 7.5) return half4(mirror, 1.0);
+                    return half4(SAMPLE_TEXTURE2D(_PlanarReflection, sampler_PlanarReflection, uv).rgb, 1.0);
                 }
 
                 float3 final = col * lighting + glint * lerp(_SkyColor.rgb, 1.0, 0.6);

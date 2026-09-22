@@ -23,6 +23,8 @@ Shader "Knotical/VertexColorLit"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
+            float _KnoticalAmbient;
+
             CBUFFER_START(UnityPerMaterial)
                 float4 _Tint;
                 float _ShadeDepth;
@@ -58,7 +60,8 @@ Shader "Knotical/VertexColorLit"
                 Light light = GetMainLight();
                 float ndl = saturate(dot(normalize(IN.normalWS), light.direction));
                 float shade = (1.0 - _ShadeDepth) + _ShadeDepth * ndl;
-                float3 col = IN.color.rgb * _Tint.rgb * shade * light.color;
+                float3 ambient = SampleSH(normalize(IN.normalWS)) * (0.35 * _KnoticalAmbient);
+                float3 col = IN.color.rgb * _Tint.rgb * (shade * light.color + ambient);
                 col = MixFog(col, IN.fogFactor);
                 return half4(col, 1.0);
             }

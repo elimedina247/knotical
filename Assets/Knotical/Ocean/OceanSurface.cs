@@ -13,6 +13,8 @@ namespace Knotical
         Fold = 4,
         Foam = 5,
         Depth = 6,
+        MirrorCorrected = 7,
+        MirrorRaw = 8,
     }
 
     [ExecuteAlways]
@@ -40,11 +42,22 @@ namespace Knotical
         private MeshRenderer rootRenderer;
         private Mesh grid;
         private int builtCells;
+        [System.NonSerialized] private bool hidden;
 
         public OceanDebugView DebugView
         {
             get => debugView;
             set => debugView = value;
+        }
+
+        public bool Hidden
+        {
+            get => hidden;
+            set
+            {
+                hidden = value;
+                ApplyVisibility();
+            }
         }
 
         public float CentreSpacing => levelExtents.Length > 0 ? levelExtents[0] * 2f / cellsPerLevel : 0f;
@@ -137,7 +150,7 @@ namespace Knotical
 
             for (int i = 0; i < levelExtents.Length; i++)
             {
-                var go = new GameObject($"OceanLevel{i}") { hideFlags = HideFlags.HideAndDontSave };
+                var go = new GameObject($"OceanLevel{i}") { hideFlags = HideFlags.HideAndDontSave, layer = LayerMask.NameToLayer("Water") };
                 go.transform.SetParent(transform, false);
                 go.transform.localScale = new Vector3(levelExtents[i], 1f, levelExtents[i]);
 
@@ -150,6 +163,15 @@ namespace Knotical
 
                 levels.Add(renderer);
                 blocks.Add(new MaterialPropertyBlock());
+            }
+            ApplyVisibility();
+        }
+
+        private void ApplyVisibility()
+        {
+            foreach (MeshRenderer level in levels)
+            {
+                if (level != null) level.enabled = !hidden;
             }
         }
 

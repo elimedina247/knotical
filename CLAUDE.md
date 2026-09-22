@@ -26,7 +26,15 @@ project at the same time):
 `--mode PlayMode` runs `Tests/PlayMode/ShotTests`, which floats the boat for 6 s and writes
 `Logs/shot_main.png`: the way to see a change without opening the editor. Regenerating
 the scene or the boat is `-executeMethod Knotical.Editor.SceneBuilder.BuildMain`; the boat
-mesh comes from Blender via `tools/blender/build_boat.py` (see `docs/plan-unity-port.md`).
+is built from Kenney's `ship-large.fbx` by `KenneyBoatBuilder` (physics derived from the
+mesh bounds, collision hull cut at deck height).
+
+`Knotical/Level Lab` (editor window) regenerates the level in edit mode, hides the ocean,
+and frames the Scene camera; it is the way to look at level generation without pressing Play.
+The same PlayMode shot also writes `shot_dusk.png` and `shot_night.png` by forcing the
+`DayNightCycle` hour; the cycle itself is a pure function of `Ocean.Time`, so it stays off
+the network like the ocean and wind. `PlanarReflection` mirrors the main camera below sea
+level each frame; ocean levels sit on the built-in Water layer so the mirror skips them.
 
 Runtime code lives in the `Knotical` assembly (`Assets/Knotical/Knotical.asmdef`), editor
 tools in `Knotical.Editor`, tests in `Knotical.Tests` (EditMode) and `Knotical.PlayTests`.

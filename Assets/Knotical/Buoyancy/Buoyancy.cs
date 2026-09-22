@@ -21,6 +21,7 @@ namespace Knotical
         [Range(0.5f, 30f)] public float MaxDragSpeed = 8f;
         [Range(0f, 8f)] public float AngularDrag = 0.8f;
         [Range(0f, 1f)] public float TiltResponse = 1f;
+        [Range(0f, 1f)] public float SlopeResponse = 1f;
         [Range(0f, 3f)] public float ShortWaveFilter;
         public bool ApplyWaveNormal;
         [Range(0f, 20f)] public float WaveNormalGain = 3f;
@@ -127,9 +128,16 @@ namespace Knotical
 
                 wetSum += s;
 
-                Vector3 velocity = body.GetPointVelocity(p);
+                Vector3 velocity = body.GetPointVelocity(p) - Ocean.GetFlow(p, cutoff);
 
-                Vector3 f = Vector3.up * (Gravity * capacity * s);
+                Vector3 up = Vector3.up;
+                if (SlopeResponse > 0f)
+                {
+                    Vector3 normal = Ocean.GetNormal(new Vector2(p.x, p.z), cutoff);
+                    up = Vector3.Lerp(Vector3.up, normal, SlopeResponse).normalized;
+                }
+
+                Vector3 f = up * (Gravity * capacity * s);
 
                 f.y -= (DampingFactor1 * velocity.y + DampingFactor2 * velocity.y * Mathf.Abs(velocity.y))
                     * s * capacity;
