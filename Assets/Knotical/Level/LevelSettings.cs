@@ -46,6 +46,13 @@ namespace Knotical
         [Range(0f, 5f)] public float BlockRise = 1f;
         [Range(0f, 5f)] public float BlockMinHeight = 0.5f;
 
+        [Header("Scatter")]
+        [Range(0f, 10f)] public float TreesPerCliff = 1.5f;
+        [Range(0f, 10f)] public float BushesPerCliff = 2f;
+        [Range(0f, 0.6f)] public float ScatterMargin = 0.3f;
+        [Range(0f, 0.6f)] public float ScatterScaleJitter = 0.25f;
+        [Range(0.5f, 1f)] public float ScatterMinSlope = 0.85f;
+
         [Header("Colours")]
         public Color Sand = new Color(0.87f, 0.80f, 0.58f);
         public Color Grass = new Color(0.42f, 0.62f, 0.30f);

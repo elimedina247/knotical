@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace Knotical
 {
@@ -12,15 +11,12 @@ namespace Knotical
         [Range(0f, 10f)] public float PropellerAcceleration = 2f;
         [Range(0f, 1f)] public float PutterThrottle = 0.25f;
         [Range(0f, 10f)] public float PropWash = 4f;
-        [Range(0.1f, 10f)] public float RudderSwingRate = 1.5f;
         [Range(0f, 1f)] public float RudderLift = 0.08f;
         [Range(1f, 30f)] public float RudderMaxFlow = 10f;
         public Vector3 RudderLocalPosition = new Vector3(0f, -0.6f, -6f);
-        public bool PlayerControlled = true;
 
         public int Gear { get; private set; }
         public float Throttle { get; set; }
-        public float Steer { get; set; }
         public float RudderAngle { get; private set; }
         public float ForwardSpeed { get; private set; }
         public bool RudderSubmerged { get; private set; }
@@ -42,6 +38,7 @@ namespace Knotical
         public void SetGear(int gear)
         {
             Gear = Mathf.Clamp(gear, MinGear, MaxGear);
+            Throttle = Gear == 0 ? 0f : Mathf.Sign(Gear) * PutterThrottle;
         }
 
         public void SetRudder(float angle)
@@ -49,28 +46,8 @@ namespace Knotical
             RudderAngle = Mathf.Clamp(angle, -1f, 1f);
         }
 
-        private void Update()
-        {
-            if (!PlayerControlled) return;
-
-            Keyboard k = Keyboard.current;
-            if (k == null) return;
-
-            if (k.wKey.wasPressedThisFrame || k.upArrowKey.wasPressedThisFrame) SetGear(Gear + 1);
-            if (k.sKey.wasPressedThisFrame || k.downArrowKey.wasPressedThisFrame) SetGear(Gear - 1);
-
-            float steer = 0f;
-            if (k.dKey.isPressed || k.rightArrowKey.isPressed) steer += 1f;
-            if (k.aKey.isPressed || k.leftArrowKey.isPressed) steer -= 1f;
-
-            Throttle = Gear == 0 ? 0f : Mathf.Sign(Gear) * PutterThrottle;
-            Steer = steer;
-        }
-
         private void FixedUpdate()
         {
-            RudderAngle = Mathf.Clamp(RudderAngle + Mathf.Clamp(Steer, -1f, 1f) * RudderSwingRate * Time.fixedDeltaTime, -1f, 1f);
-
             Vector3 ahead = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
             if (ahead.sqrMagnitude < 0.0001f) return;
             ahead.Normalize();

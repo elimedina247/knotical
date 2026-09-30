@@ -26,9 +26,8 @@ namespace Knotical.PlayTests
 
             yield return Settle(3f);
 
-            motor.PlayerControlled = false;
             motor.Throttle = 0f;
-            motor.Steer = 0f;
+            motor.SetRudder(0f);
             Vector2 wind = Wind.Velocity;
             var downwind = new Vector3(wind.x, 0f, wind.y).normalized;
             body.rotation = Quaternion.LookRotation(downwind, Vector3.up);
@@ -53,7 +52,7 @@ namespace Knotical.PlayTests
             float straightSpeed = motor.ForwardSpeed;
             Debug.Log($"Sail: downwind full sail peak {peakSpeed:F2} m/s, settled {straightSpeed:F2} m/s at wind {Wind.Speed:F1} m/s");
 
-            motor.Steer = 1f;
+            motor.SetRudder(1f);
             float heading = Heading(body);
             float turned = 0f;
             float minSpeed = straightSpeed;
@@ -75,7 +74,6 @@ namespace Knotical.PlayTests
             }
             Debug.Log($"Sail: hard starboard 15 s: turned {turned:F0} deg, 90 deg at {time90:F1} s, peak yaw {peakYawRate:F1} deg/s, speed {straightSpeed:F2} -> min {minSpeed:F2} -> now {motor.ForwardSpeed:F2} m/s, peak heel {peakHeel:F1} deg, rudder {motor.RudderAngle:F2}");
 
-            motor.Steer = 0f;
             motor.SetRudder(0f);
             heading = Heading(body);
             float drift = 0f;

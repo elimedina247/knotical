@@ -37,8 +37,8 @@ MonoBehaviour:
     Min: 0.04
     Max: 0.06
   MaxAmplitude:
-    Min: 0.7
-    Max: 1.0
+    Min: 1
+    Max: 20
   MinSteepness:
     Min: 0.34
     Max: 0.34

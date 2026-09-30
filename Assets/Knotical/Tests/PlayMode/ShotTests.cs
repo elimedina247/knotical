@@ -45,7 +45,6 @@ namespace Knotical.PlayTests
             Assert.Greater(maxWetness, 0.05f, "no pontoon was wet during seconds 3 to 6");
 
             Vector3 start = body.position;
-            motor.PlayerControlled = false;
             motor.Throttle = 0.6f;
             motor.SetRudder(0.12f);
             elapsed = 0f;

@@ -65,6 +65,8 @@ Material:
     - _GlintStrength: 0.5
     - _InnerExtent: 0
     - _LitBand: 0.2
+    - _ReflectionDistortion: 0.04
+    - _ReflectionMax: 0.5
     - _ReflectionStrength: 0.8
     - _ShadeDepth: 0.818
     - _ShadeLevel: 0.82

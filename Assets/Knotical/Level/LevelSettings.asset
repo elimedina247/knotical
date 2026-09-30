@@ -24,6 +24,7 @@ MonoBehaviour:
   LandHeight: 30
   LandRange: 0.15
   IslandHeightVariation: 0.4
+  ShoreRise: 40
   ReliefHeight: 12
   ReliefScale: 90
   BorderStart: 0.75
@@ -41,7 +42,13 @@ MonoBehaviour:
   BlockWidthMax: 1.9
   BlockTilt: 4
   BlockSink: 3
+  BlockRise: 1
   BlockMinHeight: 0.5
+  TreesPerCliff: 1.5
+  BushesPerCliff: 2
+  ScatterMargin: 0.3
+  ScatterScaleJitter: 0.25
+  ScatterMinSlope: 0.85
   Sand: {r: 0.87, g: 0.8, b: 0.58, a: 1}
   Grass: {r: 0.42, g: 0.62, b: 0.3, a: 1}
   Rock: {r: 0.5, g: 0.47, b: 0.42, a: 1}

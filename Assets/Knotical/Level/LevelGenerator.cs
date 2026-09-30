@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Knotical
@@ -11,8 +12,20 @@ namespace Knotical
         [SerializeField] private Material terrainMaterial;
         [SerializeField] private Material blockMaterial;
         [SerializeField] private GameObject blockPrefab;
+        [SerializeField] private GameObject[] treePrefabs;
+        [SerializeField] private GameObject[] bushPrefabs;
 
         private const string GeneratedName = "Generated";
+        private const float ScatterReferenceArea = 225f;
+
+        private struct PlacedBlock
+        {
+            public Vector2 Centre;
+            public float Yaw;
+            public float HalfWidth;
+            public float HalfDepth;
+            public float Top;
+        }
 
         private Transform root;
         private Mesh terrainMesh;
@@ -20,6 +33,8 @@ namespace Knotical
         private LevelSettings rolled;
         private OceanSettings oceanBase;
         private OceanSettings rolledOcean;
+        private readonly List<PlacedBlock> placed = new List<PlacedBlock>();
+        private readonly RaycastHit[] hits = new RaycastHit[8];
 
         public LevelData Data { get; private set; }
         public Heightmap Heightmap => Data?.Heightmap;
@@ -29,6 +44,7 @@ namespace Knotical
         public LevelSettings Active => rolled != null ? rolled : settings;
         public OceanSettings ActiveOcean => rolledOcean != null ? rolledOcean : Ocean.Settings;
         public int BlockCount { get; private set; }
+        public int ScatterCount { get; private set; }
         public int Generation { get; private set; }
         public bool HasGenerated => transform.Find(GeneratedName) != null;
 
@@ -58,10 +74,11 @@ namespace Knotical
             root.gameObject.hideFlags = HideFlags.DontSave;
 
             BuildTerrain();
-            PlaceBlocks();
+            Transform blocks = PlaceBlocks();
+            Scatter(blocks);
             MarkDontSave(root);
             Generation++;
-            Debug.Log($"LevelGenerator: seed {active.Seed}, {Data.LandCells} land cells of {Data.Land.Length}, {BlockCount} blocks");
+            Debug.Log($"LevelGenerator: seed {active.Seed}, {Data.LandCells} land cells of {Data.Land.Length}, {BlockCount} blocks, {ScatterCount} scattered props");
         }
 
         private void RollOcean()
@@ -103,6 +120,8 @@ namespace Knotical
             depthMap = null;
             Data = null;
             BlockCount = 0;
+            ScatterCount = 0;
+            placed.Clear();
         }
 
         private void DestroyStale()
@@ -129,7 +148,7 @@ namespace Knotical
             terrain.AddComponent<MeshCollider>().sharedMesh = terrainMesh;
         }
 
-        private void PlaceBlocks()
+        private Transform PlaceBlocks()
         {
             var blocks = new GameObject("Blocks").transform;
             blocks.SetParent(root, false);
@@ -144,6 +163,7 @@ namespace Knotical
                     blockMaterial != null ? blockMaterial : FallbackMaterial(new Color(0.55f, 0.5f, 0.45f));
             }
 
+            Bounds footprint = Footprint(template);
             LevelSettings active = Active;
             var rng = new System.Random(active.Seed * 7919 + 13);
             Heightmap map = Data.Heightmap;
@@ -174,17 +194,116 @@ namespace Knotical
                     top = Mathf.Max(top, map.Sample(p + new Vector2(reach, -reach)));
                     top = Mathf.Max(top, map.Sample(p + new Vector2(-reach, -reach)));
                     float height = top + active.BlockRise + active.BlockSink;
-                    GameObject block = Instantiate(template, blocks);
-                    block.name = "Cliff";
-                    block.transform.localPosition = new Vector3(p.x, height * 0.5f - active.BlockSink, p.y);
+                    var scale = new Vector3(width / footprint.size.x, height / footprint.size.y, depth / footprint.size.z);
+                    var block = new GameObject("Cliff");
+                    block.transform.SetParent(blocks, false);
+                    block.transform.localPosition = new Vector3(p.x, -active.BlockSink - footprint.min.y * scale.y, p.y);
                     block.transform.localRotation = Quaternion.Euler(tiltX, yaw, tiltZ);
-                    block.transform.localScale = new Vector3(width, height, depth);
+                    block.transform.localScale = scale;
+                    GameObject model = Instantiate(template, block.transform);
+                    model.name = "Model";
+                    model.transform.localPosition = template.transform.position;
+                    model.transform.localRotation = template.transform.rotation;
+                    placed.Add(new PlacedBlock { Centre = p, Yaw = yaw, HalfWidth = width * 0.5f, HalfDepth = depth * 0.5f, Top = top + active.BlockRise });
                     BlockCount++;
                 }
             }
 
-            if (ownsTemplate) DestroyNow(template);
-            StaticBatchingUtility.Combine(blocks.gameObject);
+            if (ownsTemplate)
+            {
+                DestroyNow(template);
+                StaticBatchingUtility.Combine(blocks.gameObject);
+            }
+            return blocks;
+        }
+
+        private static Bounds Footprint(GameObject template)
+        {
+            Matrix4x4 toRoot = Matrix4x4.Translate(-template.transform.position);
+            var bounds = new Bounds(Vector3.zero, Vector3.zero);
+            bool first = true;
+            foreach (MeshFilter filter in template.GetComponentsInChildren<MeshFilter>())
+            {
+                if (filter.sharedMesh == null) continue;
+                Matrix4x4 m = toRoot * filter.transform.localToWorldMatrix;
+                Bounds b = filter.sharedMesh.bounds;
+                for (int corner = 0; corner < 8; corner++)
+                {
+                    var local = new Vector3(
+                        (corner & 1) == 0 ? b.min.x : b.max.x,
+                        (corner & 2) == 0 ? b.min.y : b.max.y,
+                        (corner & 4) == 0 ? b.min.z : b.max.z);
+                    Vector3 p = m.MultiplyPoint3x4(local);
+                    if (first) { bounds = new Bounds(p, Vector3.zero); first = false; }
+                    else bounds.Encapsulate(p);
+                }
+            }
+            if (first) return new Bounds(Vector3.zero, Vector3.one);
+            bounds.size = Vector3.Max(bounds.size, Vector3.one * 0.01f);
+            return bounds;
+        }
+
+        private void Scatter(Transform blocks)
+        {
+            bool trees = treePrefabs != null && treePrefabs.Length > 0;
+            bool bushes = bushPrefabs != null && bushPrefabs.Length > 0;
+            if (!trees && !bushes) return;
+
+            LevelSettings active = Active;
+            if (active.TreesPerCliff <= 0f && active.BushesPerCliff <= 0f) return;
+
+            Physics.SyncTransforms();
+            var group = new GameObject("Scatter").transform;
+            group.SetParent(root, false);
+            var rng = new System.Random(active.Seed * 104729 + 7);
+
+            foreach (PlacedBlock block in placed)
+            {
+                float area = 4f * block.HalfWidth * block.HalfDepth;
+                float density = area / ScatterReferenceArea;
+                int treeCount = trees ? Count(rng, active.TreesPerCliff * density) : 0;
+                int bushCount = bushes ? Count(rng, active.BushesPerCliff * density) : 0;
+
+                for (int i = 0; i < treeCount; i++) Drop(rng, block, blocks, group, treePrefabs, active, true);
+                for (int i = 0; i < bushCount; i++) Drop(rng, block, blocks, group, bushPrefabs, active, false);
+            }
+        }
+
+        private static int Count(System.Random rng, float mean)
+        {
+            int whole = Mathf.FloorToInt(mean);
+            return rng.NextDouble() < mean - whole ? whole + 1 : whole;
+        }
+
+        private void Drop(System.Random rng, PlacedBlock block, Transform blocks, Transform group, GameObject[] prefabs, LevelSettings active, bool upright)
+        {
+            float u = Mathf.Sqrt((float)rng.NextDouble()) * (1f - active.ScatterMargin);
+            float angle = (float)rng.NextDouble() * 2f * Mathf.PI;
+            Vector3 offset = Quaternion.Euler(0f, block.Yaw, 0f) * new Vector3(Mathf.Cos(angle) * u * block.HalfWidth, 0f, Mathf.Sin(angle) * u * block.HalfDepth);
+            Vector3 from = transform.TransformPoint(new Vector3(block.Centre.x, block.Top + 4f, block.Centre.y) + offset);
+
+            int count = Physics.RaycastNonAlloc(from, Vector3.down, hits, 10f, ~0, QueryTriggerInteraction.Ignore);
+            int best = -1;
+            float nearest = float.MaxValue;
+            for (int i = 0; i < count; i++)
+            {
+                if (hits[i].distance >= nearest || !hits[i].collider.transform.IsChildOf(blocks)) continue;
+                nearest = hits[i].distance;
+                best = i;
+            }
+            if (best < 0 || hits[best].normal.y < active.ScatterMinSlope) return;
+
+            GameObject prefab = prefabs[rng.Next(prefabs.Length)];
+            if (prefab == null) return;
+            float yaw = (float)rng.NextDouble() * 360f;
+            Quaternion spin = Quaternion.Euler(0f, yaw, 0f);
+            Quaternion lean = upright ? Quaternion.identity : Quaternion.FromToRotation(Vector3.up, hits[best].normal);
+            float scale = 1f + ((float)rng.NextDouble() * 2f - 1f) * active.ScatterScaleJitter;
+
+            GameObject prop = Instantiate(prefab, group);
+            prop.transform.SetPositionAndRotation(hits[best].point, lean * spin * prefab.transform.rotation);
+            prop.transform.localScale = Vector3.one * scale;
+            ScatterCount++;
         }
 
         private static Material FallbackMaterial(Color tint)

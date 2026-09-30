@@ -26,6 +26,9 @@ namespace Knotical.Editor
         private const string CliffMaterialPath = "Assets/Knotical/World/Cliff.mat";
         private const string CloudMaterialPath = "Assets/Knotical/World/Cloud.mat";
         private const string DayNightSettingsPath = "Assets/Knotical/World/DayNightSettings.asset";
+        private const string CliffPrefabPath = "Assets/Knotical/World/Props/Cliff.prefab";
+        private const string TreePrefabPath = "Assets/Knotical/World/Props/Tree.prefab";
+        private const string BushPrefabPath = "Assets/Knotical/World/Props/Bush.prefab";
 
         [MenuItem("Knotical/Build Main Scene")]
         public static void BuildMain()
@@ -57,8 +60,8 @@ namespace Knotical.Editor
             var boat = (GameObject)PrefabUtility.InstantiatePrefab(boatPrefab);
             boat.name = "Boat";
             boat.transform.position = new Vector3(0f, 1f, 0f);
-            PlaceStandIn(boat, "player_spawn");
             PlaceStandIn(boat, "cargo");
+            PlacePlayer(boat);
 
             new GameObject("FoamCapture").AddComponent<FoamCapture>();
             BuildLevel();
@@ -67,19 +70,6 @@ namespace Knotical.Editor
             BuildFillerShips();
             new GameObject("Hud").AddComponent<Hud>();
             new GameObject("Map").AddComponent<MapView>();
-
-            Camera camera = Camera.main;
-            if (camera != null)
-            {
-                camera.transform.position = new Vector3(0f, 8f, -25f);
-                camera.transform.LookAt(new Vector3(0f, 0f, 30f));
-                camera.farClipPlane = 20000f;
-                UniversalAdditionalCameraData cameraData = camera.GetUniversalAdditionalCameraData();
-                cameraData.renderPostProcessing = true;
-                cameraData.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
-                var chase = camera.gameObject.AddComponent<ChaseCamera>();
-                chase.Target = boat.transform;
-            }
 
             var light = Object.FindAnyObjectByType<Light>();
             if (light != null)
@@ -122,6 +112,9 @@ namespace Knotical.Editor
             SetReference(generator, "settings", settings);
             SetReference(generator, "terrainMaterial", terrain);
             SetReference(generator, "blockMaterial", cliff);
+            SetReference(generator, "blockPrefab", AssetDatabase.LoadAssetAtPath<GameObject>(CliffPrefabPath));
+            SetReferences(generator, "treePrefabs", AssetDatabase.LoadAssetAtPath<GameObject>(TreePrefabPath));
+            SetReferences(generator, "bushPrefabs", AssetDatabase.LoadAssetAtPath<GameObject>(BushPrefabPath));
             return generator;
         }
 
@@ -228,6 +221,22 @@ namespace Knotical.Editor
             Debug.Log($"SceneBuilder: {ship.name} bounds {bounds.min} .. {bounds.max} ({bounds.size.z:F1} x {bounds.size.x:F1} m)");
         }
 
+        private static void PlacePlayer(GameObject boat)
+        {
+            foreach (Camera stock in Object.FindObjectsByType<Camera>())
+            {
+                Object.DestroyImmediate(stock.gameObject);
+            }
+
+            GameObject prefab = PlayerBuilder.BuildPrefab();
+            var player = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            player.name = "Player";
+
+            Transform spawn = boat.transform.Find("Attach/player_spawn");
+            Vector3 at = spawn != null ? spawn.position : boat.transform.position + Vector3.up * 2f;
+            player.transform.SetPositionAndRotation(at + Vector3.up * 0.05f, Quaternion.LookRotation(boat.transform.forward, Vector3.up));
+        }
+
         private static void PlaceStandIn(GameObject boat, string attachName)
         {
             Transform attach = boat.transform.Find("Attach/" + attachName);
@@ -327,6 +336,15 @@ namespace Knotical.Editor
             material = new Material(shader);
             AssetDatabase.CreateAsset(material, MaterialPath);
             return material;
+        }
+
+        private static void SetReferences(Object target, string field, params Object[] values)
+        {
+            var serialized = new SerializedObject(target);
+            SerializedProperty array = serialized.FindProperty(field);
+            array.arraySize = values.Length;
+            for (int i = 0; i < values.Length; i++) array.GetArrayElementAtIndex(i).objectReferenceValue = values[i];
+            serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 
         private static void SetReference(Object target, string field, Object value)

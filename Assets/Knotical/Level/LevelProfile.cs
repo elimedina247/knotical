@@ -47,6 +47,13 @@ namespace Knotical
         public FloatRange BlockRise = new FloatRange(1f);
         public FloatRange BlockMinHeight = new FloatRange(0.5f);
 
+        [Header("Scatter")]
+        public FloatRange TreesPerCliff = new FloatRange(1.5f);
+        public FloatRange BushesPerCliff = new FloatRange(2f);
+        public FloatRange ScatterMargin = new FloatRange(0.3f);
+        public FloatRange ScatterScaleJitter = new FloatRange(0.25f);
+        public FloatRange ScatterMinSlope = new FloatRange(0.85f);
+
         [Header("Colours")]
         public FloatRange RockHeight = new FloatRange(10f);
 
